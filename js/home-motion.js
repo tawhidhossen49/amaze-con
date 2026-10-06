@@ -146,19 +146,26 @@
   }
 
   if (pre) {
-    // The counter runs to 90 on a timer, then finishes when the first pass of
-    // hero frames is in (or after a short cap) — nobody waits on all 120.
+    // The crest outline is traced in step with the counter. Both run to 90 on
+    // a timer, then finish when the first pass of hero frames is in (or after
+    // a short cap) — nobody waits on all 120. Then the mark fills, the frame
+    // clears, and the two panels part along the centre line.
     const counter = pre.querySelector('.preloader__count');
+    const draw = pre.querySelector('.preloader__draw');
     const count = { v: 0 };
-    const show = () => { counter.textContent = String(Math.round(count.v)).padStart(3, '0'); };
+    const show = () => {
+      counter.textContent = String(Math.round(count.v)).padStart(3, '0');
+      draw.style.strokeDashoffset = 1 - count.v / 100;
+    };
     const framesIn = seq ? Promise.race([seq.firstPass, new Promise((r) => setTimeout(r, 2600))]) : Promise.resolve();
-    gsap.to(count, { v: 90, duration: 1.1, ease: 'power2.inOut', onUpdate: show });
-    gsap.to('.preloader__bar', { scaleX: 0.9, duration: 1.1, ease: 'power2.inOut' });
-    Promise.all([framesIn, new Promise((r) => setTimeout(r, 1100))]).then(() => {
+    gsap.to(count, { v: 90, duration: 1.3, ease: 'power2.inOut', onUpdate: show });
+    Promise.all([framesIn, new Promise((r) => setTimeout(r, 1300))]).then(() => {
       gsap.timeline()
-        .to(count, { v: 100, duration: 0.3, ease: 'power2.out', onUpdate: show }, 0)
-        .to('.preloader__bar', { scaleX: 1, duration: 0.3, ease: 'power2.out' }, 0)
-        .to(pre, { yPercent: -100, duration: 0.9, ease: 'expo.inOut', onStart: release, onComplete: () => pre.remove() }, 0.3);
+        .to(count, { v: 100, duration: 0.35, ease: 'power2.out', onUpdate: show }, 0)
+        .to(draw, { fillOpacity: 1, duration: 0.4, ease: 'power2.out' }, 0.3)
+        .to('.preloader__frame', { autoAlpha: 0, scale: 0.96, duration: 0.45, ease: 'power2.in' }, 0.8)
+        .to('.preloader__panel--top', { yPercent: -100, duration: 1, ease: 'expo.inOut', onStart: release }, 1.1)
+        .to('.preloader__panel--bottom', { yPercent: 100, duration: 1, ease: 'expo.inOut', onComplete: () => pre.remove() }, 1.1);
     });
   } else {
     release();
