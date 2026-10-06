@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>privacy policy — amaze consortium</title>
+<link rel="icon" href="amazelogo.ico" type="image/x-icon">
+<style>
+:root { --black:#000; --dark:#0d0d0d; --green:#2ef2a2; --white:#fff; --border:#1a1a1a; }
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--black);color:var(--white);font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;font-weight:300;overflow-x:hidden;}
+::-webkit-scrollbar{width:2px;}::-webkit-scrollbar-track{background:var(--black);}::-webkit-scrollbar-thumb{background:var(--green);}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:200px 200px;pointer-events:none;z-index:9000;opacity:0.5;}
+
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:24px 60px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(46,242,162,0.08);transition:all 0.4s;}
+.nav-brand{font-size:13px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-decoration:none;text-transform:lowercase;}
+.nav-brand span{color:var(--green);}
+.nav-back{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.4);text-decoration:none;text-transform:lowercase;transition:color 0.3s;display:flex;align-items:center;gap:8px;}
+.nav-back:hover{color:var(--green);}
+.nav-logo img { height: 36px; }
+.nav-logo span {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.2em;
+  color: var(--white); text-transform: lowercase;
+}
+
+/* hero */
+.page-hero{padding:140px 60px 80px;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
+.page-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 0% 50%,rgba(46,242,162,0.04) 0%,transparent 70%);}
+.hero-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1;}
+.page-tag{display:inline-block;border:1px solid rgba(46,242,162,0.25);color:var(--green);font-size:9px;letter-spacing:0.3em;padding:6px 14px;text-transform:lowercase;margin-bottom:28px;}
+.page-h1{font-size:clamp(44px,6vw,80px);font-weight:800;letter-spacing:-0.03em;text-transform:lowercase;line-height:0.95;margin-bottom:24px;}
+.page-h1 em{color:var(--green);font-style:normal;}
+.page-meta{display:flex;gap:40px;flex-wrap:wrap;margin-top:32px;}
+.meta-item{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.3);text-transform:lowercase;}
+.meta-item span{color:rgba(255,255,255,0.6);display:block;margin-top:4px;}
+
+/* layout */
+.doc-layout{max-width:1200px;margin:0 auto;padding:80px 60px;display:grid;grid-template-columns:260px 1fr;gap:80px;align-items:start;}
+.doc-toc{position:sticky;top:100px;}
+.toc-label{font-size:9px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:20px;display:block;}
+.toc-list{list-style:none;display:flex;flex-direction:column;gap:2px;}
+.toc-list a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.3);text-decoration:none;text-transform:lowercase;padding:10px 14px;border-left:2px solid transparent;transition:all 0.25s;display:block;line-height:1.4;}
+.toc-list a:hover{color:var(--green);border-left-color:var(--green);background:rgba(46,242,162,0.03);}
+.toc-list a.active{color:var(--green);border-left-color:var(--green);}
+
+/* content */
+.doc-section{padding:56px 0;border-bottom:1px solid var(--border);}
+.doc-section:last-child{border-bottom:none;}
+.sec-num{font-size:10px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:16px;display:block;}
+.sec-title{font-size:clamp(20px,2.5vw,30px);font-weight:700;letter-spacing:-0.02em;text-transform:lowercase;margin-bottom:28px;line-height:1.1;}
+.doc-p{font-size:14px;line-height:1.9;color:rgba(255,255,255,0.55);margin-bottom:16px;font-weight:300;}
+.doc-p:last-child{margin-bottom:0;}
+.doc-p strong{color:rgba(255,255,255,0.8);font-weight:500;}
+.doc-ul{list-style:none;margin:16px 0;display:flex;flex-direction:column;gap:10px;}
+.doc-ul li{font-size:14px;line-height:1.7;color:rgba(255,255,255,0.5);padding-left:20px;position:relative;}
+.doc-ul li::before{content:'◈';position:absolute;left:0;color:var(--green);font-size:8px;top:5px;}
+.doc-highlight{background:rgba(46,242,162,0.04);border:1px solid rgba(46,242,162,0.12);border-left:2px solid var(--green);padding:20px 24px;margin:24px 0;}
+.doc-highlight p{font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8;margin:0;}
+
+/* footer */
+footer{background:var(--dark);border-top:1px solid var(--border);padding:40px 60px;}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;}
+.footer-brand{font-size:12px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-transform:lowercase;}
+.footer-brand span{color:var(--green);}
+.footer-links{display:flex;gap:24px;list-style:none;}
+.footer-links a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.25);text-decoration:none;text-transform:lowercase;transition:color 0.3s;}
+.footer-links a:hover{color:var(--green);}
+.footer-copy{font-size:11px;color:rgba(255,255,255,0.18);letter-spacing:0.05em;}
+
+/* responsive */
+@media(max-width:900px){
+  nav{padding:18px 24px;}
+  .page-hero{padding:120px 24px 60px;}
+  .doc-layout{grid-template-columns:1fr;padding:48px 24px;gap:0;}
+  .doc-toc{display:none;}
+  footer{padding:32px 24px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-logo" style="text-decoration:none;display:flex;align-items:center;gap:12px;">
+    <img src="../img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <span style="display:none;font-size:16px;font-weight:800;letter-spacing:0.1em;">amaze</span>
+  </a>
+  <a href="../index.html" class="nav-back">← back to main site</a>
+</nav>
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="page-tag">legal document</div>
+    <h1 class="page-h1">privacy<br><em>policy</em></h1>
+    <div class="page-meta">
+      <div class="meta-item">effective date <span>july 13, 2026</span></div>
+      <div class="meta-item">document type <span>privacy policy</span></div>
+      <div class="meta-item">jurisdiction <span>bangladesh</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="doc-layout">
+  <aside class="doc-toc">
+    <span class="toc-label">// contents</span>
+    <ul class="toc-list">
+      <li><a href="#collect">01 — collection</a></li>
+      <li><a href="#use">02 — usage</a></li>
+      <li><a href="#legal-basis">03 — legal basis</a></li>
+      <li><a href="#cookies">04 — cookies</a></li>
+      <li><a href="#sharing">05 — sharing</a></li>
+      <li><a href="#public-info">06 — public info</a></li>
+      <li><a href="#retention">07 — retention</a></li>
+      <li><a href="#security">08 — security</a></li>
+      <li><a href="#rights">09 — your rights</a></li>
+      <li><a href="#children">10 — children</a></li>
+      <li><a href="#international">11 — international</a></li>
+      <li><a href="#third-party">12 — third-party</a></li>
+      <li><a href="#changes">13 — changes</a></li>
+      <li><a href="#contact">14 — contact</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+
+    <div class="doc-highlight">
+      <p>amaze consortium ("amaze consortium," "we," "our," or "us") respects your privacy and is committed to protecting your personal information. by using our services, you acknowledge that you have read and understood this privacy policy.</p>
+    </div>
+
+    <div class="doc-section" id="collect">
+      <span class="sec-num">// 01</span>
+      <div class="sec-title">information we collect</div>
+      <p class="doc-p">we may collect the following categories of information:</p>
+      
+      <p class="doc-p" style="margin-top: 20px;"><strong>personal information</strong><br>depending on the services you use, we may collect information including:</p>
+      <ul class="doc-ul">
+        <li>full name, email address, phone number, and date of birth</li>
+        <li>country of residence and educational institution</li>
+        <li>membership id and profile photograph (if voluntarily provided)</li>
+        <li>emergency contact information (when required for specific events or programs)</li>
+      </ul>
+
+      <p class="doc-p" style="margin-top: 20px;"><strong>account information</strong><br>when you create an account, we may collect:</p>
+      <ul class="doc-ul">
+        <li>username, encrypted password, login history, and account preferences</li>
+      </ul>
+      <p class="doc-p">passwords are stored in a secure, encrypted or hashed format. we do not store passwords in plain text.</p>
+
+      <p class="doc-p" style="margin-top: 20px;"><strong>application information</strong><br>if you apply for membership, volunteer roles, leadership positions, scholarships, or programs, we may collect:</p>
+      <ul class="doc-ul">
+        <li>application responses, resume or cv, portfolio links, supporting documents, interview evaluations, and participation history</li>
+      </ul>
+
+      <p class="doc-p" style="margin-top: 20px;"><strong>payment information</strong><br>if fees or donations are accepted, we may collect payment-related information necessary to process transactions. we do not intentionally store complete payment card information on our servers unless required for a specific service and protected using appropriate security measures.</p>
+
+      <p class="doc-p" style="margin-top: 20px;"><strong>technical information</strong><br>when you use our services, we may automatically collect:</p>
+      <ul class="doc-ul">
+        <li>ip address, browser type, device information, and operating system</li>
+        <li>pages visited, date and time of access, referring website, and error logs</li>
+        <li>cookies and similar technologies</li>
+      </ul>
+    </div>
+
+    <div class="doc-section" id="use">
+      <span class="sec-num">// 02</span>
+      <div class="sec-title">how we use your information</div>
+      <p class="doc-p">we use personal information to:</p>
+      <ul class="doc-ul">
+        <li>process membership applications and manage member accounts</li>
+        <li>verify identity and provide access to the membership portal</li>
+        <li>organize events and programs, and communicate important updates</li>
+        <li>improve our services, respond to inquiries, and provide technical support</li>
+        <li>maintain security, prevent fraud and abuse, and conduct internal reporting/analytics</li>
+        <li>comply with legal obligations</li>
+      </ul>
+      <p class="doc-p">we may also use information to recognize member achievements, participation, certifications, and leadership roles.</p>
+    </div>
+
+    <div class="doc-section" id="legal-basis">
+      <span class="sec-num">// 03</span>
+      <div class="sec-title">legal basis for processing</div>
+      <p class="doc-p">where applicable, we process personal information because:</p>
+      <ul class="doc-ul">
+        <li>you have provided your consent</li>
+        <li>processing is necessary to provide requested services or fulfill organizational obligations</li>
+        <li>processing is required by law</li>
+        <li>processing supports our legitimate interests in operating and improving amaze consortium, provided those interests do not override your rights</li>
+      </ul>
+    </div>
+
+    <div class="doc-section" id="cookies">
+      <span class="sec-num">// 04</span>
+      <div class="sec-title">cookies &amp; similar technologies</div>
+      <p class="doc-p">our website and services may use cookies and similar technologies to:</p>
+      <ul class="doc-ul">
+        <li>keep users signed in and remember preferences</li>
+        <li>improve website functionality and analyze traffic</li>
+        <li>enhance overall user experience</li>
+      </ul>
+      <p class="doc-p">you may disable cookies through your browser settings, although some features may not function properly.</p>
+    </div>
+
+    <div class="doc-section" id="sharing">
+      <span class="sec-num">// 05</span>
+      <div class="sec-title">information sharing</div>
+      <p class="doc-p">we do not sell your personal information. we may share information only when necessary with:</p>
+      <ul class="doc-ul">
+        <li>service providers assisting in operating our services, payment processors, and technology providers</li>
+        <li>event partners (only when necessary) and legal authorities where required by law</li>
+        <li>successor organizations in the event of a merger, restructuring, or transfer of organizational operations</li>
+      </ul>
+      <p class="doc-p">all third parties are expected to protect your information appropriately.</p>
+    </div>
+
+    <div class="doc-section" id="public-info">
+      <span class="sec-num">// 06</span>
+      <div class="sec-title">public information</div>
+      <p class="doc-p">certain information may be publicly displayed with your permission or as part of your participation in amaze consortium, including your name, membership status, leadership position, awards, certifications, event participation, publications, and competition results. you may request corrections where appropriate.</p>
+    </div>
+
+    <div class="doc-section" id="retention">
+      <span class="sec-num">// 07</span>
+      <div class="sec-title">data retention</div>
+      <p class="doc-p">we retain personal information only for as long as necessary to provide our services, maintain membership records, meet legal obligations, resolve disputes, and enforce our policies. when information is no longer required, we will securely delete or anonymize it where reasonably practicable.</p>
+    </div>
+
+    <div class="doc-section" id="security">
+      <span class="sec-num">// 08</span>
+      <div class="sec-title">data security</div>
+      <p class="doc-p">we implement reasonable administrative, technical, and organizational measures to protect personal information from unauthorized access, alteration, disclosure, or destruction.</p>
+      <p class="doc-p">while we strive to protect your information, no method of internet transmission or electronic storage is completely secure. therefore, we cannot guarantee absolute security.</p>
+    </div>
+
+    <div class="doc-section" id="rights">
+      <span class="sec-num">// 09</span>
+      <div class="sec-title">your rights</div>
+      <p class="doc-p">subject to applicable law, you may have the right to:</p>
+      <ul class="doc-ul">
+        <li>access, correct, or request deletion of your personal information</li>
+        <li>request restriction of processing or object to certain processing activities</li>
+        <li>withdraw consent where processing is based on consent</li>
+        <li>request a copy of your personal information where applicable</li>
+      </ul>
+      <p class="doc-p">requests may be subject to legal or operational limitations.</p>
+    </div>
+
+    <div class="doc-section" id="children">
+      <span class="sec-num">// 10</span>
+      <div class="sec-title">children's privacy</div>
+      <p class="doc-p">our services may be available to individuals under the age of 18 where permitted. where required by applicable law, users under the applicable age must obtain permission from a parent or legal guardian before providing personal information. we do not knowingly collect personal information in violation of applicable child privacy laws.</p>
+    </div>
+
+    <div class="doc-section" id="international">
+      <span class="sec-num">// 11</span>
+      <div class="sec-title">international users</div>
+      <p class="doc-p">if you access our services from outside bangladesh, your information may be transferred to and processed in bangladesh or other jurisdictions where our service providers operate. by using our services, you consent to such transfers where permitted by applicable law.</p>
+    </div>
+
+    <div class="doc-section" id="third-party">
+      <span class="sec-num">// 12</span>
+      <div class="sec-title">third-party links</div>
+      <p class="doc-p">our services may contain links to third-party websites or platforms. we are not responsible for the privacy practices, content, or security of third-party services. users should review the privacy policies of those services separately.</p>
+    </div>
+
+    <div class="doc-section" id="changes">
+      <span class="sec-num">// 13</span>
+      <div class="sec-title">changes to this policy</div>
+      <p class="doc-p">we may update this privacy policy periodically. when significant changes are made, we will update the effective date and, where appropriate, provide additional notice. your continued use of the services after changes become effective constitutes acceptance of the updated privacy policy.</p>
+    </div>
+
+    <div class="doc-section" id="contact">
+      <span class="sec-num">// 14</span>
+      <div class="sec-title">contact us</div>
+      <p class="doc-p">if you have questions about this privacy policy or how your information is handled, please contact amaze consortium using the official contact information available on our website.</p>
+      <div class="doc-highlight">
+        <p>email: <a href="mailto:pr@amazeconsortium.org" style="color:var(--green);text-decoration:none;">pr@amazeconsortium.org</a></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">amaze<span>.</span>consortium</div>
+    <ul class="footer-links">
+      <li><a href="../tos/index.html">terms & conditions</a></li>
+      <li><a href="../privacy/index.html">privacy policy</a></li>
+      <li><a href="../code/index.html">code of conduct</a></li>
+      <li><a href="../index.html">main site</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+// active toc
+const sections = document.querySelectorAll('.doc-section');
+const tocLinks = document.querySelectorAll('.toc-list a');
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      tocLinks.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+      if(link) link.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

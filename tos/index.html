@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>terms & conditions — amaze consortium</title>
+<link rel="icon" href="amazelogo.ico" type="image/x-icon">
+<style>
+:root { --black:#000; --dark:#0d0d0d; --green:#2ef2a2; --white:#fff; --border:#1a1a1a; }
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--black);color:var(--white);font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;font-weight:300;overflow-x:hidden;}
+::-webkit-scrollbar{width:2px;}::-webkit-scrollbar-track{background:var(--black);}::-webkit-scrollbar-thumb{background:var(--green);}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:200px 200px;pointer-events:none;z-index:9000;opacity:0.5;}
+
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:24px 60px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(46,242,162,0.08);transition:all 0.4s;}
+.nav-brand{font-size:13px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-decoration:none;text-transform:lowercase;}
+.nav-brand span{color:var(--green);}
+.nav-back{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.4);text-decoration:none;text-transform:lowercase;transition:color 0.3s;display:flex;align-items:center;gap:8px;}
+.nav-back:hover{color:var(--green);}
+  .nav-logo img { height: 36px; }
+  .nav-logo span {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.2em;
+    color: var(--white); text-transform: lowercase;
+  }
+
+/* hero */
+.page-hero{padding:140px 60px 80px;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
+.page-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 0% 50%,rgba(46,242,162,0.04) 0%,transparent 70%);}
+.hero-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1;}
+.page-tag{display:inline-block;border:1px solid rgba(46,242,162,0.25);color:var(--green);font-size:9px;letter-spacing:0.3em;padding:6px 14px;text-transform:lowercase;margin-bottom:28px;}
+.page-h1{font-size:clamp(44px,6vw,80px);font-weight:800;letter-spacing:-0.03em;text-transform:lowercase;line-height:0.95;margin-bottom:24px;}
+.page-h1 em{color:var(--green);font-style:normal;}
+.page-meta{display:flex;gap:40px;flex-wrap:wrap;margin-top:32px;}
+.meta-item{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.3);text-transform:lowercase;}
+.meta-item span{color:rgba(255,255,255,0.6);display:block;margin-top:4px;}
+
+/* layout */
+.doc-layout{max-width:1200px;margin:0 auto;padding:80px 60px;display:grid;grid-template-columns:260px 1fr;gap:80px;align-items:start;}
+.doc-toc{position:sticky;top:100px;}
+.toc-label{font-size:9px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:20px;display:block;}
+.toc-list{list-style:none;display:flex;flex-direction:column;gap:2px;}
+.toc-list a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.3);text-decoration:none;text-transform:lowercase;padding:10px 14px;border-left:2px solid transparent;transition:all 0.25s;display:block;line-height:1.4;}
+.toc-list a:hover{color:var(--green);border-left-color:var(--green);background:rgba(46,242,162,0.03);}
+.toc-list a.active{color:var(--green);border-left-color:var(--green);}
+
+/* content */
+
+.doc-section{padding:56px 0;border-bottom:1px solid var(--border);}
+.doc-section:last-child{border-bottom:none;}
+.sec-num{font-size:10px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:16px;display:block;}
+.sec-title{font-size:clamp(20px,2.5vw,30px);font-weight:700;letter-spacing:-0.02em;text-transform:lowercase;margin-bottom:28px;line-height:1.1;}
+.doc-p{font-size:14px;line-height:1.9;color:rgba(255,255,255,0.55);margin-bottom:16px;font-weight:300;}
+.doc-p:last-child{margin-bottom:0;}
+.doc-p strong{color:rgba(255,255,255,0.8);font-weight:500;}
+.doc-ul{list-style:none;margin:16px 0;display:flex;flex-direction:column;gap:10px;}
+.doc-ul li{font-size:14px;line-height:1.7;color:rgba(255,255,255,0.5);padding-left:20px;position:relative;}
+.doc-ul li::before{content:'◈';position:absolute;left:0;color:var(--green);font-size:8px;top:5px;}
+.doc-highlight{background:rgba(46,242,162,0.04);border:1px solid rgba(46,242,162,0.12);border-left:2px solid var(--green);padding:20px 24px;margin:24px 0;}
+.doc-highlight p{font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8;margin:0;}
+
+/* footer */
+footer{background:var(--dark);border-top:1px solid var(--border);padding:40px 60px;}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;}
+.footer-brand{font-size:12px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-transform:lowercase;}
+.footer-brand span{color:var(--green);}
+.footer-links{display:flex;gap:24px;list-style:none;}
+.footer-links a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.25);text-decoration:none;text-transform:lowercase;transition:color 0.3s;}
+.footer-links a:hover{color:var(--green);}
+.footer-copy{font-size:11px;color:rgba(255,255,255,0.18);letter-spacing:0.05em;}
+
+/* responsive */
+@media(max-width:900px){
+  nav{padding:18px 24px;}
+  .page-hero{padding:120px 24px 60px;}
+  .doc-layout{grid-template-columns:1fr;padding:48px 24px;gap:0;}
+  .doc-toc{display:none;}
+  footer{padding:32px 24px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-logo" style="text-decoration:none;display:flex;align-items:center;gap:12px;">
+      <img src="../img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span style="display:none;font-size:16px;font-weight:800;letter-spacing:0.1em;">amaze</span>
+    </a>
+  <a href="../index.html" class="nav-back">← back to main site</a>
+</nav>
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="page-tag">legal document</div>
+    <h1 class="page-h1">terms &amp;<br><em>conditions</em></h1>
+    <div class="page-meta">
+      <div class="meta-item">effective date <span>july 13, 2026</span></div>
+      <div class="meta-item">document type <span>terms of service</span></div>
+      <div class="meta-item">jurisdiction <span>bangladesh</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="doc-layout">
+  <aside class="doc-toc">
+    <span class="toc-label">// contents</span>
+    <ul class="toc-list">
+      <li><a href="#about">01 — about</a></li>
+      <li><a href="#eligibility">02 — eligibility</a></li>
+      <li><a href="#membership">03 — membership</a></li>
+      <li><a href="#accounts">04 — accounts</a></li>
+      <li><a href="#acceptable-use">05 — acceptable use</a></li>
+      <li><a href="#programs">06 — programs & events</a></li>
+      <li><a href="#ip">07 — intellectual property</a></li>
+      <li><a href="#ugc">08 — user content</a></li>
+      <li><a href="#payments">09 — payments</a></li>
+      <li><a href="#refunds">10 — refunds</a></li>
+      <li><a href="#third-party">11 — third-party</a></li>
+      <li><a href="#termination">12 — termination</a></li>
+      <li><a href="#disclaimer">13 — disclaimer</a></li>
+      <li><a href="#liability">14 — liability</a></li>
+      <li><a href="#indemnification">15 — indemnification</a></li>
+      <li><a href="#privacy">16 — privacy</a></li>
+      <li><a href="#changes">17 — changes</a></li>
+      <li><a href="#law">18 — governing law</a></li>
+      <li><a href="#contact">19 — contact</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+
+    <div class="doc-highlight">
+      <p>by accessing or using our services, you agree to be bound by these terms. if you do not agree with these terms, you must not use our services.</p>
+    </div>
+
+    <div class="doc-section" id="about">
+      <span class="sec-num">// 01</span>
+      <div class="sec-title">about amaze consortium</div>
+      <p class="doc-p">amaze consortium is an organization dedicated to empowering individuals and communities through learning, creativity, innovation, collaboration, and volunteer engagement.</p>
+      <p class="doc-p">these terms apply to all visitors, applicants, members, volunteers, partners, and users of our services.</p>
+    </div>
+
+    <div class="doc-section" id="eligibility">
+      <span class="sec-num">// 02</span>
+      <div class="sec-title">eligibility</div>
+      <p class="doc-p">to use our services or become a member, you must:</p>
+      <ul class="doc-ul">
+        <li>meet any eligibility requirements specified for the relevant program or membership</li>
+        <li>provide accurate and complete information</li>
+        <li>keep your account information up to date</li>
+        <li>comply with all applicable laws and these terms</li>
+      </ul>
+      <p class="doc-p">if you are under the age of 18, you must have permission from a parent or legal guardian where required by applicable law.</p>
+    </div>
+
+    <div class="doc-section" id="membership">
+      <span class="sec-num">// 03</span>
+      <div class="sec-title">membership</div>
+      <p class="doc-p">membership is subject to approval by amaze consortium. membership does not guarantee participation in every program, event, leadership position, or opportunity.</p>
+      <p class="doc-p">members are expected to:</p>
+      <ul class="doc-ul">
+        <li>follow the code of conduct</li>
+        <li>act respectfully toward others</li>
+        <li>participate honestly</li>
+        <li>maintain accurate account information</li>
+        <li>protect their login credentials</li>
+        <li>comply with organizational policies</li>
+      </ul>
+      <p class="doc-p">amaze consortium reserves the right to suspend, revoke, or terminate membership when these terms or organizational policies are violated.</p>
+    </div>
+
+    <div class="doc-section" id="accounts">
+      <span class="sec-num">// 04</span>
+      <div class="sec-title">member accounts</div>
+      <p class="doc-p">some services require registration. you are responsible for:</p>
+      <ul class="doc-ul">
+        <li>maintaining the confidentiality of your password</li>
+        <li>all activities conducted under your account</li>
+        <li>immediately notifying amaze consortium of unauthorized access</li>
+      </ul>
+      <p class="doc-p">you may not share your account with another individual.</p>
+    </div>
+
+    <div class="doc-section" id="acceptable-use">
+      <span class="sec-num">// 05</span>
+      <div class="sec-title">acceptable use</div>
+      <p class="doc-p">you agree not to:</p>
+      <ul class="doc-ul">
+        <li>violate any applicable law</li>
+        <li>harass, threaten, or abuse others</li>
+        <li>share false or misleading information</li>
+        <li>attempt unauthorized access to our systems</li>
+        <li>upload malicious software</li>
+        <li>disrupt our services</li>
+        <li>impersonate another individual or organization</li>
+        <li>misuse organizational resources</li>
+        <li>use our services for unlawful or fraudulent purposes</li>
+      </ul>
+    </div>
+
+    <div class="doc-section" id="programs">
+      <span class="sec-num">// 06</span>
+      <div class="sec-title">programs, events & communities</div>
+      <p class="doc-p">participation in programs, competitions, workshops, online communities, gaming servers, and events is subject to additional rules where applicable.</p>
+      <p class="doc-p">failure to follow event-specific rules may result in removal without refund where permitted.</p>
+    </div>
+
+    <div class="doc-section" id="ip">
+      <span class="sec-num">// 07</span>
+      <div class="sec-title">intellectual property</div>
+      <p class="doc-p">unless otherwise stated, all content provided by amaze consortium — including logos, branding, publications, course materials, graphics, website content, documents, videos, designs, software, and other original works — is the property of amaze consortium or its licensors and is protected by applicable intellectual property laws.</p>
+      <p class="doc-p">you may not copy, reproduce, modify, distribute, or commercially exploit our content without prior written permission. members retain ownership of content they create unless a separate written agreement provides otherwise.</p>
+    </div>
+
+    <div class="doc-section" id="ugc">
+      <span class="sec-num">// 08</span>
+      <div class="sec-title">user-generated content</div>
+      <p class="doc-p">when you submit content to amaze consortium, you represent that:</p>
+      <ul class="doc-ul">
+        <li>you own the necessary rights</li>
+        <li>the content does not infringe the rights of others</li>
+        <li>the content does not violate applicable laws</li>
+      </ul>
+      <p class="doc-p">you grant amaze consortium a non-exclusive, worldwide, royalty-free license to use, reproduce, display, distribute, and promote such content solely for organizational, educational, promotional, or archival purposes unless otherwise agreed in writing.</p>
+    </div>
+
+    <div class="doc-section" id="payments">
+      <span class="sec-num">// 09</span>
+      <div class="sec-title">payments</div>
+      <p class="doc-p">certain programs, memberships, or services may require payment. applicable fees, payment methods, refund terms, and deadlines will be communicated before payment is required. failure to pay required fees may result in loss of access to applicable services.</p>
+    </div>
+
+    <div class="doc-section" id="refunds">
+      <span class="sec-num">// 10</span>
+      <div class="sec-title">refunds</div>
+      <p class="doc-p">refund eligibility is determined according to the applicable refund policy for the relevant program or service. unless otherwise stated, fees paid for memberships, events, or programs are non-refundable once services have commenced.</p>
+    </div>
+
+    <div class="doc-section" id="third-party">
+      <span class="sec-num">// 11</span>
+      <div class="sec-title">third-party services</div>
+      <p class="doc-p">our services may include links to third-party websites or services. amaze consortium is not responsible for the content, security, availability, or privacy practices of third-party services. your use of those services is governed by their own terms.</p>
+    </div>
+
+    <div class="doc-section" id="termination">
+      <span class="sec-num">// 12</span>
+      <div class="sec-title">suspension & termination</div>
+      <p class="doc-p">we may suspend or terminate your account or membership if you violate these terms, violate organizational policies, engage in misconduct, harm other members or the organization, or misuse organizational resources.</p>
+      <p class="doc-p">termination does not remove any obligations that arose before termination.</p>
+    </div>
+
+    <div class="doc-section" id="disclaimer">
+      <span class="sec-num">// 13</span>
+      <div class="sec-title">disclaimer</div>
+      <p class="doc-p">our services are provided on an "as is" and "as available" basis. while we strive to maintain accurate information and uninterrupted services, we do not guarantee that our services will always be error-free, secure, or continuously available.</p>
+    </div>
+
+    <div class="doc-section" id="liability">
+      <span class="sec-num">// 14</span>
+      <div class="sec-title">limitation of liability</div>
+      <p class="doc-p">to the maximum extent permitted by applicable law, amaze consortium, its officers, volunteers, members, employees, and affiliates shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the services.</p>
+    </div>
+
+    <div class="doc-section" id="indemnification">
+      <span class="sec-num">// 15</span>
+      <div class="sec-title">indemnification</div>
+      <p class="doc-p">you agree to indemnify and hold harmless amaze consortium and its representatives from claims, liabilities, damages, losses, and expenses arising from your violation of these terms or misuse of the services.</p>
+    </div>
+
+    <div class="doc-section" id="privacy">
+      <span class="sec-num">// 16</span>
+      <div class="sec-title">privacy</div>
+      <p class="doc-p">your use of our services is also governed by our <a href="privacy.html" style="color:var(--green);text-decoration:none;border-bottom:1px solid rgba(46,242,162,0.3);">privacy policy</a>, which explains how we collect, use, and protect your information.</p>
+    </div>
+
+    <div class="doc-section" id="changes">
+      <span class="sec-num">// 17</span>
+      <div class="sec-title">changes to the terms</div>
+      <p class="doc-p">amaze consortium may update these terms from time to time. updated terms become effective upon publication unless otherwise stated. continued use of the services after changes are published constitutes acceptance of the revised terms.</p>
+    </div>
+
+    <div class="doc-section" id="law">
+      <span class="sec-num">// 18</span>
+      <div class="sec-title">governing law</div>
+      <p class="doc-p">these terms shall be governed by and interpreted in accordance with the laws of the people's republic of bangladesh. any disputes arising under these terms shall be subject to the jurisdiction of the competent courts of bangladesh unless otherwise required by applicable law.</p>
+    </div>
+
+    <div class="doc-section" id="contact">
+      <span class="sec-num">// 19</span>
+      <div class="sec-title">contact</div>
+      <p class="doc-p">if you have questions regarding these terms, please contact amaze consortium through the official contact information published on our website.</p>
+      <div class="doc-highlight">
+        <p>email: <a href="mailto:pr@amazeconsortium.org" style="color:var(--green);text-decoration:none;">pr@amazeconsortium.org</a></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">amaze<span>.</span>consortium</div>
+    <ul class="footer-links">
+      <li><a href="../tos/index.html">terms & conditions</a></li>
+      <li><a href="../privacy/index.html">privacy policy</a></li>
+      <li><a href="../code/index.html">code of conduct</a></li>
+      <li><a href="../index.html">main site</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+// active toc
+const sections = document.querySelectorAll('.doc-section');
+const tocLinks = document.querySelectorAll('.toc-list a');
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      tocLinks.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+      if(link) link.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

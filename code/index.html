@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>code of conduct — amaze consortium</title>
+<link rel="icon" href="amazelogo.ico" type="image/x-icon">
+<style>
+:root { --black:#000; --dark:#0d0d0d; --green:#2ef2a2; --white:#fff; --border:#1a1a1a; }
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--black);color:var(--white);font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;font-weight:300;overflow-x:hidden;}
+::-webkit-scrollbar{width:2px;}::-webkit-scrollbar-track{background:var(--black);}::-webkit-scrollbar-thumb{background:var(--green);}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:200px 200px;pointer-events:none;z-index:9000;opacity:0.5;}
+
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:24px 60px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(46,242,162,0.08);transition:all 0.4s;}
+.nav-brand{font-size:13px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-decoration:none;text-transform:lowercase;}
+.nav-brand span{color:var(--green);}
+.nav-back{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.4);text-decoration:none;text-transform:lowercase;transition:color 0.3s;display:flex;align-items:center;gap:8px;}
+.nav-back:hover{color:var(--green);}
+.nav-logo img { height: 36px; }
+.nav-logo span {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.2em;
+  color: var(--white); text-transform: lowercase;
+}
+
+/* hero */
+.page-hero{padding:140px 60px 80px;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
+.page-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 0% 50%,rgba(46,242,162,0.04) 0%,transparent 70%);}
+.hero-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1;}
+.page-tag{display:inline-block;border:1px solid rgba(46,242,162,0.25);color:var(--green);font-size:9px;letter-spacing:0.3em;padding:6px 14px;text-transform:lowercase;margin-bottom:28px;}
+.page-h1{font-size:clamp(44px,6vw,80px);font-weight:800;letter-spacing:-0.03em;text-transform:lowercase;line-height:0.95;margin-bottom:24px;}
+.page-h1 em{color:var(--green);font-style:normal;}
+.page-meta{display:flex;gap:40px;flex-wrap:wrap;margin-top:32px;}
+.meta-item{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.3);text-transform:lowercase;}
+.meta-item span{color:rgba(255,255,255,0.6);display:block;margin-top:4px;}
+
+/* layout */
+.doc-layout{max-width:1200px;margin:0 auto;padding:80px 60px;display:grid;grid-template-columns:260px 1fr;gap:80px;align-items:start;}
+.doc-toc{position:sticky;top:100px;}
+.toc-label{font-size:9px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:20px;display:block;}
+.toc-list{list-style:none;display:flex;flex-direction:column;gap:2px;}
+.toc-list a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.3);text-decoration:none;text-transform:lowercase;padding:10px 14px;border-left:2px solid transparent;transition:all 0.25s;display:block;line-height:1.4;}
+.toc-list a:hover{color:var(--green);border-left-color:var(--green);background:rgba(46,242,162,0.03);}
+.toc-list a.active{color:var(--green);border-left-color:var(--green);}
+
+/* content */
+.doc-section{padding:56px 0;border-bottom:1px solid var(--border);}
+.doc-section:last-child{border-bottom:none;}
+.sec-num{font-size:10px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:16px;display:block;}
+.sec-title{font-size:clamp(20px,2.5vw,30px);font-weight:700;letter-spacing:-0.02em;text-transform:lowercase;margin-bottom:28px;line-height:1.1;}
+.doc-p{font-size:14px;line-height:1.9;color:rgba(255,255,255,0.55);margin-bottom:16px;font-weight:300;}
+.doc-p:last-child{margin-bottom:0;}
+.doc-p strong{color:rgba(255,255,255,0.8);font-weight:500;}
+.doc-ul{list-style:none;margin:16px 0;display:flex;flex-direction:column;gap:10px;}
+.doc-ul li{font-size:14px;line-height:1.7;color:rgba(255,255,255,0.5);padding-left:20px;position:relative;}
+.doc-ul li::before{content:'◈';position:absolute;left:0;color:var(--green);font-size:8px;top:5px;}
+.doc-highlight{background:rgba(46,242,162,0.04);border:1px solid rgba(46,242,162,0.12);border-left:2px solid var(--green);padding:20px 24px;margin:24px 0;}
+.doc-highlight p{font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8;margin:0;}
+
+/* footer */
+footer{background:var(--dark);border-top:1px solid var(--border);padding:40px 60px;}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;}
+.footer-brand{font-size:12px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-transform:lowercase;}
+.footer-brand span{color:var(--green);}
+.footer-links{display:flex;gap:24px;list-style:none;}
+.footer-links a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.25);text-decoration:none;text-transform:lowercase;transition:color 0.3s;}
+.footer-links a:hover{color:var(--green);}
+.footer-copy{font-size:11px;color:rgba(255,255,255,0.18);letter-spacing:0.05em;}
+
+/* responsive */
+@media(max-width:900px){
+  nav{padding:18px 24px;}
+  .page-hero{padding:120px 24px 60px;}
+  .doc-layout{grid-template-columns:1fr;padding:48px 24px;gap:0;}
+  .doc-toc{display:none;}
+  footer{padding:32px 24px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-logo" style="text-decoration:none;display:flex;align-items:center;gap:12px;">
+    <img src="../img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <span style="display:none;font-size:16px;font-weight:800;letter-spacing:0.1em;">amaze</span>
+  </a>
+  <a href="../index.html" class="nav-back">← back to main site</a>
+</nav>
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="page-tag">legal document</div>
+    <h1 class="page-h1">code of<br><em>conduct</em></h1>
+    <div class="page-meta">
+      <div class="meta-item">effective date <span>july 13, 2026</span></div>
+      <div class="meta-item">document type <span>organizational policy</span></div>
+      <div class="meta-item">jurisdiction <span>bangladesh</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="doc-layout">
+  <aside class="doc-toc">
+    <span class="toc-label">// contents</span>
+    <ul class="toc-list">
+      <li><a href="#professionalism">01 — professionalism</a></li>
+      <li><a href="#authority">02 — structure & command</a></li>
+      <li><a href="#confidentiality">03 — data & privacy</a></li>
+      <li><a href="#accountability">04 — operational duties</a></li>
+      <li><a href="#neutrality">05 — neutrality policy</a></li>
+      <li><a href="#reputation">06 — representation</a></li>
+      <li><a href="#operations">07 — projects & leave</a></li>
+      <li><a href="#benefits">08 — member benefits</a></li>
+      <li><a href="#disciplinary">09 — enforcement</a></li>
+      <li><a href="#prohibitions">10 — restrictions</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+
+    <div class="doc-highlight">
+      <p>all members, including campus ambassadors and international representatives, are required to uphold and adhere to the core values and code of conduct of amaze consortium at all times.</p>
+    </div>
+
+    <div class="doc-section" id="professionalism">
+      <span class="sec-num">// 01</span>
+      <div class="sec-title">professionalism &amp; respect</div>
+      <p class="doc-p">all members are required to treat every individual within the amaze consortium with respect, professionalism, and courtesy, regardless of their role or position.</p>
+      <p class="doc-p">members represent amaze consortium in both internal and public settings and are therefore expected to maintain appropriate conduct, professionalism, and respectful behavior at all times.</p>
+    </div>
+
+    <div class="doc-section" id="authority">
+      <span class="sec-num">// 02</span>
+      <div class="sec-title">organizational chain of command</div>
+      <p class="doc-p">the organizational chain of command is determined strictly by position and role, not by age, seniority, or academic status.</p>
+      <p class="doc-p">all members are expected to respect and follow instructions issued by their designated supervisors, regardless of age differences.</p>
+    </div>
+
+    <div class="doc-section" id="confidentiality">
+      <span class="sec-num">// 03</span>
+      <div class="sec-title">strict confidentiality</div>
+      <p class="doc-p">members must maintain strict confidentiality concerning all sensitive, internal, or private information related to amaze consortium, its members, or its operations.</p>
+    </div>
+
+    <div class="doc-section" id="accountability">
+      <span class="sec-num">// 04</span>
+      <div class="sec-title">accountability &amp; growth</div>
+      <p class="doc-p">members are responsible for fulfilling the duties and tasks assigned to them. timely and effective completion of responsibilities is a fundamental expectation.</p>
+      <p class="doc-p">when assigned to a task or project, members must make their best efforts to complete the assignment efficiently, responsibly, and to the highest possible standard.</p>
+      <p class="doc-p">members are encouraged to actively seek opportunities to learn, develop new skills, and enhance their professional capabilities for both personal growth and organizational benefit.</p>
+    </div>
+
+    <div class="doc-section" id="neutrality">
+      <span class="sec-num">// 05</span>
+      <div class="sec-title">political &amp; religious neutrality</div>
+      <p class="doc-p">amaze consortium is politically and religiously neutral. we respect individuals of all religious beliefs and political viewpoints.</p>
+      <p class="doc-p">the organization does not engage in political activities. members are prohibited from discussing political matters during official duties unless directly relevant to assigned work.</p>
+    </div>
+
+    <div class="doc-section" id="reputation">
+      <span class="sec-num">// 06</span>
+      <div class="sec-title">public representation &amp; disputes</div>
+      <p class="doc-p">members must not make negative or defamatory statements about amaze consortium or its members in public forums.</p>
+      <p class="doc-p">any concerns, complaints, or disputes must be formally reported to the appropriate supervisor or administrator.</p>
+    </div>
+
+    <div class="doc-section" id="operations">
+      <span class="sec-num">// 07</span>
+      <div class="sec-title">operations, initiatives &amp; leave</div>
+      <p class="doc-p">members are expected to remain informed of all official announcements, updates, and communications issued by amaze consortium and its administrative authorities.</p>
+      <p class="doc-p">members are encouraged to propose innovative ideas that contribute to organizational projects or objectives. however, prior approval from the relevant supervisor is required before implementing any such initiatives.</p>
+      <p class="doc-p">any member assigned to an active project who requires leave exceeding two (2) days must formally request approval from the break &amp; leave request form prior to taking leave.</p>
+      <p class="doc-p">for in-person or physical events, members must arrive on time and comply with the prescribed dress code for the respective event.</p>
+    </div>
+
+    <div class="doc-section" id="benefits">
+      <span class="sec-num">// 08</span>
+      <div class="sec-title">member benefits &amp; collaboration</div>
+      <p class="doc-p">official members of amaze consortium may have participation fees waived for seminars, courses, and events organized by the organization. however, members are expected to actively participate in such activities or contribute as organizers when required.</p>
+      <p class="doc-p">teamwork and collaboration are strongly encouraged. members are expected to support fellow team members and assist others within the organization when facing challenges.</p>
+    </div>
+
+    <div class="doc-section" id="disciplinary">
+      <span class="sec-num">// 09</span>
+      <div class="sec-title">enforcement &amp; disciplinary measures</div>
+      <p class="doc-p">any violation of this code of conduct must be promptly reported to the administrative team or designated authorities for review and appropriate action.</p>
+      <p class="doc-p">failure to comply with this code of conduct, inability to complete assigned tasks within stipulated deadlines, lack of seriousness toward responsibilities, or insufficient dedication to the organization may result in disciplinary measures, including but not limited to demotion, credit deduction, suspension, or termination of membership.</p>
+    </div>
+
+    <div class="doc-section" id="prohibitions">
+      <span class="sec-num">// 10</span>
+      <div class="sec-title">strict restrictions</div>
+      <p class="doc-p">the use of vulgar language, profanity, discriminatory remarks, racism, harassment, or any form of aggressive or abusive behavior is strictly prohibited within the organization or during any organizational activities.</p>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">amaze<span>.</span>consortium</div>
+    <ul class="footer-links">
+      <li><a href="../tos/index.html">terms & conditions</a></li>
+      <li><a href="../privacy/index.html">privacy policy</a></li>
+      <li><a href="../code/index.html">code of conduct</a></li>
+      <li><a href="../index.html">main site</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+// active toc
+const sections = document.querySelectorAll('.doc-section');
+const tocLinks = document.querySelectorAll('.toc-list a');
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      tocLinks.forEach(l=>l.classList.remove('active'));
+      const link = document.querySelector(`.toc-list a[href="#${e.target.id}"]`);
+      if(link) link.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

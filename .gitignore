@@ -1,0 +1,3 @@
+# Real member data with plaintext passwords - never commit
+seed/seed-members.js
+seed/seed.sql

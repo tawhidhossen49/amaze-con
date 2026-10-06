@@ -1,0 +1,955 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amaze Consortium</title>
+<meta name="description" content="amaze consortium is a youth-led non-profit and strategic ecosystem — a parent organization of independent subsidiaries driving innovation, education, technology, and community impact.">
+<link rel="icon" href="amazelogo.ico" type="image/x-icon" onerror="this.style.display='none';">
+
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/home.css">
+
+<script>
+  // Scroll stays locked while the preloader is up. The timeout is a failsafe
+  // so the page is never trapped if the motion script can't load.
+  document.documentElement.classList.add('is-loading');
+  // Each visit opens on the hero intro rather than a restored mid-page position.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  setTimeout(function () { document.documentElement.classList.remove('is-loading'); }, 4000);
+</script>
+</head>
+<body>
+  <!-- PRELOADER -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <div class="preloader__inner">
+      <svg class="preloader__crest" viewBox="0 0 100 100">
+        <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
+      </svg>
+      <div class="preloader__row"><span>amaze consortium</span><span class="preloader__count">000</span></div>
+    </div>
+  </div>
+
+  <div class="scroll-progress" aria-hidden="true"></div>
+  <div class="mouse-glow" id="mouse-glow"></div>
+
+  <!-- NAV -->
+  <nav id="navbar">
+    <a href="#hero" class="nav-logo">
+      <img src="img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span style="display:none;">amaze</span>
+    </a>
+    <ul class="nav-links">
+  <li><a href="#about">about</a></li>
+  <li><a href="#divisions">initiatives</a></li>
+  <li><a href="#founder">founder</a></li>
+  <li><a href="#executives">team</a></li>
+  <li class="nav-dropdown">
+    <span class="nav-more" tabindex="0">more <span class="nav-more-arrow">↓</span></span>
+    <ul class="dropdown-menu">
+      <li><a href="#advisors">advisors</a></li>
+      <li><a href="#partners">partners</a></li>
+      <li><a href="#opportunities">opportunities</a></li>
+      <li><a href="#contact">contact</a></li>
+      <li><a href="academy/index.html">the academy</a></li>
+      <li><a href="structure/index.html">our structure</a></li>
+    </ul>
+  </li>
+</ul>
+    <div class="nav-right">
+      <a class="nav-cta btn-primary" href="#opportunities" data-magnetic>apply now <span class="btn-arrow" aria-hidden="true">↗</span></a>
+      <div class="hamburger" id="hamburger" onclick="toggleMobileNav()" role="button" tabindex="0" aria-label="open menu">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MOBILE NAV -->
+  <div class="mobile-nav" id="mobile-nav">
+    <button class="close-nav" onclick="toggleMobileNav()" aria-label="close menu">✕</button>
+    <a href="#about" onclick="toggleMobileNav()">about</a>
+    <a href="#divisions" onclick="toggleMobileNav()">initiatives</a>
+    <a href="#founder" onclick="toggleMobileNav()">founder</a>
+    <a href="#executives" onclick="toggleMobileNav()">team</a>
+    <a href="#advisors" onclick="toggleMobileNav()">advisors</a>
+    <a href="#contact" onclick="toggleMobileNav()">contact</a>
+    <a href="academy/index.html" onclick="toggleMobileNav()">the academy</a>
+    <a href="structure/index.html" onclick="toggleMobileNav()">our structure</a>
+  </div>
+
+  <!-- HERO -->
+  <!-- The 3D crest stage is the stand-in for the hero video: when the clip   -->
+  <!-- is ready it replaces .crest-stage / .hero-bg and the copy stays as is. -->
+  <section id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-fade"></div>
+
+    <div class="hero-copy">
+      <div class="hero-tag" data-hero-fade><i></i>est. 2020 — a strategic ecosystem</div>
+      <h1 class="hero-h1" data-lines>
+        <span class="line"><span>building</span></span>
+        <span class="line"><span><span class="accent">minds, ideas</span></span></span>
+        <span class="line"><span>&amp; the future.</span></span>
+      </h1>
+      <p class="hero-sub" data-hero-fade>a visionary youth-led organization driving strategic innovation, education, technology, and community impact across global frontiers.</p>
+      <div class="hero-buttons" data-hero-fade>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform" class="btn-primary" data-magnetic>apply for membership <span class="btn-arrow" aria-hidden="true">↗</span></a>
+        <a href="https://docs.google.com/document/d/1m9L-Z4ZQY3beOOXJ9lWr6ZYrOuBlUR25s6XET6hyvBQ/" class="btn-outline">view guidebook <span class="btn-arrow" aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+
+    <div class="crest-stage" aria-hidden="true">
+      <div class="crest-drift">
+        <div class="crest-halo"></div>
+        <div class="crest-floor"></div>
+
+        <!-- far half of each orbit, drawn behind the crest -->
+        <svg class="crest-rings crest-rings--back" viewBox="0 0 1000 1000">
+          <g transform="rotate(-14 500 500)">
+            <path d="M40 500A460 140 0 0 1 960 500"/>
+            <path class="ring-accent" d="M130 500A370 110 0 0 1 870 500"/>
+          </g>
+        </svg>
+
+        <div class="crest-tilt">
+          <div class="crest-spin">
+            <div class="crest">
+              <svg class="crest-layer--face" viewBox="0 0 100 100">
+                <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
+              </svg>
+              <svg class="crest-layer--sheen" viewBox="0 0 100 100">
+                <defs>
+                  <linearGradient id="crestFace" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#7dffc6"/>
+                    <stop offset="0.45" stop-color="#2ef2a2"/>
+                    <stop offset="1" stop-color="#0fbf82"/>
+                  </linearGradient>
+                  <linearGradient id="crestSheen" x1="0" y1="0" x2="1" y2="0.9">
+                    <stop offset="0" stop-color="#fff" stop-opacity="0.5"/>
+                    <stop offset="0.32" stop-color="#fff" stop-opacity="0"/>
+                    <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
+                    <stop offset="1" stop-color="#003b26" stop-opacity="0.35"/>
+                  </linearGradient>
+                </defs>
+                <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
+              </svg>
+              <svg class="crest-layer--edge" viewBox="0 0 100 100">
+                <path d="M10 52V8H90"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- near half of each orbit, drawn in front of the crest -->
+        <svg class="crest-rings crest-rings--front" viewBox="0 0 1000 1000">
+          <g transform="rotate(-14 500 500)">
+            <path d="M40 500A460 140 0 0 0 960 500"/>
+            <path class="ring-accent" d="M130 500A370 110 0 0 0 870 500"/>
+          </g>
+        </svg>
+
+        <!-- one node per domain the subsidiaries work in -->
+        <div class="orbit-node" data-ring="0" data-phase="0.6"><i></i><span>research</span></div>
+        <div class="orbit-node" data-ring="0" data-phase="2.7"><i></i><span>technology</span></div>
+        <div class="orbit-node" data-ring="0" data-phase="4.8"><i></i><span>community</span></div>
+        <div class="orbit-node" data-ring="1" data-phase="1.2"><i></i><span>education</span></div>
+        <div class="orbit-node" data-ring="1" data-phase="4.3"><i></i><span>media</span></div>
+      </div>
+    </div>
+
+    <div class="hero-meta" data-hero-fade>
+      <ul class="hero-stats">
+        <li><b>5</b><span>operating subsidiaries</span></li>
+        <li><b>25+</b><span>active members</span></li>
+        <li><b>500+</b><span>concurrent affiliates</span></li>
+      </ul>
+      <div class="scroll-indicator">
+        <span>scroll</span>
+        <div class="scroll-line"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== MARQUEE SECTION ==================== -->
+<!-- "run by students from" — managed from the members portal          -->
+<!-- (Dashboard → public website → schools tab) and fetched from       -->
+<!-- Supabase; see the script block below for the fallback list used   -->
+<!-- if that fetch fails.                                              -->
+
+<section id="marquee-strip">
+  <div class="mq-head"><span>run by students from</span></div>
+  <div class="mq-viewport">
+    <div id="marquee-track">
+      <!-- JS fills this -->
+    </div>
+  </div>
+</section>
+
+<script>
+// ── SUPABASE (shared with the members portal) ───────────────────────────────
+// This is the project's public "anon"/"publishable" key. It is DESIGNED
+// to be shipped to the browser — Supabase calls it "publishable" for
+// that reason, the same way a Stripe publishable key or a Google Maps
+// API key is meant to sit in client-side code. It is NOT a secret, and
+// it was already present in the members portal's own JS bundle before
+// this site used it, so putting it here doesn't expose anything that
+// wasn't already effectively public.
+//
+// What actually matters is what this key is ALLOWED to do, which is
+// controlled by Row Level Security (RLS) on the database side, not by
+// hiding this string (which isn't possible for a static site anyway —
+// there's no server here to keep a real secret on). The `site_content`
+// table below has RLS enabled with a public-READ / signed-in-only-WRITE
+// policy, so this key can only ever fetch this content from the browser,
+// never modify it — see seed/migration-site-content.sql in the members
+// portal project for the exact policy.
+const SITE_SB_URL = 'https://vgcfuykztrcuumznvggu.supabase.co';
+const SITE_SB_KEY = 'sb_publishable_9P2SPrcJ61MXvqwQTuImDw_OxWms087';
+
+// Fetches one content type from the shared `site_content` table (see the
+// members portal → "public website" section, which manages every type
+// listed there). Falls back to `fallback` if the request fails or the
+// table is empty (e.g. offline preview, or before the table exists),
+// so a section never renders blank.
+async function fetchSiteContent(type, fallback) {
+  try {
+    const res = await fetch(
+      `${SITE_SB_URL}/rest/v1/site_content?type=eq.${encodeURIComponent(type)}&select=*&order=sort_order.asc,created_at.asc`,
+      { headers: { apikey: SITE_SB_KEY, Authorization: `Bearer ${SITE_SB_KEY}` } }
+    );
+    if (!res.ok) throw new Error('bad response');
+    const rows = await res.json();
+    return rows.length ? rows : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+// Used only if the live fetch above fails for the "run by students from"
+// strip specifically.
+const FALLBACK_SCHOOLS = [
+  { name: "adamjee cantonment college", logo: "img/acc.png",   initials: "ACC" },
+  { name: "baf shaheen college dhaka",  logo: "img/bafsd.png", initials: "BAFSD" },
+  { name: "government science college", logo: "img/gsc.png",  initials: "GSC" },
+  { name: "dhaka college",              logo: "img/dc.png",   initials: "DC" },
+  { name: "dhaka university",           logo: "img/du.png",   initials: "DU" },
+  { name: "rajuk uttara model college", logo: "img/rumc.png", initials: "RUMC" },
+  { name: "comilla university",         logo: "img/cu.png",   initials: "CU" },
+];
+
+const marqueeTrack = document.getElementById("marquee-track");
+
+function makeLogoItem({ name, logo, initials }) {
+  const item = document.createElement("div");
+  item.className = "mq-item";
+
+  if (logo) {
+    const img = document.createElement("img");
+    img.className = "mq-logo";
+    img.src = logo;
+    img.alt = name;
+    img.onerror = () => { img.replaceWith(makeInitialsEl(initials)); };
+    item.appendChild(img);
+  } else {
+    item.appendChild(makeInitialsEl(initials));
+  }
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "mq-name";
+  nameEl.textContent = name;
+  item.appendChild(nameEl);
+
+  return item;
+}
+
+function makeInitialsEl(text) {
+  const el = document.createElement("div");
+  el.className = "mq-initials";
+  el.textContent = text;
+  return el;
+}
+
+// render once, then duplicate for seamless loop
+fetchSiteContent('school', FALLBACK_SCHOOLS).then(rows => {
+  // DB rows store the image under `img`, not `logo` — normalize so
+  // makeLogoItem() (which expects `logo`) works for both DB rows and
+  // the FALLBACK_SCHOOLS array above.
+  const schools = rows.map(r => ({ name: r.name, logo: r.logo || r.img, initials: r.initials }));
+  schools.forEach(l => marqueeTrack.appendChild(makeLogoItem(l)));
+  schools.forEach(l => marqueeTrack.appendChild(makeLogoItem(l))); // duplicate
+});
+</script>
+<!-- ==================== END MARQUEE SECTION ==================== -->
+
+  <!-- ABOUT -->
+  <section id="about" class="theme-light">
+    <div class="about-inner">
+      <div class="about-left">
+        <span class="section-label reveal">// 001 — who we are</span>
+        <div class="big-text section-title" data-lines>
+          <span class="line"><span>a new</span></span>
+          <span class="line"><span>kind of</span></span>
+          <span class="line"><span><em>institution</em></span></span>
+        </div>
+      </div>
+      <div class="about-right reveal reveal-delay-2">
+        <p>amaze consortium is a next-generation youth-led non-profit, structured the way brac or grameen would build a family of purpose-driven ventures — a parent organization overseeing distinct, independently branded subsidiaries.</p>
+        <p>we are not a traditional institution. we are an ecosystem — a structured network of subsidiaries, each targeting a distinct domain, all connected by a singular drive to create impact at scale.</p>
+        <p>every subsidiary is staffed, in large part, by students we've trained ourselves. through <a href="academy/index.html" class="inline-link">the amaze academy</a>, members get real hands-on experience before earning a role inside one of our ventures.</p>
+      </div>
+    </div>
+
+    <p class="manifesto">we train talent. we build institutions. we define the future.</p>
+
+    <div class="about-stats">
+      <div class="stat reveal reveal-delay-1"><div class="stat-num"><span data-count>5</span></div><div class="stat-label">operating subsidiaries</div></div>
+      <div class="stat reveal reveal-delay-2"><div class="stat-num">∞</div><div class="stat-label">global ambition</div></div>
+      <div class="stat reveal reveal-delay-3"><div class="stat-num"><span data-count>25</span>+</div><div class="stat-label">active members</div></div>
+      <div class="stat reveal reveal-delay-4"><div class="stat-num"><span data-count>500</span>+</div><div class="stat-label">concurrent affiliates</div></div>
+    </div>
+  </section>
+
+  <!-- DIVISIONS / VENTURES -->
+  <section id="divisions">
+    <div class="sec-head divisions-header">
+      <div>
+        <span class="section-label reveal">// 002 — the ecosystem</span>
+        <div class="divisions-title section-title" data-lines>
+          <span class="line"><span>our</span></span>
+          <span class="line"><span><em>subsidiaries</em></span></span>
+        </div>
+      </div>
+      <div class="divisions-sub section-sub reveal reveal-delay-1">five independent ventures. one parent organization. hover a mark to learn more, click to visit.</div>
+    </div>
+
+    <div class="ventures-wrap reveal reveal-delay-1">
+      <div id="ventures-track" class="ventures-row"><!-- JS fills this --></div>
+    </div>
+
+    <div class="venture-panel reveal reveal-delay-2" id="venture-panel">
+      <div class="venture-panel-num" id="vp-num">01</div>
+      <div class="venture-panel-body" id="vp-body">
+        <div class="venture-panel-name" id="vp-name"></div>
+        <div class="venture-panel-desc" id="vp-desc"></div>
+      </div>
+      <a class="venture-panel-cta" id="vp-cta" href="#">visit site <span>↗</span></a>
+    </div>
+  </section>
+
+  <!-- ==================== VENTURES ROW SCRIPT ==================== -->
+  <!-- "our subsidiaries" — managed from the members portal              -->
+  <!-- (Dashboard → public website → subsidiaries tab) and fetched from  -->
+  <!-- Supabase; see the script block below for the fallback list.       -->
+  <script>
+  // Reads from the shared `site_content` table (type = 'subsidiary'),
+  // managed from the members portal → public website → subsidiaries tab.
+  // Uses the shared fetchSiteContent() helper defined in the marquee
+  // section's script block earlier on this page. subtitle/description
+  // map to this section's "short" wordmark and "desc" fields.
+  const FALLBACK_VENTURES = [
+    {
+      name: "amaze research, innovation & exploration society",
+      short: "ARIES",
+      desc: "the research hub of amaze consortium exploring real-world data across bangladesh and beyond to uncover insights, identify gaps, and support practical, evidence-driven initiatives across multiple domains.",
+      url: "https://aries.amazeconsortium.org",
+      logo: "img/ventures/aries.png"
+    },
+    {
+      name: "amaze youth chess tournament",
+      short: "AYCT",
+      desc: "a nationwide chess tournament in bangladesh open to students, promoting merit-based competition, accessible participation, and long-term development of a strong youth chess community.",
+      url: "https://ayct.amazeconsortium.org",
+      logo: "img/ventures/ayct.png"
+    },
+    {
+      name: "first principles",
+      short: "First Principles",
+      desc: "the official newsletter of amaze consortium featuring articles, updates, insights, and reflections across its initiatives, while encouraging critical thinking, collaboration, and principled understanding of ideas and progress.",
+      url: "https://fp.amazeconsortium.org",
+      logo: "img/ventures/fp.png"
+    },
+    {
+      name: "the outliers club",
+      short: "The Outliers Club",
+      desc: "an invite-only community of bangladeshi youth focused on unconventional paths in entrepreneurship, innovation, and global education, built to foster collaboration, support, and alternative definitions of success beyond traditional career routes.",
+      url: "https://toc.amazeconsortium.org",
+      logo: "img/ventures/toc.png"
+    },
+    {
+      name: "havestack technologies",
+      short: "Havestack",
+      desc: "the software development and technology wing of amaze consortium, partnering with businesses on b2b engineering work — from custom software and internal tooling to full product builds.",
+      url: "https://havestack.com",
+      logo: "img/ventures/havestack.png"
+    },
+  ];
+
+  const venturesTrack = document.getElementById("ventures-track");
+  const vpNum = document.getElementById("vp-num");
+  const vpBody = document.getElementById("vp-body");
+  const vpName = document.getElementById("vp-name");
+  const vpDesc = document.getElementById("vp-desc");
+  const vpCta = document.getElementById("vp-cta");
+  const venturePanel = document.getElementById("venture-panel");
+
+  function makeVentureItem(venture, index) {
+    const a = document.createElement(venture.url && venture.url !== "#" ? "a" : "div");
+    a.className = "venture-item";
+    a.title = venture.name;
+    if (venture.url && venture.url !== "#") { a.href = venture.url; }
+    else { a.style.cursor = "default"; }
+
+    // horizontal logo slot — real image, falls back to a text wordmark
+    const mark = document.createElement("div");
+    mark.className = "venture-mark";
+
+    if (venture.logo) {
+      const img = document.createElement("img");
+      img.src = venture.logo;
+      img.alt = venture.name;
+      img.onerror = () => { img.remove(); mark.appendChild(makeWordmark(venture.short)); };
+      mark.appendChild(img);
+    } else {
+      mark.appendChild(makeWordmark(venture.short));
+    }
+
+    a.appendChild(mark);
+
+    const activate = () => {
+      document.querySelectorAll(".venture-item.active").forEach(el => el.classList.remove("active"));
+      a.classList.add("active");
+      updatePanel(venture, index);
+    };
+    a.addEventListener("mouseenter", activate);
+    a.addEventListener("focus", activate);
+
+    return a;
+  }
+
+  function makeWordmark(text) {
+    const el = document.createElement("div");
+    el.className = "venture-wordmark";
+    el.textContent = text;
+    return el;
+  }
+
+  function updatePanel(venture, index) {
+    vpBody.classList.add("switching");
+    setTimeout(() => {
+      vpNum.textContent = String(index + 1).padStart(2, "0");
+      vpName.textContent = venture.name;
+      vpDesc.textContent = venture.desc;
+      if (venture.url && venture.url !== "#") {
+        vpCta.href = venture.url;
+        vpCta.style.display = "flex";
+      } else {
+        vpCta.style.display = "none";
+      }
+      vpBody.classList.remove("switching");
+    }, 150);
+  }
+
+  // Normalizes a `site_content` row (subtitle/description/img) to the
+  // shape this script already expects (short/desc/logo).
+  function normalizeVenture(row) {
+    return {
+      name: row.name,
+      short: row.short || row.subtitle || row.name,
+      desc: row.desc || row.description || '',
+      url: row.url,
+      logo: row.logo || row.img || ''
+    };
+  }
+
+  fetchSiteContent('subsidiary', FALLBACK_VENTURES).then(rows => {
+    const ventures = rows.map(normalizeVenture);
+    ventures.forEach((v, i) => venturesTrack.appendChild(makeVentureItem(v, i)));
+    if (ventures.length) updatePanel(ventures[0], 0);
+  });
+  </script>
+  <!-- ==================== END VENTURES ROW SCRIPT ==================== -->
+
+  <!-- FOUNDER -->
+  <section id="founder">
+    <div class="founder-inner">
+      <div class="founder-img-wrap reveal" data-parallax>
+        <a href="https://www.linkedin.com/in/liteamaze/" style="text-decoration:none;display:block;position:relative;z-index:0;"><img class="founder-img" src="img/amazefounder.jpg" alt="founder & president" loading="lazy" onerror="this.src='';this.style.background='#0d0d0d';this.style.minHeight='500px'"></a>
+        <div class="founder-name-overlay">
+          <small>founder & president</small>
+          <strong>ariyan biswas</strong>
+        </div>
+      </div>
+      <div class="founder-content">
+        <span class="section-label reveal">// 003 — leadership</span>
+        <div class="founder-quote reveal reveal-delay-1">
+          "the world was not made for you, <span class="accent">you were made for it.</span>"
+        </div>
+        <p class="founder-bio reveal reveal-delay-2">amaze consortium was built on a belief that the next generation of leaders doesn't fit neatly into existing systems. it was built for those who think differently, act deliberately, and build with purpose.</p>
+        <p class="founder-bio reveal reveal-delay-3">ariyan biswas is a bangladeshi entrepreneur, designer, and organizational leader who founded amaze consortium and was the former ceo at arcio with a focus on innovation, education, media, strategy, and community-driven development through modern digital ecosystems.</p>
+        <div class="founder-sign reveal reveal-delay-4">
+          <div class="founder-name">ariyan biswas</div>
+          <div class="founder-title">founder & president</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<!-- ==================== EXECUTIVES SECTION ==================== -->
+<!-- Executive members are now managed from the members portal          -->
+<!-- (Dashboard → public website) and fetched here from Supabase, the   -->
+<!-- same database the portal uses. FALLBACK_EXECUTIVES below is only   -->
+<!-- used if that fetch fails (offline, table empty, etc.) so the       -->
+<!-- section never renders blank. -->
+
+<section id="executives">
+  <div class="rail-pad">
+    <div class="sec-head" style="max-width:none;">
+      <div>
+        <span class="section-label reveal">// 004 — team</span>
+        <div class="section-title" data-lines>
+          <span class="line"><span>executive</span></span>
+          <span class="line"><span><em>members</em></span></span>
+        </div>
+      </div>
+      <div class="rail-controls reveal reveal-delay-1">
+        <button id="exec-prev" class="rail-btn" aria-label="previous" onclick="execScroll(-1)">←</button>
+        <div id="exec-dots"></div>
+        <button id="exec-next" class="rail-btn" aria-label="next" onclick="execScroll(1)">→</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="exec-track-wrap" style="position:relative;">
+    <div id="exec-track" class="rail-pad"></div>
+  </div>
+
+  <div class="rail-pad">
+    <div class="rail-foot"><span>drag or swipe to explore →</span></div>
+  </div>
+</section>
+
+<script>
+// Reads from the shared `site_content` table (type = 'executive') using
+// the SITE_SB_URL / SITE_SB_KEY / fetchSiteContent() helper defined in
+// the marquee section's script block earlier on this page.
+const FALLBACK_EXECUTIVES = [
+  { name: "farhan s zihan",        role: "vice-president",                initials: "FZ", img: "img/zihan.jpg"},
+  { name: "nazmus salehin",        role: "co-ordinator",                  initials: "NS", img: "img/salehin.jpeg"},
+  { name: "asif chowdhury",        role: "data manager",                  initials: "AC", img: "img/asif.jpg"},
+  { name: "maliha mehzabien",      role: "creative media officer",        initials: "MM", img: "img/maliha.jpg"},
+  { name: "taha nibras",           role: "human resources manager",       initials: "TN", img: "img/taha.jpg"},
+  { name: "eftiyak arfin",         role: "marketing manager",             initials: "EA", img: "img/eftiyak.jpg"},
+  { name: "tawhid hossen",         role: "technology manager",            initials: "TH", img: "img/tawhid.jpg"},
+];
+
+const CARD_W = 280;
+const GAP = 16; // must match the `gap` on #exec-track in css/home.css
+const track = document.getElementById("exec-track");
+const dotsWrap = document.getElementById("exec-dots");
+let executives = [];
+
+fetchSiteContent('executive', FALLBACK_EXECUTIVES).then(rows => {
+  executives = rows;
+  renderExecutiveCards();
+});
+
+function renderExecutiveCards() {
+executives.forEach((exec, i) => {
+  const { name, initials, img } = exec;
+  // rows from the portal carry the role under `subtitle`, same as advisors
+  const role = exec.role || exec.subtitle || '';
+  const card = document.createElement(exec.url ? "a" : "div");
+  if (exec.url) { card.href = exec.url; card.target = "_blank"; card.rel = "noopener noreferrer"; }
+  card.className = "person-card";
+  card.style.width = `${CARD_W}px`;
+
+  const imgBlock = img
+    ? `<img src="${img}" alt="${name}" loading="lazy" draggable="false" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : "";
+
+  const fallback = `<div class="person-initials" style="display:${img ? "none" : "flex"};">${initials}</div>`;
+
+  const num = String(i + 1).padStart(2, "0");
+
+  card.innerHTML = `
+    <div class="person-photo">
+      <span class="person-num">${num}</span>
+      ${exec.url ? '<span class="person-arrow">↗</span>' : ''}
+      ${imgBlock}${fallback}
+    </div>
+    <div class="person-body">
+      <div class="person-kind">executive</div>
+      <div class="person-name">${name}</div>
+      <div class="person-role">${role}</div>
+    </div>
+  `;
+
+  track.appendChild(card);
+});
+
+buildDots();
+} // ── end renderExecutiveCards() ──────────────────────────────────────────────
+
+// ── dots ────────────────────────────────────────────────────────────────────
+const visibleCount = () => Math.floor((track.parentElement.clientWidth - 60) / (CARD_W + GAP)) || 1;
+const totalPages = () => Math.ceil(executives.length / visibleCount());
+
+function buildDots() {
+  dotsWrap.innerHTML = "";
+  const n = totalPages();
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement("div");
+    d.style.cssText = `width:${i === 0 ? 20 : 6}px;height:6px;background:${i === 0 ? "#2ef2a2" : "rgba(255,255,255,0.15)"};border-radius:3px;transition:all 0.3s;`;
+    dotsWrap.appendChild(d);
+  }
+}
+
+function updateDots() {
+  const page = Math.round(track.scrollLeft / ((CARD_W + GAP) * visibleCount()));
+  [...dotsWrap.children].forEach((d, i) => {
+    d.style.width = i === page ? "20px" : "6px";
+    d.style.background = i === page ? "#2ef2a2" : "rgba(255,255,255,0.15)";
+  });
+}
+
+function execScroll(dir) {
+  const step = (CARD_W + GAP) * visibleCount();
+  track.scrollBy({ left: dir * step, behavior: "smooth" });
+}
+
+track.addEventListener("scroll", updateDots, { passive: true });
+window.addEventListener("resize", () => { buildDots(); updateDots(); });
+
+// ── drag to scroll ───────────────────────────────────────────────────────────
+// Scroll-snap is switched off for the duration of a drag (it would fight the
+// pointer) and a drag that actually moved swallows the click that follows it,
+// so releasing over a linked card doesn't open that link.
+let isDragging = false, didDrag = false, startX = 0, startScroll = 0;
+track.addEventListener("mousedown", e => { isDragging = true; didDrag = false; startX = e.pageX; startScroll = track.scrollLeft; track.style.cursor = "grabbing"; });
+window.addEventListener("mousemove", e => {
+  if (!isDragging) return;
+  if (Math.abs(e.pageX - startX) > 4 && !didDrag) { didDrag = true; track.style.scrollSnapType = "none"; }
+  track.scrollLeft = startScroll - (e.pageX - startX);
+});
+window.addEventListener("mouseup", () => { isDragging = false; track.style.cursor = "grab"; track.style.scrollSnapType = ""; });
+track.addEventListener("click", e => { if (didDrag) { e.preventDefault(); e.stopPropagation(); didDrag = false; } }, true);
+</script>
+<!-- ==================== END EXECUTIVES SECTION ==================== -->
+
+  <!-- ==================== ADVISORS SECTION ==================== -->
+<!-- "the people we learn from" — managed from the members portal      -->
+<!-- (Dashboard → public website → advisors tab) and fetched from      -->
+<!-- Supabase; see the script block below for the fallback list.       -->
+
+<section id="advisors">
+  <div class="container advisors-inner">
+    <div class="sec-head">
+      <div>
+        <span class="section-label reveal">// 005 — advisors</span>
+        <div class="section-title" data-lines>
+          <span class="line"><span>the people</span></span>
+          <span class="line"><span>we <em>learn from</em></span></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="advisors-grid"></div>
+  </div>
+</section>
+
+<script>
+// Reads from the same `site_content` table as the executives section
+// above (type = 'advisor'), managed from the members portal → public
+// website → advisors tab. Uses the shared fetchSiteContent() helper
+// defined in the marquee section's script block earlier on this page.
+const FALLBACK_ADVISORS = [
+  { name: "s m ehsan habib shumon", subtitle: "founder of sarangsho",      img: "img/advisoreh.jpg", initials: "EH", url: "https://www.linkedin.com/in/ehsanhabibshumon/" },
+  { name: "md abdur rahman",        subtitle: "founder of bondi pathshala", img: "img/advisorar.jpg", initials: "AR", url: "https://www.linkedin.com/in/md-abdur-rahman-9090ba358/" },
+];
+
+const grid = document.getElementById("advisors-grid");
+
+fetchSiteContent('advisor', FALLBACK_ADVISORS).then(advisors => {
+advisors.forEach((advisor, i) => {
+  const { name, initials, img } = advisor;
+  const role = advisor.role || advisor.subtitle || '';
+  const card = document.createElement(advisor.url ? "a" : "div");
+    if (advisor.url) { card.href = advisor.url; card.target = "_blank"; card.rel = "noopener noreferrer"; }
+  card.className = "advisor-card person-card";
+
+  const imgBlock = img
+    ? `<img src="${img}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : "";
+
+  const fallback = `<div class="person-initials" style="display:${img ? "none" : "flex"};">${initials}</div>`;
+
+  card.innerHTML = `
+    <div class="person-photo">
+      ${advisor.url ? '<span class="person-arrow">↗</span>' : ''}
+      ${imgBlock}${fallback}
+    </div>
+    <div class="person-body">
+      <div class="person-kind">advisor</div>
+      <div class="person-name">${name}</div>
+      <div class="person-role">${role}</div>
+    </div>
+  `;
+
+  grid.appendChild(card);
+});
+});
+</script>
+<!-- ==================== END ADVISORS SECTION ==================== -->
+
+
+
+  <!-- OPPORTUNITIES -->
+  <section id="opportunities" class="theme-light">
+    <div class="sec-head opps-header">
+      <div>
+        <span class="section-label reveal">// 006 — get involved</span>
+        <div class="opps-title section-title" data-lines>
+          <span class="line"><span><em>opportunities</em></span></span>
+        </div>
+      </div>
+      <p class="opps-sub section-sub reveal reveal-delay-1">your entry point into the amaze ecosystem. choose your path.</p>
+    </div>
+    <div class="opps-list opps-grid">
+      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform">
+        <div class="opp-num">01</div>
+        <div class="opp-name">apply for membership</div>
+        <div class="opp-desc">become a core member of the amaze consortium and access the full ecosystem of opportunities.</div>
+        <span class="opp-action"><b>apply</b><i>→</i></span>
+      </a>
+      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSdiDJuVnO8FoTO00YAIp0TsXeMJXDbjICvv1qi_SBWXZHmIZQ/viewform">
+        <div class="opp-num">02</div>
+        <div class="opp-name">ambassador & representative</div>
+        <div class="opp-desc">represent amaze consortium at your institution or region and lead local community building initiatives.</div>
+        <span class="opp-action"><b>apply</b><i>→</i></span>
+      </a>
+      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSfR_6wr2Zvl0D_W8ke6eiL3inRHN1ZaA5Y8B13RnPT-3X4OGQ/viewform">
+        <div class="opp-num">03</div>
+        <div class="opp-name">donation</div>
+        <div class="opp-desc">support the mission of amaze consortium and fuel the next generation of innovators and leaders.</div>
+        <span class="opp-action"><b>donate</b><i>→</i></span>
+      </a>
+      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSdbi8Ezgk8FfYD6cONgRp3aALG8S5VCX1NasDacsHtQdrPX4Q/viewform">
+        <div class="opp-num">04</div>
+        <div class="opp-name">newsletter</div>
+        <div class="opp-desc">stay informed with updates, announcements, and insights from across the amaze ecosystem.</div>
+        <span class="opp-action"><b>subscribe</b><i>→</i></span>
+      </a>
+    </div>
+  </section>
+
+  <!-- TEAM -->
+  <section id="team">
+    <div class="team-inner">
+      <span class="section-label reveal">// 007 — the people</span>
+      <div class="team-img-wrap team-media">
+        <img class="team-img" src="img/amazeteam.jpg" alt="amaze consortium team" loading="lazy" onerror="this.src='';this.style.background='linear-gradient(135deg,#0d0d0d,#1a1a1a)';this.style.minHeight='300px'">
+        <span class="team-caption">the amaze consortium team</span>
+      </div>
+      <div class="team-content">
+        <div class="team-title section-title" data-lines>
+          <span class="line"><span>built by<em> visionaries.</em></span></span>
+          <span class="line"><span>led by conviction.</span></span>
+        </div>
+        <div>
+          <p class="team-desc reveal reveal-delay-1">the strength of amaze consortium lies in its people — a diverse, driven collective of individuals who bring unique skills, perspectives, and ambitions to the table.</p>
+          <p class="team-desc reveal reveal-delay-2">across every division, collaboration is not just encouraged — it is the foundation upon which everything we build stands.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- ==================== PARTNERS SECTION ==================== -->
+  <!-- "trusted by our partners" — managed from the members portal       -->
+  <!-- (Dashboard → public website → partners tab) and fetched from      -->
+  <!-- Supabase; see the script block below for the fallback list.       -->
+  <section id="partners">
+    <div class="partners-inner">
+      <div class="sec-head">
+        <div>
+          <span class="section-label reveal">// 008 — partners</span>
+          <div class="section-title" data-lines>
+            <span class="line"><span>trusted by</span></span>
+            <span class="line"><span>our <em>partners</em></span></span>
+          </div>
+        </div>
+        <p class="section-sub reveal reveal-delay-1" style="max-width:420px;">
+          organizations and institutions that share our vision and collaborate with the amaze ecosystem.
+        </p>
+      </div>
+
+      <div id="part-track"></div>
+    </div>
+  </section>
+
+  <script>
+  // Reads from the shared `site_content` table (type = 'partner'),
+  // managed from the members portal → public website → partners tab.
+  // Uses the shared fetchSiteContent() helper defined in the marquee
+  // section's script block earlier on this page.
+  const FALLBACK_PARTNERS = [
+    { name: "global youth opportunities", logo: "img/gyo.png",             initials: "GYO",   url: "https://www.linkedin.com/company/youth-opportunities-global/" },
+    { name: "staty.dev",                  logo: "img/staty1.png",         initials: "ST",    url: "https://staty.dev" },
+    { name: "youthverse union",           logo: "img/yvu.png",            initials: "YVU",   url: "https://youthverseunion.org" },
+    { name: "simplespeek",                logo: "img/simplespeek.png",    initials: "SP",    url: "https://simplespeek.ai" },
+    { name: "jnu math club",              logo: "img/jnumc.png",          initials: "JNUMC", url: "https://www.facebook.com/jnumc25/" },
+    { name: "bangla innovator",           logo: "img/banglainnovator.png",initials: "BI",    url: "https://banglainnovator.com/" },
+  ];
+
+  const pTrack = document.getElementById("part-track");
+
+  function renderPartner({ name, logo, initials, url }) {
+    const item = document.createElement("a");
+    item.href = url;
+    item.target = "_blank";
+    item.rel = "noopener noreferrer";
+    item.title = name;
+    item.className = "partner-item";
+
+    if (logo) {
+      const img = document.createElement("img");
+      img.src = logo;
+      img.alt = name;
+      img.loading = "lazy";
+      img.onerror = () => { img.remove(); item.appendChild(makeInitials(initials)); };
+      item.appendChild(img);
+    } else {
+      item.appendChild(makeInitials(initials));
+    }
+
+    pTrack.appendChild(item);
+  }
+
+  function makeInitials(text) {
+    const el = document.createElement("div");
+    el.className = "partner-initials";
+    el.textContent = text;
+    return el;
+  }
+
+  fetchSiteContent('partner', FALLBACK_PARTNERS).then(rows => {
+    // DB rows store the image under `img`, not `logo` — normalize so
+    // renderPartner() (which expects `logo`) works for both DB rows and
+    // the FALLBACK_PARTNERS array above.
+    rows.map(r => ({ name: r.name, logo: r.logo || r.img, initials: r.initials, url: r.url })).forEach(renderPartner);
+  });
+  </script>
+  <!-- ==================== END PARTNERS SECTION ==================== -->
+
+  <!-- CONTACT -->
+  <section id="contact">
+    <div class="contact-inner">
+      <div class="contact-top">
+        <div class="contact-title" data-lines>
+          <span class="line"><span>let's</span></span>
+          <span class="line"><span><em>connect.</em></span></span>
+        </div>
+        <div class="contact-email reveal reveal-delay-2">
+          <small>reach out directly</small>
+          <a class="mail" href="mailto:pr@amazeconsortium.org">pr@amazeconsortium.org</a>
+          <div>
+            <a class="wa" href="https://wa.me/message/KGXENVY6GDCEO1">whatsapp ↗</a>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="socials-label reveal">follow the organization</div>
+        <div class="socials reveal reveal-delay-1">
+          <a href="https://www.instagram.com/amazeconsortium/" class="social-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            instagram
+          </a>
+          <a href="https://www.youtube.com/@amazeconsortium" class="social-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22.54 6.42a2.78 2.78 0 00-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 00-1.95 1.96A29 29 0 001 12a29 29 0 00.46 5.58a2.78 2.78 0 001.95 1.95C5.12 20 12 20 12 20s6.88 0 8.59-.47a2.78 2.78 0 001.95-1.95A29 29 0 0023 12a29 29 0 00-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>
+            youtube
+          </a>
+          <a href="https://www.facebook.com/amazeconsortium" class="social-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+            facebook
+          </a>
+          <a href="https://chat.whatsapp.com/JJJ6YXopvJH58k8cGegnTQ" class="social-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+            whatsapp
+          </a>
+          <a href="https://www.linkedin.com/company/amazeconsortium" class="social-link">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+    <rect x="2" y="9" width="4" height="12"></rect>
+    <circle cx="4" cy="4" r="2"></circle>
+  </svg>
+  linkedin
+</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <img src="img/amazelogo.png" alt="amaze" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-size:14px;font-weight:800;color:var(--green);letter-spacing:0.2em;">◈ amaze</span>
+        <span>amaze consortium — strategic ecosystem</span>
+      </div>
+      <ul class="footer-nav">
+        <li><a href="academy/index.html">the academy</a></li>
+        <li><a href="structure/index.html">our structure</a></li>
+        <li><a href="tos/index.html">terms & conditions</a></li>
+        <li><a href="privacy/index.html">privacy policy</a></li>
+        <li><a href="code/index.html">code of conduct</a></li>
+        <li><a href="#opportunities">opportunities</a></li>
+        <li><a href="#contact">contact</a></li>
+      </ul>
+      <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+    </div>
+    <div class="footer-wordmark" aria-hidden="true"><span>a</span><span>m</span><span>a</span><span>z</span><span>e</span></div>
+  </footer>
+
+<script>
+  // Mouse glow (ambient background effect, follows cursor)
+  const glow = document.getElementById('mouse-glow');
+  document.addEventListener('mousemove', e => {
+    glow.style.left = e.clientX + 'px';
+    glow.style.top = e.clientY + 'px';
+  });
+
+  // Navbar scroll
+  const nav = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+  });
+
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+  reveals.forEach(r => observer.observe(r));
+
+  // Mobile nav
+  function toggleMobileNav() {
+    document.getElementById('mobile-nav').classList.toggle('open');
+  }
+</script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
+<script defer src="js/home-motion.js"></script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>our structure — amaze consortium</title>
+<meta name="description" content="how amaze consortium is organized as a parent non-profit overseeing independent subsidiaries.">
+<link rel="icon" href="../amazelogo.ico" type="image/x-icon">
+<style>
+:root { --black:#000; --dark:#0d0d0d; --green:#2ef2a2; --white:#fff; --border:#1a1a1a; }
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--black);color:var(--white);font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;font-weight:300;overflow-x:hidden;}
+::-webkit-scrollbar{width:2px;}::-webkit-scrollbar-track{background:var(--black);}::-webkit-scrollbar-thumb{background:var(--green);}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");background-size:200px 200px;pointer-events:none;z-index:9000;opacity:0.5;}
+
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:24px 60px;display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,0.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(46,242,162,0.08);transition:all 0.4s;}
+.nav-brand{font-size:13px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-decoration:none;text-transform:lowercase;}
+.nav-brand span{color:var(--green);}
+.nav-back{font-size:11px;letter-spacing:0.15em;color:rgba(255,255,255,0.4);text-decoration:none;text-transform:lowercase;transition:color 0.3s;display:flex;align-items:center;gap:8px;}
+.nav-back:hover{color:var(--green);}
+.nav-logo img { height: 36px; }
+.nav-logo span {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.2em;
+  color: var(--white); text-transform: lowercase;
+}
+
+/* hero */
+.page-hero{padding:140px 60px 80px;border-bottom:1px solid var(--border);position:relative;overflow:hidden;}
+.page-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 0% 50%,rgba(46,242,162,0.04) 0%,transparent 70%);}
+.hero-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1;}
+.page-tag{display:inline-block;border:1px solid rgba(46,242,162,0.25);color:var(--green);font-size:9px;letter-spacing:0.3em;padding:6px 14px;text-transform:lowercase;margin-bottom:28px;}
+.page-h1{font-size:clamp(44px,6vw,80px);font-weight:800;letter-spacing:-0.03em;text-transform:lowercase;line-height:0.95;margin-bottom:24px;}
+.page-h1 em{color:var(--green);font-style:normal;}
+.page-sub{font-size:15px;line-height:1.8;color:rgba(255,255,255,0.5);max-width:620px;margin-top:20px;}
+
+/* section shell */
+.sect{max-width:1200px;margin:0 auto;padding:88px 60px;border-bottom:1px solid var(--border);}
+.sect:last-of-type{border-bottom:none;}
+.sect-label{font-size:9px;letter-spacing:0.3em;color:var(--green);text-transform:lowercase;margin-bottom:20px;display:block;}
+.sect-title{font-size:clamp(26px,3vw,40px);font-weight:800;letter-spacing:-0.02em;text-transform:lowercase;margin-bottom:20px;line-height:1.1;max-width:640px;}
+.sect-p{font-size:14px;line-height:1.9;color:rgba(255,255,255,0.5);max-width:640px;margin-bottom:16px;font-weight:300;}
+.sect-p:last-child{margin-bottom:0;}
+
+/* org chart */
+.org-chart{margin-top:64px;display:flex;flex-direction:column;align-items:center;}
+.org-parent{border:1px solid var(--green);background:rgba(46,242,162,0.05);padding:24px 40px;text-align:center;position:relative;}
+.org-parent-name{font-size:16px;font-weight:800;letter-spacing:-0.01em;text-transform:lowercase;color:var(--white);}
+.org-parent-tag{font-size:10px;letter-spacing:0.2em;color:var(--green);text-transform:lowercase;margin-top:6px;}
+.org-connector{width:1px;height:48px;background:linear-gradient(to bottom, var(--green), rgba(46,242,162,0.15));}
+.org-row{display:grid;grid-template-columns:repeat(5,1fr);gap:0;width:100%;position:relative;}
+.org-row::before{content:'';position:absolute;top:0;left:10%;right:10%;height:1px;background:rgba(46,242,162,0.15);}
+.org-child{display:flex;flex-direction:column;align-items:center;padding-top:40px;position:relative;}
+.org-child::before{content:'';position:absolute;top:0;left:50%;width:1px;height:40px;background:rgba(46,242,162,0.15);}
+.org-child-box{border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);padding:20px 18px;text-align:center;width:100%;max-width:220px;transition:all 0.3s ease;}
+.org-child-box:hover{border-color:rgba(46,242,162,0.4);background:rgba(46,242,162,0.03);transform:translateY(-3px);}
+.org-child-name{font-size:12.5px;font-weight:700;text-transform:lowercase;letter-spacing:-0.01em;line-height:1.3;}
+.org-child-tag{font-size:9px;letter-spacing:0.15em;color:rgba(255,255,255,0.35);text-transform:uppercase;margin-top:8px;}
+
+/* pillars */
+.pillar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:48px;}
+.pillar{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:32px 28px;}
+.pillar-num{font-size:11px;letter-spacing:0.2em;color:rgba(255,255,255,0.2);margin-bottom:20px;}
+.pillar-name{font-size:15px;font-weight:700;text-transform:lowercase;margin-bottom:10px;}
+.pillar-desc{font-size:12.5px;line-height:1.7;color:rgba(255,255,255,0.45);}
+
+/* cta */
+.cta-band{max-width:1200px;margin:0 auto;padding:0 60px 100px;}
+.cta-inner{border:1px solid rgba(46,242,162,0.2);background:rgba(46,242,162,0.03);padding:56px 48px;display:flex;align-items:center;justify-content:space-between;gap:32px;flex-wrap:wrap;}
+.cta-title{font-size:clamp(22px,2.5vw,32px);font-weight:800;letter-spacing:-0.02em;text-transform:lowercase;}
+.cta-title em{color:var(--green);font-style:normal;}
+.cta-btn{background:var(--green);color:var(--black);padding:14px 30px;font-size:12px;letter-spacing:0.15em;text-transform:lowercase;text-decoration:none;font-weight:600;transition:all 0.3s ease;white-space:nowrap;}
+.cta-btn:hover{background:transparent;color:var(--green);border:1px solid var(--green);padding:13px 29px;}
+
+/* footer */
+footer{background:var(--dark);border-top:1px solid var(--border);padding:40px 60px;}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;}
+.footer-brand{font-size:12px;font-weight:800;letter-spacing:0.15em;color:var(--white);text-transform:lowercase;}
+.footer-brand span{color:var(--green);}
+.footer-links{display:flex;gap:24px;list-style:none;flex-wrap:wrap;}
+.footer-links a{font-size:11px;letter-spacing:0.1em;color:rgba(255,255,255,0.25);text-decoration:none;text-transform:lowercase;transition:color 0.3s;}
+.footer-links a:hover{color:var(--green);}
+.footer-copy{font-size:11px;color:rgba(255,255,255,0.18);letter-spacing:0.05em;}
+
+/* responsive */
+@media(max-width:900px){
+  nav{padding:18px 24px;}
+  .page-hero{padding:120px 24px 60px;}
+  .sect{padding:64px 24px;}
+  .pillar-grid{grid-template-columns:1fr;}
+  .org-row{grid-template-columns:1fr 1fr;gap:32px 0;}
+  .org-row::before{display:none;}
+  .org-child::before{display:none;}
+  .org-child{padding-top:0;}
+  .cta-band{padding:0 24px 72px;}
+  .cta-inner{padding:40px 28px;flex-direction:column;align-items:flex-start;}
+  footer{padding:32px 24px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../index.html" class="nav-logo" style="text-decoration:none;display:flex;align-items:center;gap:12px;">
+    <img src="../img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <span style="display:none;font-size:16px;font-weight:800;letter-spacing:0.1em;">amaze</span>
+  </a>
+  <a href="../index.html" class="nav-back">← back to main site</a>
+</nav>
+
+<div class="page-hero">
+  <div class="hero-inner">
+    <div class="page-tag">organizational structure</div>
+    <h1 class="page-h1">one parent.<br><em>five subsidiaries.</em></h1>
+    <p class="page-sub">amaze consortium is structured the way established non-profits like brac are — a single parent organization that develops people, funding, and infrastructure, then channels that capacity into independently branded, independently run subsidiaries.</p>
+  </div>
+</div>
+
+<div class="sect">
+  <span class="sect-label">// 01 — the model</span>
+  <div class="sect-title">the parent builds capacity.<br>the subsidiaries deliver impact.</div>
+  <p class="sect-p">amaze consortium itself doesn't run programs directly. instead, it recruits and trains members through <a href="../academy/index.html" style="color:var(--green);text-decoration:none;border-bottom:1px solid rgba(46,242,162,0.3);">the amaze academy</a>, raises support through partnerships and donations, and maintains the shared brand, governance, and standards that every subsidiary operates under.</p>
+  <p class="sect-p">each subsidiary then owns a specific mission — research, competitive chess, publishing, community-building, or software engineering — and is run day to day by the students who trained for it.</p>
+
+  <div class="org-chart">
+    <div class="org-parent">
+      <div class="org-parent-name">amaze consortium</div>
+      <div class="org-parent-tag">parent non-profit organization</div>
+    </div>
+    <div class="org-connector"></div>
+    <div class="org-row">
+      <div class="org-child">
+        <div class="org-child-box">
+          <div class="org-child-name">amaze research, innovation &amp; exploration society</div>
+          <div class="org-child-tag">research</div>
+        </div>
+      </div>
+      <div class="org-child">
+        <div class="org-child-box">
+          <div class="org-child-name">amaze youth chess tournament</div>
+          <div class="org-child-tag">competition</div>
+        </div>
+      </div>
+      <div class="org-child">
+        <div class="org-child-box">
+          <div class="org-child-name">first principles</div>
+          <div class="org-child-tag">publishing</div>
+        </div>
+      </div>
+      <div class="org-child">
+        <div class="org-child-box">
+          <div class="org-child-name">the outliers club</div>
+          <div class="org-child-tag">community</div>
+        </div>
+      </div>
+      <div class="org-child">
+        <div class="org-child-box">
+          <div class="org-child-name">havestack technologies</div>
+          <div class="org-child-tag">software & tech</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sect">
+  <span class="sect-label">// 02 — what the parent provides</span>
+  <div class="sect-title">shared infrastructure, so every subsidiary can focus on its mission.</div>
+  <div class="pillar-grid">
+    <div class="pillar">
+      <div class="pillar-num">01</div>
+      <div class="pillar-name">talent</div>
+      <div class="pillar-desc">members trained through the amaze academy are the primary talent pipeline for every subsidiary.</div>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">02</div>
+      <div class="pillar-name">governance</div>
+      <div class="pillar-desc">a shared code of conduct, chain of command, and organizational standards apply across the whole ecosystem.</div>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">03</div>
+      <div class="pillar-name">brand & reach</div>
+      <div class="pillar-desc">subsidiaries operate under the amaze name and network, giving new initiatives instant credibility and reach.</div>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">04</div>
+      <div class="pillar-name">funding</div>
+      <div class="pillar-desc">donations and partnerships raised at the consortium level support subsidiaries as they get off the ground.</div>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">05</div>
+      <div class="pillar-name">advisory support</div>
+      <div class="pillar-desc">experienced advisors guide subsidiary leadership on strategy, operations, and growth.</div>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">06</div>
+      <div class="pillar-name">shared standards</div>
+      <div class="pillar-desc">every subsidiary is held to the same bar for quality, transparency, and impact.</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta-band">
+  <div class="cta-inner">
+    <div class="cta-title">want to see <em>every subsidiary?</em></div>
+    <a class="cta-btn" href="../index.html#divisions">explore the ecosystem →</a>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">amaze<span>.</span>consortium</div>
+    <ul class="footer-links">
+      <li><a href="../academy/index.html">the academy</a></li>
+      <li><a href="../index.html#divisions">subsidiaries</a></li>
+      <li><a href="../tos/index.html">terms & conditions</a></li>
+      <li><a href="../privacy/index.html">privacy policy</a></li>
+      <li><a href="../index.html">main site</a></li>
+    </ul>
+    <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+  </div>
+</footer>
+
+</body>
+</html>
