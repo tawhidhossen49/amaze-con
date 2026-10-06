@@ -1,3 +1,7 @@
 # Real member data with plaintext passwords - never commit
 seed/seed-members.js
 seed/seed.sql
+
+# Source clips and QA sheets - the site only needs sequences/hero/{desktop,mobile,poster.webp}
+raw-video/
+sequences/*/_qa/

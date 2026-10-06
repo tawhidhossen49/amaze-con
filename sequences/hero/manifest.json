@@ -1,0 +1,30 @@
+{
+  "name": "hero",
+  "frameCount": 120,
+  "desktop": {
+    "dir": "desktop",
+    "ext": "webp"
+  },
+  "mobile": {
+    "dir": "mobile",
+    "ext": "webp"
+  },
+  "poster": "poster.webp",
+  "edgeColor": "#090909",
+  "edgeColorEnd": "#090909",
+  "source": {
+    "file": "amaze logo 169.mp4",
+    "width": 1920,
+    "height": 1080,
+    "fps": 60.0,
+    "trim": [
+      0.0,
+      3.13
+    ]
+  },
+  "possibleCuts": [],
+  "sizeMB": {
+    "desktop": 6.2,
+    "mobile": 1.7
+  }
+}

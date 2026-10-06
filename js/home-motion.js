@@ -1,5 +1,7 @@
-// ── HOME PAGE MOTION ────────────────────────────────────────────────────────
-// Presentation only: preloader, 3D crest, smooth scroll and scroll reveals.
+// ── SITE MOTION ─────────────────────────────────────────────────────────────
+// Presentation only: preloader, hero intro, smooth scroll and scroll reveals.
+// Shared by the home page and the academy / structure pages — every block
+// checks for its own elements, so a page only gets the motion it has markup for.
 // Nothing in here fetches or writes data — the content scripts inline in
 // index.html stay the single source of truth for what's on the page.
 // If GSAP/Lenis fail to load (offline, blocked CDN) or the visitor prefers
@@ -7,64 +9,16 @@
 (function () {
   const root = document.documentElement;
   const pre = document.getElementById('preloader');
+  const hero = document.getElementById('hero');
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hasGsap = !!(window.gsap && window.ScrollTrigger);
-
-  const stage = document.querySelector('.crest-stage');
-  const crest = document.querySelector('.crest');
-  const nodes = [...document.querySelectorAll('.orbit-node')];
-
-  // ── 3D crest: stack copies of the flat mark along Z to extrude it ──────────
-  const DEPTH_LAYERS = 18;
-  const LAYER_STEP = 2;
-  function buildCrest() {
-    if (!crest) return;
-    const face = crest.querySelector('.crest-layer--face');
-    for (let i = DEPTH_LAYERS; i >= 1; i--) {
-      const layer = face.cloneNode(true);
-      layer.setAttribute('class', i === DEPTH_LAYERS ? 'crest-layer--back' : 'crest-layer--side');
-      layer.style.transform = `translateZ(${-i * LAYER_STEP}px)`;
-      crest.insertBefore(layer, face);
-    }
-  }
-
-  // ── orbit: nodes travel the same tilted ellipses the SVG rings draw ────────
-  // rx/ry are fractions of the stage size and must match the ring paths
-  // (viewBox 0 0 1000 1000) in index.html.
-  const RINGS = [
-    { rx: 0.46, ry: 0.14, speed: 0.16 },
-    { rx: 0.37, ry: 0.11, speed: -0.22 },
-  ];
-  const TILT = (-14 * Math.PI) / 180;
-  const cosT = Math.cos(TILT), sinT = Math.sin(TILT);
-  function placeNodes(time) {
-    if (!stage) return;
-    const size = stage.clientWidth;
-    nodes.forEach((node) => {
-      const ring = RINGS[+node.dataset.ring] || RINGS[0];
-      const t = parseFloat(node.dataset.phase) + time * ring.speed;
-      const ex = ring.rx * Math.cos(t), ey = ring.ry * Math.sin(t);
-      const x = (ex * cosT - ey * sinT) * size;
-      const y = (ex * sinT + ey * cosT) * size;
-      const depth = Math.sin(t);                 // > 0 = near side of the ring
-      const near = (depth + 1) / 2;
-      const lift = node.dataset.ring === '1' ? 34 : 6;   // keeps the dot, not the label, on the ring
-      node.style.transform = `translate(calc(-50% + ${x.toFixed(1)}px), calc(${y.toFixed(1)}px - ${lift}px)) scale(${(0.82 + near * 0.18).toFixed(3)})`;
-      node.style.opacity = (0.3 + near * 0.7).toFixed(3);
-      node.style.zIndex = depth > 0 ? 5 : 2;
-    });
-  }
 
   function dropPreloader() {
     if (pre) pre.remove();
     root.classList.remove('is-loading');
   }
 
-  buildCrest();
-  placeNodes(0);
-
   if (!hasGsap || reduce) {
-    if (crest) crest.style.transform = 'rotateY(-22deg) rotateX(6deg)';
     dropPreloader();
     return;
   }
@@ -99,30 +53,75 @@
     });
   }
 
-  // ── crest idle motion + pointer tilt ───────────────────────────────────────
-  gsap.ticker.add((time) => placeNodes(time));
-  gsap.set('.crest', { rotateX: 6, rotateY: -30 });
-  gsap.to('.crest', { rotateY: 30, duration: 7, ease: 'sine.inOut', repeat: -1, yoyo: true });
-  gsap.to('.crest-tilt', { y: -12, duration: 3.6, ease: 'sine.inOut', repeat: -1, yoyo: true });
+  // ── frame sequence: a clip exported as numbered images, drawn to a canvas ──
+  // (scrubbing a <video> stutters between keyframes; images do not).
+  // Portrait viewports get the 9:16 set, everything else the 16:9 one.
+  function createSequence(canvas) {
+    const count = +canvas.dataset.frames;
+    const dir = window.matchMedia('(orientation: portrait) and (max-width: 900px)').matches ? 'mobile' : 'desktop';
+    const url = (i) => `${canvas.dataset.seq}/${dir}/${String(i + 1).padStart(4, '0')}.webp`;
+    const ctx = canvas.getContext('2d');
+    const images = new Array(count);
+    const state = { frame: 0 };
+    const OVERSCAN = 1.03;   // trims a stray pixel on the clip's edge
 
-  if (stage && window.matchMedia('(pointer: fine)').matches) {
-    const tiltX = gsap.quickTo('.crest-spin', 'rotateX', { duration: 0.9, ease: 'power3.out' });
-    const tiltY = gsap.quickTo('.crest-spin', 'rotateY', { duration: 0.9, ease: 'power3.out' });
-    const hero = document.getElementById('hero');
-    hero.addEventListener('pointermove', (e) => {
-      const r = hero.getBoundingClientRect();
-      tiltY(((e.clientX - r.left) / r.width - 0.5) * 26);
-      tiltX(-((e.clientY - r.top) / r.height - 0.5) * 18);
-    });
-    hero.addEventListener('pointerleave', () => { tiltX(0); tiltY(0); });
+    const ready = (img) => img && img.complete && img.naturalWidth > 0;
+    // if the exact frame hasn't arrived yet, draw the nearest one that has
+    function nearest(i) {
+      for (let d = 0; d < count; d++) {
+        if (ready(images[i - d])) return images[i - d];
+        if (ready(images[i + d])) return images[i + d];
+      }
+      return null;
+    }
+    function render() {
+      const img = nearest(Math.round(state.frame));
+      if (!img) return;
+      const cw = canvas.width, ch = canvas.height;
+      const k = Math.max(cw / img.naturalWidth, ch / img.naturalHeight) * OVERSCAN;   // object-fit: cover
+      const w = img.naturalWidth * k, h = img.naturalHeight * k;
+      ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+    }
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(canvas.clientWidth * dpr);
+      canvas.height = Math.round(canvas.clientHeight * dpr);
+      render();
+    }
+    function load(i) {
+      return new Promise((res) => {
+        if (images[i]) return res();
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = img.onerror = () => res();
+        img.src = url(i);
+        images[i] = img;
+      });
+    }
+    // coarse-to-fine: every 16th frame first so scrubbing works early
+    async function pass(stride) {
+      const batch = [];
+      for (let i = 0; i < count; i += stride) batch.push(load(i));
+      await Promise.all(batch);
+      render();
+    }
+    const firstPass = load(0).then(render).then(() => pass(16));
+    firstPass.then(async () => { for (const stride of [8, 4, 2, 1]) await pass(stride); });
+
+    window.addEventListener('resize', resize);
+    resize();
+    return { state, count, render, firstPass };
   }
 
-  // ── preloader → hero intro ─────────────────────────────────────────────────
-  const heroLines = gsap.utils.toArray('#hero .line > span');
-  const heroFades = gsap.utils.toArray('[data-hero-fade]');
-  gsap.set(heroLines, { yPercent: 115 });
-  gsap.set(heroFades, { autoAlpha: 0, y: 26 });
-  gsap.set('.crest-stage', { autoAlpha: 0, scale: 0.82 });
+  const heroCanvas = hero && hero.querySelector('.hero-canvas');
+  const seq = heroCanvas ? createSequence(heroCanvas) : null;
+
+  // ── intro: page-top lines and fades ────────────────────────────────────────
+  const top = hero || document.querySelector('.page-hero');
+  const introLines = top ? gsap.utils.toArray(top.querySelectorAll('.line > span')) : [];
+  const introFades = top ? gsap.utils.toArray(top.querySelectorAll('[data-hero-fade]')) : [];
+  gsap.set(introLines, { yPercent: 115 });
+  gsap.set(introFades, { autoAlpha: 0, y: 26 });
   gsap.set('#navbar', { yPercent: -140 });
 
   const intro = gsap.timeline({
@@ -133,9 +132,8 @@
     },
   });
   intro
-    .to('.crest-stage', { autoAlpha: 1, scale: 1, duration: 1.8, ease: 'expo.out' }, 0)
-    .to(heroLines, { yPercent: 0, duration: 1.25, ease: 'expo.out', stagger: 0.09 }, 0.1)
-    .to(heroFades, { autoAlpha: 1, y: 0, duration: 1.1, ease: 'power3.out', stagger: 0.08 }, 0.35)
+    .to(introLines, { yPercent: 0, duration: 1.25, ease: 'expo.out', stagger: 0.09 }, 0.1)
+    .to(introFades, { autoAlpha: 1, y: 0, duration: 1.1, ease: 'power3.out', stagger: 0.08 }, 0.35)
     .to('#navbar', { yPercent: 0, duration: 1.1, ease: 'expo.out' }, 0.3);
 
   let released = false;
@@ -148,44 +146,51 @@
   }
 
   if (pre) {
-    const strokes = pre.querySelectorAll('path');
+    // The counter runs to 90 on a timer, then finishes when the first pass of
+    // hero frames is in (or after a short cap) — nobody waits on all 120.
     const counter = pre.querySelector('.preloader__count');
     const count = { v: 0 };
-    strokes.forEach((p) => {
-      const len = p.getTotalLength();
-      gsap.set(p, { strokeDasharray: len, strokeDashoffset: len });
+    const show = () => { counter.textContent = String(Math.round(count.v)).padStart(3, '0'); };
+    const framesIn = seq ? Promise.race([seq.firstPass, new Promise((r) => setTimeout(r, 2600))]) : Promise.resolve();
+    gsap.to(count, { v: 90, duration: 1.1, ease: 'power2.inOut', onUpdate: show });
+    gsap.to('.preloader__bar', { scaleX: 0.9, duration: 1.1, ease: 'power2.inOut' });
+    Promise.all([framesIn, new Promise((r) => setTimeout(r, 1100))]).then(() => {
+      gsap.timeline()
+        .to(count, { v: 100, duration: 0.3, ease: 'power2.out', onUpdate: show }, 0)
+        .to('.preloader__bar', { scaleX: 1, duration: 0.3, ease: 'power2.out' }, 0)
+        .to(pre, { yPercent: -100, duration: 0.9, ease: 'expo.inOut', onStart: release, onComplete: () => pre.remove() }, 0.3);
     });
-    gsap.timeline()
-      .to(strokes, { strokeDashoffset: 0, duration: 1.3, ease: 'power2.inOut' }, 0)
-      .to(count, {
-        v: 100, duration: 1.4, ease: 'power2.inOut',
-        onUpdate: () => { counter.textContent = String(Math.round(count.v)).padStart(3, '0'); },
-      }, 0)
-      .to(strokes, { fill: 'rgba(46,242,162,1)', duration: 0.4, ease: 'power2.out' }, 1.2)
-      .to(pre, { yPercent: -100, duration: 0.95, ease: 'expo.inOut', onStart: release, onComplete: () => pre.remove() }, 1.65);
   } else {
     release();
   }
 
-  // ── hero scroll-out ────────────────────────────────────────────────────────
-  const heroOut = { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: true };
-  gsap.to('.hero-copy', { yPercent: -14, opacity: 0.1, ease: 'none', scrollTrigger: heroOut });
-  gsap.to('.crest-drift', { yPercent: 16, scale: 1.14, ease: 'none', scrollTrigger: heroOut });
-  // children, not .hero-meta itself: the intro already fades that element in
-  gsap.fromTo('.hero-meta > *', { opacity: 1 }, { opacity: 0, ease: 'none', scrollTrigger: { trigger: '#hero', start: 'top top', end: '30% top', scrub: true } });
+  // ── hero: the clip follows the scroll, both directions ─────────────────────
+  // The stage is held in place by position: sticky and the text scrolls over
+  // it natively; all this does is map scroll distance through the hero onto
+  // the frame number, so the light and the text move together.
+  if (seq) {
+    gsap.to(seq.state, {
+      frame: seq.count - 1, snap: 'frame', ease: 'none', onUpdate: seq.render,
+      scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom bottom', scrub: 0.5 },
+    });
+  }
 
   // ── nav: hide on the way down, return on the way up ────────────────────────
   const nav = document.getElementById('navbar');
-  ScrollTrigger.create({
-    start: 0, end: 'max',
-    onUpdate: (self) => nav.classList.toggle('is-hidden', self.direction === 1 && self.scroll() > 400),
-  });
+  if (nav) {
+    ScrollTrigger.create({
+      start: 0, end: 'max',
+      onUpdate: (self) => nav.classList.toggle('is-hidden', self.direction === 1 && self.scroll() > 400),
+    });
+  }
 
-  gsap.to('.scroll-progress', { scaleX: 1, ease: 'none', scrollTrigger: { start: 0, end: 'max', scrub: 0.3 } });
+  if (document.querySelector('.scroll-progress')) {
+    gsap.to('.scroll-progress', { scaleX: 1, ease: 'none', scrollTrigger: { start: 0, end: 'max', scrub: 0.3 } });
+  }
 
   // ── headings: line-mask reveal ─────────────────────────────────────────────
   gsap.utils.toArray('[data-lines]').forEach((el) => {
-    if (el.closest('#hero')) return;
+    if (top && top.contains(el)) return;
     gsap.from(el.querySelectorAll('.line > span'), {
       yPercent: 115, duration: 1.2, ease: 'expo.out', stagger: 0.09,
       scrollTrigger: { trigger: el, start: 'top 88%', once: true },
@@ -212,6 +217,15 @@
     });
   });
 
+  // ── rules that draw across (org chart connectors, dividers) ────────────────
+  gsap.utils.toArray('[data-rule]').forEach((el) => {
+    gsap.from(el, {
+      scaleX: el.dataset.rule === 'y' ? 1 : 0, scaleY: el.dataset.rule === 'y' ? 0 : 1,
+      transformOrigin: el.dataset.rule === 'y' ? 'top' : 'left', duration: 1.2, ease: 'expo.out',
+      scrollTrigger: { trigger: el, start: 'top 90%', once: true },
+    });
+  });
+
   // ── imagery ────────────────────────────────────────────────────────────────
   gsap.utils.toArray('[data-parallax] img').forEach((img) => {
     gsap.fromTo(img, { scale: 1.18, yPercent: -5 }, {
@@ -221,29 +235,17 @@
   });
   const teamMedia = document.querySelector('.team-media');
   if (teamMedia) {
-    gsap.fromTo(teamMedia, { clipPath: 'inset(9% 11% 9% 11% round 28px)' }, {
-      clipPath: 'inset(0% 0% 0% 0% round 28px)', ease: 'none',
+    gsap.fromTo(teamMedia, { clipPath: 'inset(9% 11% 9% 11%)' }, {
+      clipPath: 'inset(0% 0% 0% 0%)', ease: 'none',
       scrollTrigger: { trigger: teamMedia, start: 'top 92%', end: 'top 22%', scrub: true },
     });
   }
 
   // ── footer wordmark ────────────────────────────────────────────────────────
-  gsap.from('.footer-wordmark span', {
-    yPercent: 100, duration: 1.3, ease: 'expo.out', stagger: 0.06,
-    scrollTrigger: { trigger: '.footer-wordmark', start: 'top 96%', once: true },
-  });
-
-  // ── magnetic buttons ───────────────────────────────────────────────────────
-  if (window.matchMedia('(pointer: fine)').matches) {
-    document.querySelectorAll('[data-magnetic]').forEach((btn) => {
-      const mx = gsap.quickTo(btn, 'x', { duration: 0.5, ease: 'power3.out' });
-      const my = gsap.quickTo(btn, 'y', { duration: 0.5, ease: 'power3.out' });
-      btn.addEventListener('pointermove', (e) => {
-        const r = btn.getBoundingClientRect();
-        mx((e.clientX - r.left - r.width / 2) * 0.22);
-        my((e.clientY - r.top - r.height / 2) * 0.3);
-      });
-      btn.addEventListener('pointerleave', () => { mx(0); my(0); });
+  if (document.querySelector('.footer-wordmark')) {
+    gsap.from('.footer-wordmark span', {
+      yPercent: 100, duration: 1.3, ease: 'expo.out', stagger: 0.06,
+      scrollTrigger: { trigger: '.footer-wordmark', start: 'top 96%', once: true },
     });
   }
 

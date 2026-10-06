@@ -13,9 +13,6 @@
 </script>
 <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/home.css">
 
 <script>
@@ -30,16 +27,12 @@
 <body>
   <!-- PRELOADER -->
   <div class="preloader" id="preloader" aria-hidden="true">
-    <div class="preloader__inner">
-      <svg class="preloader__crest" viewBox="0 0 100 100">
-        <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
-      </svg>
-      <div class="preloader__row"><span>amaze consortium</span><span class="preloader__count">000</span></div>
-    </div>
+    <div class="preloader__top"><span>amaze consortium</span><span>est. 2020</span></div>
+    <div class="preloader__count">000</div>
+    <div class="preloader__bar"></div>
   </div>
 
   <div class="scroll-progress" aria-hidden="true"></div>
-  <div class="mouse-glow" id="mouse-glow"></div>
 
   <!-- NAV -->
   <nav id="navbar">
@@ -65,7 +58,7 @@
   </li>
 </ul>
     <div class="nav-right">
-      <a class="nav-cta btn-primary" href="#opportunities" data-magnetic>apply now <span class="btn-arrow" aria-hidden="true">↗</span></a>
+      <a class="nav-cta btn-primary" href="#opportunities">apply now <span class="btn-arrow" aria-hidden="true">↗</span></a>
       <div class="hamburger" id="hamburger" onclick="toggleMobileNav()" role="button" tabindex="0" aria-label="open menu">
         <span></span><span></span><span></span>
       </div>
@@ -86,94 +79,47 @@
   </div>
 
   <!-- HERO -->
-  <!-- The 3D crest stage is the stand-in for the hero video: when the clip   -->
-  <!-- is ready it replaces .crest-stage / .hero-bg and the copy stays as is. -->
+  <!-- .hero-stage sticks to the viewport and plays a frame sequence          -->
+  <!-- (sequences/hero, extracted from raw-video/) against the scroll, both    -->
+  <!-- directions. .hero-flow is ordinary content that scrolls up over it:     -->
+  <!-- the headline, a clear stretch where the crest is lit, then the numbers. -->
   <section id="hero">
-    <div class="hero-bg"></div>
-    <div class="hero-fade"></div>
-
-    <div class="hero-copy">
-      <div class="hero-tag" data-hero-fade><i></i>est. 2020 — a strategic ecosystem</div>
-      <h1 class="hero-h1" data-lines>
-        <span class="line"><span>building</span></span>
-        <span class="line"><span><span class="accent">minds, ideas</span></span></span>
-        <span class="line"><span>&amp; the future.</span></span>
-      </h1>
-      <p class="hero-sub" data-hero-fade>a visionary youth-led organization driving strategic innovation, education, technology, and community impact across global frontiers.</p>
-      <div class="hero-buttons" data-hero-fade>
-        <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform" class="btn-primary" data-magnetic>apply for membership <span class="btn-arrow" aria-hidden="true">↗</span></a>
-        <a href="https://docs.google.com/document/d/1m9L-Z4ZQY3beOOXJ9lWr6ZYrOuBlUR25s6XET6hyvBQ/" class="btn-outline">view guidebook <span class="btn-arrow" aria-hidden="true">↗</span></a>
-      </div>
+    <div class="hero-stage">
+      <canvas class="hero-canvas" data-seq="sequences/hero" data-frames="120" aria-hidden="true"></canvas>
     </div>
 
-    <div class="crest-stage" aria-hidden="true">
-      <div class="crest-drift">
-        <div class="crest-halo"></div>
-        <div class="crest-floor"></div>
-
-        <!-- far half of each orbit, drawn behind the crest -->
-        <svg class="crest-rings crest-rings--back" viewBox="0 0 1000 1000">
-          <g transform="rotate(-14 500 500)">
-            <path d="M40 500A460 140 0 0 1 960 500"/>
-            <path class="ring-accent" d="M130 500A370 110 0 0 1 870 500"/>
-          </g>
-        </svg>
-
-        <div class="crest-tilt">
-          <div class="crest-spin">
-            <div class="crest">
-              <svg class="crest-layer--face" viewBox="0 0 100 100">
-                <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
-              </svg>
-              <svg class="crest-layer--sheen" viewBox="0 0 100 100">
-                <defs>
-                  <linearGradient id="crestFace" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#7dffc6"/>
-                    <stop offset="0.45" stop-color="#2ef2a2"/>
-                    <stop offset="1" stop-color="#0fbf82"/>
-                  </linearGradient>
-                  <linearGradient id="crestSheen" x1="0" y1="0" x2="1" y2="0.9">
-                    <stop offset="0" stop-color="#fff" stop-opacity="0.5"/>
-                    <stop offset="0.32" stop-color="#fff" stop-opacity="0"/>
-                    <stop offset="0.7" stop-color="#fff" stop-opacity="0"/>
-                    <stop offset="1" stop-color="#003b26" stop-opacity="0.35"/>
-                  </linearGradient>
-                </defs>
-                <path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/>
-              </svg>
-              <svg class="crest-layer--edge" viewBox="0 0 100 100">
-                <path d="M10 52V8H90"/>
-              </svg>
-            </div>
+    <div class="hero-flow">
+      <div class="cap cap--lead">
+        <div class="cap-inner">
+          <div class="hero-tag" data-hero-fade><i></i>est. 2020 — a strategic ecosystem</div>
+          <h1 class="hero-h1" data-lines>
+            <span class="line"><span>building</span></span>
+            <span class="line"><span><span class="accent">minds, ideas</span></span></span>
+            <span class="line"><span>&amp; the future.</span></span>
+          </h1>
+          <p class="hero-sub" data-hero-fade>a visionary youth-led organization driving strategic innovation, education, technology, and community impact across global frontiers.</p>
+          <div class="hero-buttons" data-hero-fade>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform" class="btn-primary">apply for membership <span class="btn-arrow" aria-hidden="true">↗</span></a>
+            <a href="https://docs.google.com/document/d/1m9L-Z4ZQY3beOOXJ9lWr6ZYrOuBlUR25s6XET6hyvBQ/" class="btn-outline">view guidebook <span class="btn-arrow" aria-hidden="true">↗</span></a>
           </div>
         </div>
-
-        <!-- near half of each orbit, drawn in front of the crest -->
-        <svg class="crest-rings crest-rings--front" viewBox="0 0 1000 1000">
-          <g transform="rotate(-14 500 500)">
-            <path d="M40 500A460 140 0 0 0 960 500"/>
-            <path class="ring-accent" d="M130 500A370 110 0 0 0 870 500"/>
-          </g>
-        </svg>
-
-        <!-- one node per domain the subsidiaries work in -->
-        <div class="orbit-node" data-ring="0" data-phase="0.6"><i></i><span>research</span></div>
-        <div class="orbit-node" data-ring="0" data-phase="2.7"><i></i><span>technology</span></div>
-        <div class="orbit-node" data-ring="0" data-phase="4.8"><i></i><span>community</span></div>
-        <div class="orbit-node" data-ring="1" data-phase="1.2"><i></i><span>education</span></div>
-        <div class="orbit-node" data-ring="1" data-phase="4.3"><i></i><span>media</span></div>
+        <div class="scroll-indicator" data-hero-fade>
+          <span>scroll</span>
+          <div class="scroll-line"></div>
+        </div>
       </div>
-    </div>
 
-    <div class="hero-meta" data-hero-fade>
-      <ul class="hero-stats">
-        <li><b>5</b><span>operating subsidiaries</span></li>
-        <li><b>25+</b><span>active members</span></li>
-        <li><b>500+</b><span>concurrent affiliates</span></li>
-      </ul>
-      <div class="scroll-indicator">
-        <span>scroll</span>
-        <div class="scroll-line"></div>
+      <div class="cap cap--facts">
+        <div class="cap-inner">
+          <div class="hero-tag"><i></i>one parent. five subsidiaries.</div>
+          <ul class="hero-stats">
+            <li><b>5</b><span>operating subsidiaries</span></li>
+            <li><b>25+</b><span>active members</span></li>
+            <li><b>500+</b><span>concurrent affiliates</span></li>
+            <li><b>2020</b><span>established</span></li>
+          </ul>
+          <a class="hero-link" href="structure/index.html">see how we're structured <b>→</b></a>
+        </div>
       </div>
     </div>
   </section>
@@ -607,7 +553,7 @@ function buildDots() {
   const n = totalPages();
   for (let i = 0; i < n; i++) {
     const d = document.createElement("div");
-    d.style.cssText = `width:${i === 0 ? 20 : 6}px;height:6px;background:${i === 0 ? "#2ef2a2" : "rgba(255,255,255,0.15)"};border-radius:3px;transition:all 0.3s;`;
+    d.style.cssText = `width:${i === 0 ? 20 : 6}px;height:6px;background:${i === 0 ? "#2ef2a2" : "rgba(255,255,255,0.15)"};transition:all 0.3s;`;
     dotsWrap.appendChild(d);
   }
 }
@@ -650,7 +596,7 @@ track.addEventListener("click", e => { if (didDrag) { e.preventDefault(); e.stop
 <!-- Supabase; see the script block below for the fallback list.       -->
 
 <section id="advisors">
-  <div class="container advisors-inner">
+  <div class="container">
     <div class="sec-head">
       <div>
         <span class="section-label reveal">// 005 — advisors</span>
@@ -659,9 +605,18 @@ track.addEventListener("click", e => { if (didDrag) { e.preventDefault(); e.stop
           <span class="line"><span>we <em>learn from</em></span></span>
         </div>
       </div>
+      <p class="section-sub reveal reveal-delay-1">experienced advisors who guide subsidiary leadership on strategy, operations, and growth.</p>
     </div>
 
-    <div id="advisors-grid"></div>
+    <div class="advisors-board">
+      <div class="advisors-stage" aria-hidden="true">
+        <div class="advisors-sticky">
+          <div class="advisors-frame" id="advisors-frame"></div>
+          <div class="advisors-cap"><span><b id="advisors-index">01</b> / <span id="advisors-total">01</span></span><span>advisory board</span></div>
+        </div>
+      </div>
+      <div id="advisors-grid"></div>
+    </div>
   </div>
 </section>
 
@@ -675,36 +630,76 @@ const FALLBACK_ADVISORS = [
   { name: "md abdur rahman",        subtitle: "founder of bondi pathshala", img: "img/advisorar.jpg", initials: "AR", url: "https://www.linkedin.com/in/md-abdur-rahman-9090ba358/" },
 ];
 
+// One row per advisor, plus one portrait per advisor stacked in the pinned
+// frame on the left; hovering or focusing a row brings its portrait forward.
+// Nothing here depends on how many advisors there are.
 const grid = document.getElementById("advisors-grid");
+const advFrame = document.getElementById("advisors-frame");
+const advIndex = document.getElementById("advisors-index");
+const pad2 = n => String(n).padStart(2, "0");
+
+function advisorPortrait({ name, img, initials }) {
+  const fallback = () => {
+    const el = document.createElement("div");
+    el.className = "person-initials";
+    el.textContent = initials || "";
+    return el;
+  };
+  if (!img) return fallback();
+  const el = document.createElement("img");
+  el.src = img;
+  el.alt = name;
+  el.loading = "lazy";
+  el.onerror = () => { const f = fallback(); f.className += " " + el.className; el.replaceWith(f); };
+  return el;
+}
+
+function setActiveAdvisor(i) {
+  [...grid.children].forEach((row, n) => row.classList.toggle("is-active", n === i));
+  [...advFrame.children].forEach((el, n) => el.classList.toggle("is-active", n === i));
+  advIndex.textContent = pad2(i + 1);
+}
 
 fetchSiteContent('advisor', FALLBACK_ADVISORS).then(advisors => {
 advisors.forEach((advisor, i) => {
-  const { name, initials, img } = advisor;
   const role = advisor.role || advisor.subtitle || '';
-  const card = document.createElement(advisor.url ? "a" : "div");
-    if (advisor.url) { card.href = advisor.url; card.target = "_blank"; card.rel = "noopener noreferrer"; }
-  card.className = "advisor-card person-card";
+  const row = document.createElement(advisor.url ? "a" : "div");
+    if (advisor.url) { row.href = advisor.url; row.target = "_blank"; row.rel = "noopener noreferrer"; }
+  row.className = "advisor-row";
 
-  const imgBlock = img
-    ? `<img src="${img}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-    : "";
+  const num = document.createElement("span");
+  num.className = "adv-num";
+  num.textContent = pad2(i + 1);
 
-  const fallback = `<div class="person-initials" style="display:${img ? "none" : "flex"};">${initials}</div>`;
+  const thumb = document.createElement("span");
+  thumb.className = "adv-thumb";
+  thumb.appendChild(advisorPortrait(advisor));
 
-  card.innerHTML = `
-    <div class="person-photo">
-      ${advisor.url ? '<span class="person-arrow">↗</span>' : ''}
-      ${imgBlock}${fallback}
-    </div>
-    <div class="person-body">
-      <div class="person-kind">advisor</div>
-      <div class="person-name">${name}</div>
-      <div class="person-role">${role}</div>
-    </div>
-  `;
+  const name = document.createElement("span");
+  name.className = "adv-name";
+  name.textContent = advisor.name;
 
-  grid.appendChild(card);
+  const roleEl = document.createElement("span");
+  roleEl.className = "adv-role";
+  roleEl.textContent = role;
+
+  row.append(num, thumb, name, roleEl);
+  if (advisor.url) {
+    const go = document.createElement("span");
+    go.className = "adv-go";
+    go.setAttribute("aria-hidden", "true");
+    go.textContent = "↗";
+    row.appendChild(go);
+  }
+
+  row.addEventListener("mouseenter", () => setActiveAdvisor(i));
+  row.addEventListener("focus", () => setActiveAdvisor(i));
+
+  grid.appendChild(row);
+  advFrame.appendChild(advisorPortrait(advisor));
 });
+document.getElementById("advisors-total").textContent = pad2(advisors.length);
+if (advisors.length) setActiveAdvisor(0);
 });
 </script>
 <!-- ==================== END ADVISORS SECTION ==================== -->
@@ -813,10 +808,8 @@ advisors.forEach((advisor, i) => {
   const pTrack = document.getElementById("part-track");
 
   function renderPartner({ name, logo, initials, url }) {
-    const item = document.createElement("a");
-    item.href = url;
-    item.target = "_blank";
-    item.rel = "noopener noreferrer";
+    const item = document.createElement(url ? "a" : "div");
+    if (url) { item.href = url; item.target = "_blank"; item.rel = "noopener noreferrer"; }
     item.title = name;
     item.className = "partner-item";
 
@@ -825,10 +818,23 @@ advisors.forEach((advisor, i) => {
       img.src = logo;
       img.alt = name;
       img.loading = "lazy";
-      img.onerror = () => { img.remove(); item.appendChild(makeInitials(initials)); };
+      img.onerror = () => { img.replaceWith(makeInitials(initials)); };
       item.appendChild(img);
     } else {
       item.appendChild(makeInitials(initials));
+    }
+
+    const label = document.createElement("span");
+    label.className = "partner-name";
+    label.textContent = name;
+    item.appendChild(label);
+
+    if (url) {
+      const go = document.createElement("span");
+      go.className = "partner-go";
+      go.setAttribute("aria-hidden", "true");
+      go.textContent = "↗";
+      item.appendChild(go);
     }
 
     pTrack.appendChild(item);
@@ -841,11 +847,28 @@ advisors.forEach((advisor, i) => {
     return el;
   }
 
+  // The grid always ends on a "become a partner" cell that spans whatever is
+  // left of the last row, so it stays a complete rectangle for any number of
+  // partners at any width. Re-run whenever the column count changes.
+  const partnerCta = document.createElement("a");
+  partnerCta.className = "partner-item partner-item--cta";
+  partnerCta.href = "#contact";
+  partnerCta.innerHTML = '<strong>become<br>a partner</strong><i aria-hidden="true">→</i>';
+
+  function fitPartnerGrid() {
+    const cols = getComputedStyle(pTrack).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+    const partners = pTrack.querySelectorAll(".partner-item:not(.partner-item--cta)").length;
+    partnerCta.style.gridColumn = `span ${cols - (partners % cols)}`;
+  }
+
   fetchSiteContent('partner', FALLBACK_PARTNERS).then(rows => {
     // DB rows store the image under `img`, not `logo` — normalize so
     // renderPartner() (which expects `logo`) works for both DB rows and
     // the FALLBACK_PARTNERS array above.
     rows.map(r => ({ name: r.name, logo: r.logo || r.img, initials: r.initials, url: r.url })).forEach(renderPartner);
+    pTrack.appendChild(partnerCta);
+    fitPartnerGrid();
+    new ResizeObserver(fitPartnerGrid).observe(pTrack);
   });
   </script>
   <!-- ==================== END PARTNERS SECTION ==================== -->
@@ -903,7 +926,7 @@ advisors.forEach((advisor, i) => {
     <div class="footer-inner">
       <div class="footer-logo">
         <img src="img/amazelogo.png" alt="amaze" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <span style="display:none;font-size:14px;font-weight:800;color:var(--green);letter-spacing:0.2em;">◈ amaze</span>
+        <span style="display:none;font-size:14px;font-weight:700;color:var(--green);letter-spacing:0.2em;">amaze</span>
         <span>amaze consortium — strategic ecosystem</span>
       </div>
       <ul class="footer-nav">
@@ -921,13 +944,6 @@ advisors.forEach((advisor, i) => {
   </footer>
 
 <script>
-  // Mouse glow (ambient background effect, follows cursor)
-  const glow = document.getElementById('mouse-glow');
-  document.addEventListener('mousemove', e => {
-    glow.style.left = e.clientX + 'px';
-    glow.style.top = e.clientY + 'px';
-  });
-
   // Navbar scroll
   const nav = document.getElementById('navbar');
   window.addEventListener('scroll', () => {

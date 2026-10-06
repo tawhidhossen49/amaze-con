@@ -1,0 +1,124 @@
+/* ==========================================================================
+   amaze consortium — inner pages (the academy, our structure)
+   Loaded after home.css: same tokens, nav, buttons, labels and footer.
+   This file only adds the page hero and the ruled grids those pages use.
+   ========================================================================== */
+
+:root { --fill: var(--green); --fill-fg: var(--ink); }
+.theme-light { --fill: var(--ink); --fill-fg: #f3f5f2; }
+
+/* --------------------------------------------------------------------------
+   Page hero
+   -------------------------------------------------------------------------- */
+.page-hero { padding: calc(var(--nav-h) + clamp(56px, 8vw, 120px)) var(--gutter) 0; }
+.page-hero-inner { max-width: var(--container); margin: 0 auto; }
+.page-h1 {
+  font-size: clamp(34px, 8.2vw, 128px); font-weight: 700;
+  line-height: 0.92; letter-spacing: -0.04em; text-transform: lowercase;
+}
+.page-h1 em { font-style: normal; color: var(--green); }
+.page-hero-foot {
+  display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(32px, 8vw, 128px); align-items: end;
+  margin-top: clamp(40px, 6vw, 88px); padding: clamp(28px, 3vw, 44px) 0 clamp(48px, 6vw, 88px);
+  border-top: 1px solid var(--line);
+}
+.page-sub { font-size: clamp(16px, 1.35vw, 20px); line-height: 1.6; color: var(--muted); max-width: 580px; }
+.page-meta { display: grid; grid-template-columns: repeat(3, 1fr); list-style: none; border-left: 1px solid var(--line); }
+.page-meta li { padding: 2px 18px 4px; border-right: 1px solid var(--line); }
+.page-meta small { display: block; font: 400 10px/1.3 var(--font-sans); letter-spacing: 0.18em; text-transform: lowercase; color: var(--faint); margin-bottom: 10px; }
+.page-meta span { font-size: 14px; line-height: 1.4; color: var(--fg); text-transform: lowercase; }
+
+/* --------------------------------------------------------------------------
+   Section shell
+   -------------------------------------------------------------------------- */
+.sect { border-top: 1px solid var(--line); }
+.sect-inner { max-width: var(--container); margin: 0 auto; }
+.sect-head { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(32px, 8vw, 128px); align-items: end; }
+.sect-head--solo { grid-template-columns: 1fr; }
+.sect-title { font-size: clamp(30px, 3.8vw, 60px); font-weight: 700; line-height: 1; letter-spacing: -0.035em; text-transform: lowercase; }
+.sect-copy p { font-size: 16px; line-height: 1.75; color: var(--muted); margin-bottom: 20px; }
+.sect-copy p:last-child { margin-bottom: 0; }
+
+/* --------------------------------------------------------------------------
+   Ruled grids — pipeline steps, benefits, pillars
+   -------------------------------------------------------------------------- */
+.rule-grid { display: grid; margin-top: clamp(48px, 6vw, 88px); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.rule-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.rule-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.rule-grid--2 { grid-template-columns: repeat(2, 1fr); }
+.cell {
+  position: relative; isolation: isolate; display: flex; flex-direction: column;
+  min-height: 250px; padding: clamp(22px, 2.2vw, 34px);
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  transition: color 0.5s var(--ease-out);
+}
+.rule-grid--2 .cell { min-height: 200px; }
+.cell::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--fill); transform: scaleY(0); transform-origin: bottom; transition: transform 0.6s var(--ease-out); }
+.cell:hover { color: var(--fill-fg); }
+.cell:hover::before { transform: scaleY(1); }
+.cell-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: auto; }
+.cell-num { font: 400 11px/1 var(--font-sans); letter-spacing: 0.16em; color: var(--accent-ink); transition: color 0.5s var(--ease-out); }
+.cell-arrow { font-size: 15px; line-height: 1; color: var(--faint); transition: color 0.5s var(--ease-out), transform 0.5s var(--ease-out); }
+.cell-name { font-size: clamp(20px, 1.9vw, 28px); font-weight: 700; line-height: 1.08; letter-spacing: -0.035em; text-transform: lowercase; margin: 44px 0 12px; }
+.cell-desc { font-size: 14px; line-height: 1.65; color: var(--muted); transition: color 0.5s var(--ease-out); }
+.cell:hover .cell-num, .cell:hover .cell-desc, .cell:hover .cell-arrow { color: inherit; }
+.cell:hover .cell-arrow { transform: translate(3px, -3px); }
+
+/* --------------------------------------------------------------------------
+   Org chart — one parent, a bus line, five children
+   -------------------------------------------------------------------------- */
+.org { margin-top: clamp(56px, 7vw, 104px); }
+.org-parent { width: fit-content; margin: 0 auto; padding: 22px 40px; background: var(--green); color: var(--ink); text-align: center; }
+.org-parent-name { font-size: clamp(18px, 1.8vw, 24px); font-weight: 700; letter-spacing: -0.03em; text-transform: lowercase; }
+.org-parent-tag { font: 400 10px/1.3 var(--font-sans); letter-spacing: 0.18em; text-transform: lowercase; margin-top: 8px; }
+.org-stem { width: 1px; height: 56px; margin: 0 auto; background: var(--green); }
+.org-bus { height: 1px; margin: 0 10%; background: var(--green); }
+.org-row { display: grid; grid-template-columns: repeat(5, 1fr); }
+.org-child { position: relative; padding: 40px 8px 0; }
+.org-child::before { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 40px; background: var(--green); }
+.org-child-box {
+  height: 100%; min-height: 168px; display: flex; flex-direction: column; padding: 18px;
+  border: 1px solid var(--line); background: var(--surface);
+  transition: border-color 0.4s var(--ease-out), background 0.4s var(--ease-out);
+}
+.org-child-box:hover { border-color: var(--green); background: rgba(46,242,162,0.05); }
+.org-child-num { font: 400 10px/1 var(--font-sans); letter-spacing: 0.16em; color: var(--green); margin-bottom: auto; }
+.org-child-name { font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -0.025em; text-transform: lowercase; margin-top: 28px; }
+.org-child-tag { font: 400 10px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--faint); margin-top: 10px; }
+
+/* --------------------------------------------------------------------------
+   Closing call to action
+   -------------------------------------------------------------------------- */
+.page-cta { border-top: 1px solid var(--line); }
+.page-cta-inner { max-width: var(--container); margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; flex-wrap: wrap; }
+.page-cta-title { font-size: clamp(40px, 7.4vw, 116px); font-weight: 700; line-height: 0.92; letter-spacing: -0.04em; text-transform: lowercase; }
+.page-cta-title em { font-style: normal; color: var(--green); }
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .page-hero-foot, .sect-head { grid-template-columns: 1fr; align-items: start; }
+  .rule-grid--4 { grid-template-columns: repeat(2, 1fr); }
+  .rule-grid--3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 900px) {
+  /* the chart becomes an indented list hanging off one vertical line */
+  .org-parent { margin: 0; }
+  .org-stem { margin: 0 0 0 20px; height: 32px; }
+  .org-bus { display: none; }
+  .org-row { grid-template-columns: 1fr; margin-left: 20px; border-left: 1px solid var(--green); }
+  .org-child { padding: 0 0 12px 28px; }
+  .org-child:last-child { padding-bottom: 0; }
+  .org-child::before { top: 36px; left: 0; width: 28px; height: 1px; }
+  .org-child-box { min-height: 0; }
+  .org-child-name { margin-top: 18px; }
+}
+@media (max-width: 640px) {
+  .page-meta { grid-template-columns: 1fr; border-left: 0; border-top: 1px solid var(--line); }
+  .page-meta li { padding: 14px 0; border-right: 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+  .page-meta small { margin-bottom: 0; }
+  .rule-grid--4, .rule-grid--3, .rule-grid--2 { grid-template-columns: 1fr; }
+  .cell, .rule-grid--2 .cell { min-height: 0; }
+  .cell-name { margin-top: 32px; }
+}
