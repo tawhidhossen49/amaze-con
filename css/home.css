@@ -353,9 +353,49 @@ section { padding: var(--space-section) var(--gutter); position: relative; }
 /* --------------------------------------------------------------------------
    About (light)
    -------------------------------------------------------------------------- */
-.about-inner { max-width: var(--container); margin: 0 auto; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: clamp(40px, 8vw, 128px); align-items: end; }
-.about-right p { font-size: 16px; line-height: 1.75; color: var(--muted); margin-bottom: 20px; }
-.about-right p:last-child { margin-bottom: 0; }
+/* heading on top in one row, text underneath across the page */
+.about-inner { max-width: var(--container); margin: 0 auto; }
+.about-left { position: relative; z-index: 2; padding: 22px 0 clamp(28px, 3.4vw, 48px); background: var(--bone); }
+.about-left .section-label { margin-bottom: 20px; }
+.about-left .section-title { display: flex; flex-wrap: wrap; column-gap: 0.26em; }
+/* a text taller than the screen (set by the script in index.html): the heading
+   stays under the nav and the text scrolls up beneath it. a text that fits just
+   scrolls past with the rest of the page. */
+.about-inner.is-pinned .about-left { position: sticky; top: 62px; transition: top 0.5s var(--ease-out); }
+/* the nav slides away on the way down: the heading moves up into its place, and
+   nothing of the text may show in the strip above the heading either way */
+nav#navbar.is-hidden ~ #about .about-inner.is-pinned .about-left { top: 0; }
+.about-inner.is-pinned .about-left::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 70px; background: var(--bone); pointer-events: none; }
+.about-inner.is-pinned .about-left::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 40px; background: linear-gradient(to bottom, var(--bone), rgba(236,236,230,0)); pointer-events: none; }
+.about-right { max-width: 980px; }
+@media (max-height: 640px) { .about-inner.is-pinned .about-left { position: relative; top: auto; } .about-inner.is-pinned .about-left::after, .about-inner.is-pinned .about-left::before { content: none; } }
+/* shown as typed in the admin panel: line breaks, blank lines and runs of spaces all kept */
+.about-text { font-size: clamp(16px, 1.3vw, 18px); line-height: 1.75; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+/* once the script has set it into paragraphs (index.html) */
+.about-text.is-set { white-space: normal; }
+.about-text.is-set p { white-space: pre-wrap; margin: 0.95em 0 0; }
+.about-text.is-set p:first-child, .about-text.is-set .about-blank + p, .about-text.is-set p.is-tight { margin-top: 0; }
+.about-text.is-set p.is-first { color: var(--fg); }
+.about-text.is-set p.is-lead { font-size: clamp(19px, 1.55vw, 23px); line-height: 1.5; letter-spacing: -0.012em; }
+.about-text.is-set p.is-lead + p { margin-top: 1.3em; }
+.about-text.is-set .about-blank { height: 1.75em; margin: 0; }
+/* a long text is cut at a set height and fades out; the button below opens it */
+.about-body { position: relative; overflow: hidden; transition: max-height 0.75s var(--ease-out); }
+.about-body.is-clamped { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 130px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 130px), transparent); }
+.about-more {
+  display: flex; align-items: center; gap: 16px; width: 100%; margin-top: 28px; padding: 0 0 0 0;
+  background: none; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  color: var(--fg); cursor: pointer; text-align: left;
+  font: 700 12px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase;
+}
+.about-more-label { margin-right: auto; }
+.about-more-meta { font-weight: 400; color: var(--faint); letter-spacing: 0.14em; }
+.about-more b { flex: none; position: relative; width: 52px; height: 52px; border-left: 1px solid var(--line); transition: background 0.4s var(--ease-out); }
+.about-more b::before, .about-more b::after { content: ''; position: absolute; left: 50%; top: 50%; width: 13px; height: 1.5px; margin: -0.75px 0 0 -6.5px; background: currentColor; transition: transform 0.5s var(--ease-out); }
+.about-more b::after { transform: rotate(90deg); }
+.about-more[aria-expanded="true"] b::after { transform: rotate(0deg); }
+.about-more:hover b { background: var(--green); }
+@media (prefers-reduced-motion: reduce) { .about-body { transition: none; } }
 .inline-link { color: var(--accent-ink); text-decoration: none; border-bottom: 1px solid currentColor; font-weight: 700; }
 .manifesto {
   max-width: var(--container); margin: clamp(64px, 9vw, 128px) auto 0;

@@ -66,7 +66,7 @@
   <li><a href="#divisions">initiatives</a></li>
   <li><a href="#founder">founder</a></li>
   <li><a href="#executives">team</a></li>
-  <li><a href="courses/index.html">courses</a></li>
+  <li><a href="academy/index.html">academy</a></li>
   <li class="nav-dropdown">
     <span class="nav-more" tabindex="0">more <span class="nav-more-arrow">↓</span></span>
     <ul class="dropdown-menu">
@@ -74,13 +74,13 @@
       <li><a href="#partners">partners</a></li>
       <li><a href="#opportunities">opportunities</a></li>
       <li><a href="#contact">contact</a></li>
-      <li><a href="academy/index.html">the academy</a></li>
+      <li><a href="apprenticeship/index.html">apprenticeship</a></li>
       <li><a href="structure/index.html">our structure</a></li>
     </ul>
   </li>
 </ul>
     <div class="nav-right">
-      <a class="nav-signin" href="courses/my.html">sign in</a>
+      <a class="nav-signin" href="academy/my.html">sign in</a>
       <a class="nav-cta btn-primary" href="#opportunities">apply now <span class="btn-arrow" aria-hidden="true">↗</span></a>
       <button type="button" class="hamburger" id="hamburger" onclick="toggleMobileNav()" aria-label="open menu" aria-expanded="false" aria-controls="mobile-nav">
         <span></span><span></span><span></span>
@@ -95,11 +95,11 @@
     <a href="#divisions" onclick="toggleMobileNav()">initiatives</a>
     <a href="#founder" onclick="toggleMobileNav()">founder</a>
     <a href="#executives" onclick="toggleMobileNav()">team</a>
-    <a href="courses/index.html" onclick="toggleMobileNav()">courses</a>
-    <a href="courses/my.html" onclick="toggleMobileNav()">sign in / my learning</a>
+    <a href="academy/index.html" onclick="toggleMobileNav()">academy</a>
+    <a href="academy/my.html" onclick="toggleMobileNav()">sign in / my learning</a>
     <a href="#advisors" onclick="toggleMobileNav()">advisors</a>
     <a href="#contact" onclick="toggleMobileNav()">contact</a>
-    <a href="academy/index.html" onclick="toggleMobileNav()">the academy</a>
+    <a href="apprenticeship/index.html" onclick="toggleMobileNav()">apprenticeship</a>
     <a href="structure/index.html" onclick="toggleMobileNav()">our structure</a>
   </div>
 
@@ -267,9 +267,18 @@ fetchSiteContent('school', FALLBACK_SCHOOLS).then(rows => {
         </h2>
       </div>
       <div class="about-right reveal reveal-delay-2">
-        <p>amaze consortium is a next-generation youth-led non-profit, structured the way brac or grameen would build a family of purpose-driven ventures — a parent organization overseeing distinct, independently branded subsidiaries.</p>
-        <p>we are not a traditional institution. we are an ecosystem — a structured network of subsidiaries, each targeting a distinct domain, all connected by a singular drive to create impact at scale.</p>
-        <p>every subsidiary is staffed, in large part, by students we've trained ourselves. through <a href="academy/index.html" class="inline-link">the amaze academy</a>, members get real hands-on experience before earning a role inside one of our ventures.</p>
+        <!-- one block of text, kept as written (see .about-text): a blank line is a blank line.
+             a long text is cut short with a "read more" button — see the script below this section -->
+        <div class="about-body" id="about-body">
+        <div class="about-text">amaze consortium is a next-generation youth-led non-profit, structured the way brac or grameen would build a family of purpose-driven ventures — a parent organization overseeing distinct, independently branded subsidiaries.
+
+we are not a traditional institution. we are an ecosystem — a structured network of subsidiaries, each targeting a distinct domain, all connected by a singular drive to create impact at scale.
+
+every subsidiary is staffed, in large part, by students we've trained ourselves. through <a href="apprenticeship/index.html" class="inline-link">the amaze apprenticeship</a>, members get real hands-on experience before earning a role inside one of our ventures.</div>
+        </div>
+        <button type="button" class="about-more" aria-expanded="false" aria-controls="about-body" hidden>
+          <span class="about-more-label">read more</span><span class="about-more-meta"></span><b aria-hidden="true"></b>
+        </button>
       </div>
     </div>
 
@@ -282,6 +291,96 @@ fetchSiteContent('school', FALLBACK_SCHOOLS).then(rows => {
       <div class="stat reveal reveal-delay-4"><div class="stat-num"><span data-count>500</span>+</div><div class="stat-label">concurrent affiliates</div></div>
     </div>
   </section>
+  <script>
+  // ── about text: set into paragraphs, and cut short when it runs long ────────
+  // The text arrives as one plain block (admin panel → home → about). Each line
+  // becomes a paragraph with its spaces kept; a blank line stays a blank line.
+  // Past the limit below, it is clipped and a "read more" button appears; a
+  // text that fits (or nearly fits) is shown whole and the button stays hidden.
+  (function () {
+    const text = document.querySelector('#about .about-text');
+    const body = document.getElementById('about-body');
+    const btn = document.querySelector('#about .about-more');
+    if (!text || !body || !btn) return;
+    const label = btn.querySelector('.about-more-label'), meta = btn.querySelector('.about-more-meta');
+    const inner = document.querySelector('#about .about-inner'), head = document.querySelector('#about .about-left');
+
+    const LIMIT = () => (window.innerWidth <= 720 ? 340 : 430);   // px of text shown before the cut
+    const SLACK = 150;        // a text only this much taller than the limit is not worth cutting
+    const LONG_LINE = 100;    // lines shorter than this, one after another, read as a list: no gap between them
+    let open = false, clamped = false;
+
+    function setOut() {
+      const lines = [[]];
+      [...text.childNodes].forEach((n) => {
+        if (n.nodeType !== 3) { lines[lines.length - 1].push(n); return; }
+        n.textContent.replace(/\r/g, '').split('\n').forEach((part, i) => {
+          if (i) lines.push([]);
+          if (part) lines[lines.length - 1].push(document.createTextNode(part));
+        });
+      });
+      const size = (l) => l.reduce((n, x) => n + x.textContent.length, 0);
+      const blank = (l) => !l || !l.some((x) => x.nodeType !== 3 || x.textContent.trim());
+      while (lines.length && blank(lines[0])) lines.shift();
+      while (lines.length && blank(lines[lines.length - 1])) lines.pop();
+      const written = lines.filter((l) => !blank(l));
+      const out = lines.map((l, i) => {
+        if (blank(l)) { const gap = document.createElement('div'); gap.className = 'about-blank'; return gap; }
+        const p = document.createElement('p');
+        p.append(...l);
+        const prev = lines[i - 1];
+        if (i && !blank(prev) && size(l) < LONG_LINE && size(prev) < LONG_LINE) p.classList.add('is-tight');
+        if (l === written[0] && written.length > 1) {
+          p.classList.add('is-first');
+          if (size(l) >= 60 && size(l) <= 320) p.classList.add('is-lead');
+        }
+        return p;
+      });
+      text.replaceChildren(...out);
+      text.classList.add('is-set');
+      const words = text.textContent.trim().split(/\s+/).length;
+      meta.textContent = Math.max(1, Math.round(words / 220)) + ' min read';
+    }
+
+    function fit(animate) {
+      const full = text.scrollHeight, limit = LIMIT();
+      clamped = full > limit + SLACK;
+      btn.hidden = !clamped;
+      if (!clamped) open = false;
+      const shut = clamped && !open;
+      btn.setAttribute('aria-expanded', String(open));
+      label.textContent = open ? 'read less' : 'read more';
+      meta.hidden = open;
+      body.classList.toggle('is-clamped', shut);
+      // taller than the room left on screen under the heading: the heading stays put while the text scrolls
+      const room = window.innerHeight - 62 - head.offsetHeight;
+      inner.classList.toggle('is-pinned', (shut ? limit : full) + (clamped ? 80 : 0) > room);
+      if (!animate) { body.style.transition = 'none'; body.style.maxHeight = shut ? limit + 'px' : 'none'; void body.offsetHeight; body.style.transition = ''; return; }
+      // max-height cannot animate to or from "none": go through real pixel heights
+      body.style.maxHeight = body.offsetHeight + 'px';
+      void body.offsetHeight;
+      body.style.maxHeight = (shut ? limit : full) + 'px';
+    }
+    body.addEventListener('transitionend', (e) => { if (e.target === body && open) body.style.maxHeight = 'none'; });
+
+    btn.addEventListener('click', () => {
+      open = !open;
+      fit(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      if (open) return;
+      // closing a long text from its end: bring the start of it back into view
+      const top = inner.getBoundingClientRect().top;
+      if (top >= 62) return;
+      const y = window.scrollY + top - 62;
+      if (window.AMAZE_lenis) window.AMAZE_lenis.scrollTo(y, { duration: 0.8 }); else window.scrollTo(0, y);
+    });
+
+    setOut(); fit(false);
+    text.addEventListener('amaze:text', () => { open = false; setOut(); fit(false); });   // saved wording arrived
+    let lastWidth = window.innerWidth;
+    window.addEventListener('resize', () => { if (window.innerWidth === lastWidth) return; lastWidth = window.innerWidth; fit(false); });
+    window.addEventListener('load', () => fit(false));
+  })();
+  </script>
 
   <!-- DIVISIONS / VENTURES -->
   <section id="divisions">
@@ -742,26 +841,20 @@ if (advisors.length) setActiveAdvisor(0);
       <p class="opps-sub section-sub reveal reveal-delay-1">your entry point into the amaze ecosystem. choose your path.</p>
     </div>
     <div class="opps-list opps-grid">
-      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform">
+      <a class="opp-row opp-card reveal" data-opp="1" href="https://docs.google.com/forms/d/e/1FAIpQLSc7FzDiw4wELqVpCZu-XQajvyS6iQ7yaYM9KCTlU_2UzdCDTQ/viewform">
         <div class="opp-num">01</div>
         <div class="opp-name">apply for membership</div>
         <div class="opp-desc">become a core member of the amaze consortium and access the full ecosystem of opportunities.</div>
         <span class="opp-action"><b>apply</b><i>→</i></span>
       </a>
-      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSdiDJuVnO8FoTO00YAIp0TsXeMJXDbjICvv1qi_SBWXZHmIZQ/viewform">
+      <a class="opp-row opp-card reveal" data-opp="3" href="https://docs.google.com/forms/d/e/1FAIpQLSfR_6wr2Zvl0D_W8ke6eiL3inRHN1ZaA5Y8B13RnPT-3X4OGQ/viewform">
         <div class="opp-num">02</div>
-        <div class="opp-name">ambassador & representative</div>
-        <div class="opp-desc">represent amaze consortium at your institution or region and lead local community building initiatives.</div>
-        <span class="opp-action"><b>apply</b><i>→</i></span>
-      </a>
-      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSfR_6wr2Zvl0D_W8ke6eiL3inRHN1ZaA5Y8B13RnPT-3X4OGQ/viewform">
-        <div class="opp-num">03</div>
         <div class="opp-name">donation</div>
         <div class="opp-desc">support the mission of amaze consortium and fuel the next generation of innovators and leaders.</div>
         <span class="opp-action"><b>donate</b><i>→</i></span>
       </a>
-      <a class="opp-row opp-card reveal" href="https://docs.google.com/forms/d/e/1FAIpQLSdbi8Ezgk8FfYD6cONgRp3aALG8S5VCX1NasDacsHtQdrPX4Q/viewform">
-        <div class="opp-num">04</div>
+      <a class="opp-row opp-card reveal" data-opp="4" href="https://docs.google.com/forms/d/e/1FAIpQLSdbi8Ezgk8FfYD6cONgRp3aALG8S5VCX1NasDacsHtQdrPX4Q/viewform">
+        <div class="opp-num">03</div>
         <div class="opp-name">newsletter</div>
         <div class="opp-desc">stay informed with updates, announcements, and insights from across the amaze ecosystem.</div>
         <span class="opp-action"><b>subscribe</b><i>→</i></span>
@@ -954,8 +1047,8 @@ if (advisors.length) setActiveAdvisor(0);
         <span>amaze consortium — strategic ecosystem</span>
       </div>
       <ul class="footer-nav">
-        <li><a href="courses/index.html">courses</a></li>
-        <li><a href="academy/index.html">the academy</a></li>
+        <li><a href="academy/index.html">academy</a></li>
+        <li><a href="apprenticeship/index.html">apprenticeship</a></li>
         <li><a href="structure/index.html">our structure</a></li>
         <li><a href="tos/index.html">terms & conditions</a></li>
         <li><a href="privacy/index.html">privacy policy</a></li>

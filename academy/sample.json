@@ -21,7 +21,8 @@
    "status": "published",
    "sort_order": 1,
    "cover": "img/courses/web-development-fundamentals.jpg",
-   "instructor_img": null
+   "instructor_img": null,
+   "kind": "course"
   },
   {
    "id": "writing-research-proposals",
@@ -43,7 +44,8 @@
    "status": "published",
    "sort_order": 2,
    "cover": "img/courses/writing-research-proposals.jpg",
-   "instructor_img": null
+   "instructor_img": null,
+   "kind": "course"
   },
   {
    "id": "public-speaking-and-communication",
@@ -65,7 +67,50 @@
    "status": "published",
    "sort_order": 3,
    "cover": "img/courses/public-speaking-and-communication.jpg",
-   "instructor_img": null
+   "instructor_img": null,
+   "kind": "course"
+  },
+  {
+   "id": "sample-leadership-program",
+   "kind": "program",
+   "title": "young leaders program",
+   "tagline": "eight guided weeks of leading a real team project.",
+   "description": "a sample program. programs are longer, guided tracks: self-paced lessons between live classes held on set dates.",
+   "category": "leadership",
+   "level": "all levels",
+   "duration": null,
+   "access": "open",
+   "featured": false,
+   "instructor_name": "amaze consortium",
+   "instructor_role": "academy team",
+   "outcomes": [],
+   "tags": [],
+   "requirements": [],
+   "audience": [],
+   "includes": [],
+   "sort_order": 4,
+   "starts_at": null
+  },
+  {
+   "id": "sample-webinar",
+   "kind": "webinar",
+   "title": "inside a student-run venture",
+   "tagline": "a live conversation with the people running our subsidiaries.",
+   "description": "a sample webinar. a webinar is a single live session; the recording is added here afterwards.",
+   "category": "community",
+   "level": "all levels",
+   "duration": null,
+   "access": "open",
+   "featured": false,
+   "instructor_name": "amaze consortium",
+   "instructor_role": "academy team",
+   "outcomes": [],
+   "tags": [],
+   "requirements": [],
+   "audience": [],
+   "includes": [],
+   "sort_order": 5,
+   "starts_at": null
   }
  ],
  "modules": [
@@ -117,6 +162,20 @@
    "title": "delivering it",
    "summary": "voice, pace and pressure.",
    "sort_order": 2
+  },
+  {
+   "id": "sample-module-sample-leadership-program",
+   "course_id": "sample-leadership-program",
+   "title": "week one",
+   "summary": null,
+   "sort_order": 1
+  },
+  {
+   "id": "sample-module-sample-webinar",
+   "course_id": "sample-webinar",
+   "title": "the session",
+   "summary": null,
+   "sort_order": 1
   }
  ],
  "lessons": [
@@ -299,6 +358,39 @@
    "duration_min": 4,
    "is_preview": false,
    "sort_order": 5
+  },
+  {
+   "id": "sample-lesson-sample-leadership-program-1",
+   "course_id": "sample-leadership-program",
+   "module_id": "sample-module-sample-leadership-program",
+   "title": "how the program runs",
+   "kind": "article",
+   "duration_min": 5,
+   "is_preview": true,
+   "sort_order": 37,
+   "live_at": null
+  },
+  {
+   "id": "sample-lesson-sample-leadership-program-2",
+   "course_id": "sample-leadership-program",
+   "module_id": "sample-module-sample-leadership-program",
+   "title": "kick-off class",
+   "kind": "live",
+   "duration_min": 60,
+   "is_preview": true,
+   "sort_order": 38,
+   "live_at": null
+  },
+  {
+   "id": "sample-lesson-sample-webinar-1",
+   "course_id": "sample-webinar",
+   "module_id": "sample-module-sample-webinar",
+   "title": "the live session",
+   "kind": "live",
+   "duration_min": 60,
+   "is_preview": true,
+   "sort_order": 39,
+   "live_at": null
   }
  ],
  "content": [
@@ -545,6 +637,33 @@
      "why": "honesty with a next step keeps your credibility."
     }
    ]
+  },
+  {
+   "lesson_id": "sample-lesson-sample-leadership-program-1",
+   "video_url": null,
+   "body": "## welcome\n\nthis is a sample program shown while the academy database is not connected.",
+   "quiz": null,
+   "form_url": null,
+   "resources": [],
+   "live_url": null
+  },
+  {
+   "lesson_id": "sample-lesson-sample-leadership-program-2",
+   "video_url": null,
+   "body": "the opening live class: meet the cohort and the mentors.",
+   "quiz": null,
+   "form_url": null,
+   "resources": [],
+   "live_url": null
+  },
+  {
+   "lesson_id": "sample-lesson-sample-webinar-1",
+   "video_url": null,
+   "body": "join on the day with the link on this page. questions are welcome in the q&a tab.",
+   "quiz": null,
+   "form_url": null,
+   "resources": [],
+   "live_url": null
   }
  ]
 }

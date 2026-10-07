@@ -1,10 +1,12 @@
-// ── COURSES ─────────────────────────────────────────────────────────────────
-// One script for the five course views, chosen by <body data-view="…">:
-//   catalog      courses/index.html          catalogue: filter, sort, search
-//   course       courses/course.html?c=      overview, curriculum, reviews
-//   learn        courses/learn.html?c=&l=    the lesson player
-//   my           courses/my.html             a learner's dashboard
-//   certificate  courses/certificate.html    ?c= to claim one, ?id= to verify one
+// ── ACADEMY ─────────────────────────────────────────────────────────────────
+// One script for the five academy views, chosen by <body data-view="…">.
+// An entry is a course, a program or a webinar (courses.kind); all three are
+// built the same way — modules of lessons — and share every page below.
+//   catalog      academy/index.html          courses, programs, webinars: filter, sort, search
+//   course       academy/course.html?c=      overview, curriculum, reviews
+//   learn        academy/learn.html?c=&l=    the lesson player
+//   my           academy/my.html             a learner's dashboard
+//   certificate  academy/certificate.html    ?c= to claim one, ?id= to verify one
 //
 // Data lives in the site's Supabase project (seed/website-backend*.sql).
 // Course outlines, reviews and announcements are public; lesson content,
@@ -13,7 +15,7 @@
 // one, progress and notes on open lessons are kept on this device.
 // Every optional feature fails soft: if its table or function isn't there
 // yet, that part of the page is simply left out. If the database can't be
-// reached at all, the pages fall back to courses/sample.json in a read-only
+// reached at all, the pages fall back to academy/sample.json in a read-only
 // "preview" mode so they never render blank.
 (function () {
   const A = window.AMAZE;
@@ -67,7 +69,7 @@
       (await soft(sb.rpc('course_stats'))).forEach((r) => { S.numbers[r.course_id] = r; });
     } catch (e) {
       S.preview = true;
-      S.sample = await (await fetch(A.root + 'courses/sample.json')).json();
+      S.sample = await (await fetch(A.root + 'academy/sample.json')).json();
       S.courses = S.sample.courses; S.modules = S.sample.modules; S.lessons = S.sample.lessons;
     }
   }
@@ -118,7 +120,20 @@
   }
   const started = (course) => !!S.enrolled[course.id] || stats(course).done > 0;
   const length = (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${min % 60 ? (min % 60) + 'm' : ''}`.trim() : `${min} min`);
-  const KIND = { video: 'video', article: 'reading', quiz: 'quiz', form: 'test' };
+  const KIND = { video: 'video', article: 'reading', quiz: 'quiz', form: 'test', live: 'live class' };
+  // the three things the academy lists; anything unmarked is a course
+  const TYPES = { course: 'courses', program: 'programs', webinar: 'webinars' };
+  const typeOf = (course) => (TYPES[course.kind] ? course.kind : 'course');
+  // dates are stored once and shown in each visitor's own time zone
+  const clock = (d) => new Date(d).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+  const shortDay = (d) => new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).toLowerCase();
+  const when = (d) => `${shortDay(d)} · ${clock(d)}`;
+  // a live class is upcoming, then live for as long as it runs, then over
+  const liveState = (at, minutes) => {
+    if (!at) return 'tba';
+    const start = +new Date(at), now = Date.now();
+    return now < start ? 'upcoming' : now < start + Math.max(15, minutes || 60) * 60000 ? 'live' : 'ended';
+  };
   // one small line icon per lesson type, shown beside every lesson title
   const svg = (inner) => `<svg class="kind-icon" viewBox="0 0 16 16" aria-hidden="true">${inner}</svg>`;
   const ICON = {
@@ -127,6 +142,7 @@
     quiz: svg('<rect x="1.5" y="1.5" width="13" height="13"/><path d="M4.5 8.2l2.2 2.2 4.8-5"/>'),
     form: svg('<path d="M4.5 2.5h-2v12h11v-12h-2"/><rect x="4.5" y="1.5" width="7" height="2.5"/><path d="M5 7.5h6M5 10h6M5 12.5h3.5"/>'),
     file: svg('<path d="M8 2v8.5M4.5 7.5L8 11l3.5-3.5M2.5 13.5h11"/>'),
+    live: svg('<circle class="solid" cx="8" cy="8" r="1.7"/><path d="M5 5a4.2 4.2 0 0 0 0 6M11 5a4.2 4.2 0 0 1 0 6M2.8 2.8a7.4 7.4 0 0 0 0 10.4M13.2 2.8a7.4 7.4 0 0 1 0 10.4"/>'),
   };
   const kindIcon = (lesson) => `<span class="kind kind--${esc(lesson.kind)}" title="${KIND[lesson.kind] || esc(lesson.kind)}">${ICON[lesson.kind] || ICON.article}</span>`;
   // in a locked-order course a lesson opens once everything before it is done
@@ -290,7 +306,7 @@
       const email = f.get('email').trim(), password = f.get('password');
       say(body, 'one moment…');
       if (reset) {
-        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: A.root + 'courses/index.html' });
+        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: A.root + 'academy/index.html' });
         return say(body, error ? error.message : 'if that email has an account, a reset link is on its way.', !!error);
       }
       if (signup) {
@@ -311,8 +327,8 @@
       <h2>${esc(S.name || (S.admin ? 'admin' : 'learner'))}</h2>
       <p>${esc(S.user.email)}</p>
       <ul class="account-list">
-        <li><a href="${A.root}courses/my.html">my learning <span>→</span></a></li>
-        <li><a href="${A.root}courses/index.html">all courses <span>→</span></a></li>
+        <li><a href="${A.root}academy/my.html">my learning <span>→</span></a></li>
+        <li><a href="${A.root}academy/index.html">all courses <span>→</span></a></li>
         ${S.admin ? `<li><a href="${A.root}admin/index.html">admin panel <span>→</span></a></li>` : ''}
         <li><button data-act="out">sign out <span>→</span></button></li>
       </ul>`);
@@ -359,7 +375,10 @@
     const media = course.cover
       ? `<img src="${esc(imageUrl(course.cover))}" alt="" loading="lazy">`
       : `<span class="ucard-blank"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg><b>${esc(course.category)}</b></span>`;
+    const type = typeOf(course);
+    const state = course.starts_at ? liveState(course.starts_at, st.minutes) : '';
     const badges = [
+      state === 'live' ? '<span class="b b--live">live now</span>' : state === 'upcoming' ? '<span class="b b--hot">upcoming</span>' : state === 'ended' && type === 'webinar' ? '<span class="b">recording</span>' : '',
       course.featured ? '<span class="b b--hot">featured</span>' : '',
       `<span class="b">${esc(course.level)}</span>`,
       +n.reviews > 0 ? `<span class="b"><i class="star">★</i> ${(+n.rating).toFixed(1)}</span>` : '',
@@ -368,7 +387,9 @@
     ].join('');
     const foot = going
       ? `<div class="ucard-price"><strong>${st.pct === 100 ? 'completed' : st.pct + '%'}</strong><small>${st.done} of ${st.count} lessons</small></div><span class="ucard-btn">${st.pct === 100 ? 'review' : 'continue'}</span>`
-      : `<div class="ucard-price"><strong>free</strong><small>${st.count} lessons · ${length(st.minutes)}</small></div><span class="ucard-btn">view course</span>`;
+      : course.starts_at
+        ? `<div class="ucard-price"><strong>${shortDay(course.starts_at)}</strong><small>${type === 'webinar' ? clock(course.starts_at) + ' · ' + length(st.minutes || 60) : 'starts · ' + st.count + ' lessons'}</small></div><span class="ucard-btn">view ${type}</span>`
+        : `<div class="ucard-price"><strong>free</strong><small>${st.count} lesson${st.count === 1 ? '' : 's'} · ${length(st.minutes)}</small></div><span class="ucard-btn">view ${type}</span>`;
     return `<article class="ucard rise" style="animation-delay:${Math.min(i, 6) * 0.05}s">
       <div class="ucard-media">${media}<span class="ucard-flag">${esc(course.category)}</span></div>
       <button class="ucard-save${isSaved ? ' is-on' : ''}" type="button" data-save="${esc(course.id)}" aria-pressed="${isSaved}" aria-label="${isSaved ? 'remove from saved' : 'save for later'}">${HEART}</button>
@@ -426,7 +447,12 @@
       const rows = ls.map((l) => {
         const lock = locked(course, l, all);
         const cls = `lesson-row${S.done[l.id] ? ' is-done' : ''}${l.id === currentId ? ' is-current' : ''}${lock ? ' is-locked' : ''}`;
-        const tag = `<small>${l.is_preview && !inPlayer ? '<b>preview</b>' : ''}${lock ? '<b>locked</b>' : ''}${KIND[l.kind] || esc(l.kind)} · ${l.duration_min} min</small>`;
+        const live = l.kind === 'live' ? liveState(l.live_at, l.duration_min) : '';
+        const tag = `<small>${l.is_preview && !inPlayer ? '<b>preview</b>' : ''}${lock ? '<b>locked</b>' : ''}${live === 'live' ? '<b class="is-live">live now</b>' : ''}${
+          l.kind !== 'live' ? `${KIND[l.kind] || esc(l.kind)} · ${l.duration_min} min`
+          // the player's side list is narrow: just the day there, the full date on the course page
+          : inPlayer ? (live === 'live' ? '' : l.live_at ? new Date(l.live_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase() + ' · ' + clock(l.live_at) : 'live · date tba')
+          : `live class · ${l.live_at ? when(l.live_at) : 'date to be announced'}`}</small>`;
         return `<li><a class="${cls}" href="learn.html?c=${enc(course.id)}&l=${l.id}"><span class="mark"></span><span class="lesson-name">${kindIcon(l)}<span>${esc(l.title)}</span></span>${tag}</a></li>`;
       }).join('');
       const open = inPlayer ? ls.some((l) => l.id === currentId) || !currentId : mi === 0;
@@ -438,70 +464,89 @@
   }
   const wireModules = (root) => $$('.module-head', root).forEach((h) => h.addEventListener('click', () => h.parentElement.classList.toggle('is-open')));
 
-  // ── view: catalogue ────────────────────────────────────────────────────────
+  // ── view: academy (catalogue) ──────────────────────────────────────────────
+  // Three sections — courses, programs, webinars — each with its own heading
+  // (editable in the admin panel) and its first few cards. Choosing a type,
+  // category or level, sorting, or searching swaps them for one grid of results.
   function catalog() {
-    const rails = $('#course-rails'), chips = $('#course-chips'), search = $('#course-search'), sort = $('#course-sort'), level = $('#course-level');
+    const browse = $('#academy-browse'), results = $('#course-results'), top = $('#rail-top');
+    const chips = $('#course-chips'), search = $('#course-search'), sort = $('#course-sort'), level = $('#course-level'), category = $('#course-category');
+    const SHOWN = 6;   // cards per section before "all …" takes over
     $('#lms-notice').innerHTML = notice();
 
-    if (!S.courses.length) {
-      $('.catalog-tools').hidden = true;
-      rails.innerHTML = '<p class="lms-empty">the first courses are being prepared — check back soon.</p>';
-    } else {
-      const cats = [...new Set(S.courses.map((c) => c.category))];
-      let active = 'all';
-      chips.innerHTML = [['all', S.courses.length], ...cats.map((c) => [c, S.courses.filter((x) => x.category === c).length])]
-        .map(([c, n]) => `<button class="chip${c === 'all' ? ' is-active' : ''}" data-cat="${esc(c)}">${esc(c)}<span>${n}</span></button>`).join('');
-      level.innerHTML = '<option value="">any level</option>' + [...new Set(S.courses.map((c) => c.level))].map((l) => `<option>${esc(l)}</option>`).join('');
-      const num = (c, k) => +((S.numbers[c.id] || {})[k] || 0);
-      const SORTS = {
-        recommended: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || a.sort_order - b.sort_order,
-        newest: (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
-        rated: (a, b) => num(b, 'rating') - num(a, 'rating') || num(b, 'reviews') - num(a, 'reviews'),
-        popular: (a, b) => num(b, 'learners') - num(a, 'learners'),
-      };
+    const of = (type) => S.courses.filter((c) => typeOf(c) === type);
+    const num = (c, k) => +((S.numbers[c.id] || {})[k] || 0);
+    const SORTS = {
+      recommended: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || a.sort_order - b.sort_order,
+      newest: (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      rated: (a, b) => num(b, 'rating') - num(a, 'rating') || num(b, 'reviews') - num(a, 'reviews'),
+      popular: (a, b) => num(b, 'learners') - num(a, 'learners'),
+    };
+    // dated entries: what is coming up first (soonest first), then undated, then what is over (latest first)
+    const schedule = (list) => {
+      const rank = (c) => (!c.starts_at ? 1 : liveState(c.starts_at, stats(c).minutes) === 'ended' ? 2 : 0);
+      return list.slice().sort((a, b) => rank(a) - rank(b)
+        || (rank(a) === 0 ? new Date(a.starts_at) - new Date(b.starts_at) : rank(a) === 2 ? new Date(b.starts_at) - new Date(a.starts_at) : 0));
+    };
 
-      // Nothing filtered: titled rows, the way a learner browses.
-      // Anything filtered or searched: one grid of results.
-      function draw() {
-        const term = search.value.trim().toLowerCase();
-        const browsing = active === 'all' && !term && !level.value && sort.value === 'recommended';
-        if (browsing) {
-          const by = (fn) => S.courses.slice().sort(fn);
-          const going = S.courses.filter((c) => started(c) && stats(c).pct < 100);
-          const kept = S.courses.filter((c) => saved()[c.id]);
-          let last = null; try { last = localStorage.getItem(LOCAL_VIEWED); } catch (e) {}
-          const seen = S.courses.find((c) => c.id === last);
-          const related = seen ? S.courses.filter((c) => c.id !== seen.id && (c.category === seen.category || c.level === seen.level)) : [];
-          const rated = by(SORTS.rated).filter((c) => num(c, 'reviews') > 0);
-          rails.innerHTML = rail('continue learning', going, { resume: true })
-            + rail('recommended for you', by(SORTS.recommended))
-            + (related.length ? rail(`because you viewed “<a href="course.html?c=${enc(seen.id)}">${esc(seen.title)}</a>”`, related) : '')
-            + rail('saved for later', kept)
-            + (rated.length > 1 ? rail('top rated', rated) : '')
-            + cats.filter((c) => S.courses.filter((x) => x.category === c).length > 1).map((c) => rail(esc(c), S.courses.filter((x) => x.category === c))).join('')
-            + (S.courses.length > 4 ? rail('new on amaze', by(SORTS.newest).slice(0, 10)) : '');
-          wireRails(rails);
-          return;
-        }
-        const list = S.courses.filter((c) => (active === 'all' || c.category === active)
-          && (!level.value || c.level === level.value)
-          && (!term || `${c.title} ${c.tagline} ${c.category} ${c.description} ${c.instructor_name} ${(c.tags || []).join(' ')}`.toLowerCase().includes(term)))
-          .sort(SORTS[sort.value] || SORTS.recommended);
-        rails.innerHTML = list.length
-          ? `<h3 class="rail-title">${list.length} course${list.length === 1 ? '' : 's'}</h3><div class="ugrid">${list.map((c, i) => card(c, i)).join('')}</div>`
-          : '<p class="lms-empty">no courses match that — try another word, level or category.</p>';
+    let active = 'all';
+    chips.innerHTML = [['all', 'all', S.courses.length], ...Object.keys(TYPES).map((t) => [t, TYPES[t], of(t).length])]
+      .map(([t, label, n]) => `<button class="chip${t === 'all' ? ' is-active' : ''}" data-type="${t}">${label}<span>${n}</span></button>`).join('');
+    category.innerHTML = '<option value="">any category</option>' + [...new Set(S.courses.map((c) => c.category))].map((c) => `<option>${esc(c)}</option>`).join('');
+    level.innerHTML = '<option value="">any level</option>' + [...new Set(S.courses.map((c) => c.level))].map((l) => `<option>${esc(l)}</option>`).join('');
+    if (!S.courses.length) $('.catalog-tools').hidden = true;
+
+    const browsing = () => active === 'all' && !search.value.trim() && !level.value && !category.value && sort.value === 'recommended';
+    function draw() {
+      const plain = browsing();
+      browse.hidden = !plain; results.hidden = plain;
+      if (plain) {
+        const going = S.courses.filter((c) => started(c) && stats(c).pct < 100);
+        const kept = S.courses.filter((c) => saved()[c.id]);
+        top.innerHTML = rail('continue learning', going, { resume: true }) + rail('saved for later', kept);
+        wireRails(top);
+        $$('.aca-block', browse).forEach((block) => {
+          const type = block.dataset.kind;
+          const list = schedule(of(type).sort(SORTS.recommended));
+          $('.aca-cards', block).innerHTML = list.slice(0, SHOWN).map((c, i) => card(c, i)).join('');
+          $('.aca-cards', block).hidden = !list.length;
+          $('.aca-empty', block).hidden = !!list.length;
+          $('.aca-all', block).hidden = !list.length;
+        });
+        return;
       }
-      chips.addEventListener('click', (e) => {
-        const b = e.target.closest('.chip'); if (!b) return;
-        active = b.dataset.cat;
-        $$('.chip', chips).forEach((x) => x.classList.toggle('is-active', x === b));
-        draw();
-      });
-      [search, sort, level].forEach((el) => el.addEventListener('input', draw));
-      // saving a course adds or removes it from the "saved for later" row straight away
-      wireSaves(rails, () => { if (active === 'all' && !search.value.trim() && !level.value && sort.value === 'recommended') draw(); });
+      const term = search.value.trim().toLowerCase();
+      let list = S.courses.filter((c) => (active === 'all' || typeOf(c) === active)
+        && (!category.value || c.category === category.value)
+        && (!level.value || c.level === level.value)
+        && (!term || `${c.title} ${c.tagline} ${c.category} ${c.description} ${c.instructor_name} ${typeOf(c)} ${(c.tags || []).join(' ')}`.toLowerCase().includes(term)));
+      list = sort.value === 'recommended' ? schedule(list.sort(SORTS.recommended)) : list.sort(SORTS[sort.value] || SORTS.recommended);
+      const what = active === 'all' ? ['result', 'results'] : [active, TYPES[active]];
+      results.innerHTML = list.length
+        ? `<h3 class="rail-title">${list.length} ${list.length === 1 ? what[0] : what[1]}</h3><div class="ugrid">${list.map((c, i) => card(c, i)).join('')}</div>`
+        : `<p class="lms-empty">${active !== 'all' && !of(active).length ? esc(($(`.aca-block[data-kind="${active}"] .aca-empty`) || {}).textContent || 'nothing here yet.') : 'nothing matches that — try another word, level or category.'}</p>`;
+    }
+    function pick(type) {
+      active = type;
+      $$('.chip', chips).forEach((x) => x.classList.toggle('is-active', x.dataset.type === type));
       draw();
     }
+    chips.addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) pick(b.dataset.type); });
+    // "all webinars →" under a section opens that type on its own, back at the tools
+    browse.addEventListener('click', (e) => {
+      const all = e.target.closest('.aca-all'); if (!all) return;
+      e.preventDefault();
+      pick(all.closest('.aca-block').dataset.kind);
+      $('#catalogue').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    [search, sort, level, category].forEach((el) => el.addEventListener('input', draw));
+    // saving an entry adds or removes it from the "saved for later" row straight away
+    wireSaves(browse, () => { if (browsing()) draw(); });
+    wireSaves(results);
+    // a link such as academy/index.html#webinars opens the page at that section
+    const hashType = { '#courses': 'course', '#programs': 'program', '#webinars': 'webinar' }[location.hash];
+    draw();
+    if (hashType) { const b = $(`.aca-block[data-kind="${hashType}"]`); if (b) setTimeout(() => b.scrollIntoView({ block: 'start' }), 400); }
 
     $$('.faq-q').forEach((q) => q.addEventListener('click', () => {
       const item = q.closest('.faq-item'), open = item.classList.contains('is-open');
@@ -516,10 +561,11 @@
     const root = $('#course-root');
     const course = S.courses.find((c) => c.id === params.get('c'));
     if (!course) {
-      root.innerHTML = '<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="index.html">← all courses</a><h1 class="course-h1">course not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>';
+      root.innerHTML = '<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="index.html">← academy</a><h1 class="course-h1">not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>';
       return;
     }
     document.title = `${course.title} — amaze consortium`;
+    const noun = typeOf(course);   // course | program | webinar
     try { localStorage.setItem(LOCAL_VIEWED, course.id); } catch (e) {}
     const [reviews, news] = S.preview ? [[], []] : await Promise.all([
       soft(sb.from('course_reviews').select('*').eq('course_id', course.id).order('created_at', { ascending: false })),
@@ -534,9 +580,9 @@
     const preview = st.lessons.find((l) => l.is_preview);
     let action;
     if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
-    else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the course' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
-    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? 'enrol — it\'s free' : 'start the course'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
-    else action = '<button class="btn-primary" id="join" type="button">create a free account to enrol <span class="btn-arrow" aria-hidden="true">→</span></button>';
+    else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the ' + noun : noun === 'webinar' ? 'open the webinar' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
+    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enrol — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
+    else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enrol'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     const second = !going && preview && !open ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
     const initials = (course.instructor_name || 'a').trim()[0];
@@ -550,8 +596,9 @@
         kinds('article') && ['readings', kinds('article')],
         kinds('quiz') && ['quizzes', kinds('quiz')],
         kinds('form') && ['tests & assignments', kinds('form')],
+        kinds('live') && ['live classes', kinds('live')],
         ['notes & q&a', 'on every lesson'],
-        ['pace', 'your own'],
+        ['pace', kinds('live') ? 'live, on set dates' : 'your own'],
         ['access', course.access === 'open' ? 'open to everyone' : 'free account'],
         ['certificate', 'verifiable'],
       ].filter(Boolean);
@@ -581,7 +628,7 @@
       <section class="course-hero">
         <div class="course-hero-inner">
           ${notice()}
-          <a class="crumb rise" href="index.html">← all courses</a>
+          <a class="crumb rise" href="index.html">← academy</a>
           <div class="hero-tag rise"><i></i>${esc(course.category)}</div>
           <h1 class="course-h1 rise rise-2">${esc(course.title)}</h1>
           ${social ? `<div class="course-social course-social--lg rise rise-2">${social}</div>` : ''}
@@ -595,7 +642,7 @@
             </div>
             <ul class="course-facts">
               <li><small>level</small><span>${esc(course.level)}</span></li>
-              <li><small>duration</small><span>${esc(course.duration || 'self-paced')}</span></li>
+              ${course.starts_at ? `<li><small>${noun === 'webinar' ? 'date' : 'starts'}</small><span>${when(course.starts_at)}</span></li>` : `<li><small>duration</small><span>${esc(course.duration || 'self-paced')}</span></li>`}
               <li><small>lessons</small><span>${st.count}</span></li>
               <li><small>study time</small><span>${length(st.minutes)}</span></li>
             </ul>
@@ -607,17 +654,17 @@
           <div>
             ${news.length ? `<div class="course-block rise"><h2>// announcements</h2><ul class="news">${news.map((n) => `<li><small>${ago(n.created_at)}</small><strong>${esc(n.title)}</strong>${n.body ? `<div class="prose">${markdown(n.body)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
             ${course.trailer_url ? `<div class="course-block rise"><h2>// watch the introduction</h2><div class="lesson-video" style="margin:0;">${videoEmbed(course.trailer_url)}</div></div>` : ''}
-            ${course.description ? `<div class="course-block rise"><h2>// about this course</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
+            ${course.description ? `<div class="course-block rise"><h2>// about this ${noun}</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
             ${bullets('what you will be able to do', course.outcomes)}
             ${(course.tags || []).length ? `<div class="course-block rise"><h2>// skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
             <div class="course-block rise"><h2>// curriculum${course.sequential ? ' — lessons unlock in order' : ''}</h2>${outline(course, null, false) || '<p class="lms-empty">lessons are being added.</p>'}</div>
             ${bullets('before you start', course.requirements, 'plain-list')}
-            ${bullets('who this course is for', course.audience, 'plain-list')}
+            ${bullets(`who this ${noun} is for`, course.audience, 'plain-list')}
             ${reviewsBlock}
           </div>
           <aside class="course-side rise rise-2">
             ${course.instructor_name ? `<div class="side-card"><h3>taught by</h3><div class="instructor"><div class="instructor-photo">${course.instructor_img ? `<img src="${esc(course.instructor_img)}" alt="">` : esc(initials)}</div><div><strong>${esc(course.instructor_name)}</strong><span>${esc(course.instructor_role || '')}</span></div></div></div>` : ''}
-            <div class="side-card"><h3>this course includes</h3><ul class="includes">
+            <div class="side-card"><h3>this ${noun} includes</h3><ul class="includes">
               ${includes.map(([label, value]) => `<li>${esc(label)} <b>${esc(value)}</b></li>`).join('')}
             </ul></div>
           </aside>
@@ -694,6 +741,27 @@
         <div class="quiz-result" hidden></div>
         <div class="lesson-foot" style="border-top:0;margin-top:28px;padding-top:0;"><span></span><button class="btn-primary" type="submit">check my answers <span class="btn-arrow" aria-hidden="true">→</span></button></div>
       </form>`;
+    } else if (lesson.kind === 'live') {
+      // date and countdown state, the link to join, an "add to calendar" link and — afterwards — the recording
+      const state = liveState(lesson.live_at, lesson.duration_min);
+      const join = content.live_url ? safeUrl(content.live_url) : '';
+      const stamp = (d) => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
+      const cal = lesson.live_at ? 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+        + `&text=${enc(lesson.title + ' — ' + course.title)}`
+        + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + Math.max(15, lesson.duration_min || 60) * 60000)}`
+        + `&details=${enc('live class — amaze consortium academy\n' + location.href)}` : '';
+      const flag = { upcoming: 'upcoming live class', live: 'live now', ended: 'this class has ended', tba: 'live class — date to be announced' }[state];
+      bodyHtml = `<div class="live live--${state}">
+          <span class="live-flag">${flag}</span>
+          ${lesson.live_at ? `<strong class="live-when">${when(lesson.live_at)}</strong><small>shown in your own time zone · about ${length(lesson.duration_min || 60)}</small>` : '<small>the date will be shown here as soon as it is set.</small>'}
+          <div class="hero-buttons">
+            ${join && state !== 'ended' ? `<a class="btn-primary" href="${esc(join)}" target="_blank" rel="noopener noreferrer">${state === 'live' ? 'join now' : 'join link'} <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''}
+            ${cal && state === 'upcoming' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
+          </div>
+          ${!join && state !== 'ended' ? '<small>the link to join will appear here before the class starts.</small>' : ''}
+        </div>`
+        + (content.video_url ? `<span class="lesson-kicker" style="display:block;margin:36px 0 14px;">// recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div>` : state === 'ended' ? '<p class="form-alt">if a recording is published, it will appear here.</p>' : '')
+        + (content.body ? `<div class="prose" style="margin-top:32px;">${markdown(content.body)}</div>` : '');
     } else if (lesson.kind === 'form') {
       bodyHtml = (content.body ? `<div class="prose" style="margin-bottom:32px;">${markdown(content.body)}</div>` : '')
         + (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
@@ -706,7 +774,11 @@
 
     const usable = !!content;
     const isQuiz = usable && lesson.kind === 'quiz' && (content.quiz || []).length > 0;
-    const doneLabel = lesson.kind === 'form' ? (next ? 'i have submitted it — continue' : 'i have submitted it — finish') : (next ? 'complete & continue' : 'complete the course');
+    // a class that hasn't happened yet can't be marked as attended
+    const waiting = usable && lesson.kind === 'live' && ['upcoming', 'tba'].includes(liveState(lesson.live_at, lesson.duration_min)) && !S.done[lesson.id];
+    const doneLabel = lesson.kind === 'form' ? (next ? 'i have submitted it — continue' : 'i have submitted it — finish')
+      : lesson.kind === 'live' ? (next ? 'i attended — continue' : 'i attended — finish')
+      : (next ? 'complete & continue' : 'complete the course');
     const tabs = usable ? `
       <div class="tabs-bar" role="tablist">
         <button class="tab is-active" data-tab="notes">my notes</button>
@@ -737,7 +809,8 @@
           ${bodyHtml}
           <div class="lesson-foot">
             ${prev ? `<a class="btn-outline btn-back" href="${url(prev)}">previous <span class="btn-arrow" aria-hidden="true">←</span></a>` : '<span></span>'}
-            ${usable && !isQuiz ? `<button class="btn-primary" id="complete" type="button">${S.done[lesson.id] ? (next ? 'next lesson' : 'finish') : doneLabel} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
+            ${waiting ? (next && !course.sequential ? `<a class="btn-outline" href="${url(next)}">next lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '<span class="form-alt" style="margin:0;">you can mark this as attended once the class has started.</span>') : ''}
+            ${usable && !isQuiz && !waiting ? `<button class="btn-primary" id="complete" type="button">${S.done[lesson.id] ? (next ? 'next lesson' : 'finish') : doneLabel} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
             ${isQuiz ? `<a class="btn-outline" id="after-quiz" href="${next ? url(next) : courseUrl}"${S.done[lesson.id] ? '' : ' hidden'}>${next ? 'next lesson' : 'back to the course'} <span class="btn-arrow" aria-hidden="true">→</span></a>` : ''}
           </div>
           ${tabs}
@@ -879,7 +952,7 @@
     root.innerHTML = `
       <section class="course-hero"><div class="course-hero-inner">
         ${notice()}
-        <a class="crumb rise" href="index.html">← all courses</a>
+        <a class="crumb rise" href="index.html">← academy</a>
         <div class="hero-tag rise"><i></i>my learning</div>
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
         ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">
@@ -936,14 +1009,14 @@
         return;
       }
       document.title = `certificate — ${c.learner_name}`;
-      const link = `${A.root}courses/certificate.html?id=${enc(c.id)}`;
+      const link = `${A.root}academy/certificate.html?id=${enc(c.id)}`;
       root.innerHTML = `<div>
         <div class="cert-tools">
           <div class="verified">verified — issued by amaze consortium on ${day(c.issued_at)}</div>
           <button class="btn-outline" type="button" id="cert-copy">copy link <span class="btn-arrow" aria-hidden="true">↗</span></button>
           <button class="btn-primary" type="button" id="cert-print">print or save as pdf <span class="btn-arrow" aria-hidden="true">↓</span></button>
         </div>
-        ${certSheet({ name: c.learner_name, title: c.course_title, instructor: c.instructor_name, date: day(c.issued_at), detail: ['verify at', 'amazeconsortium.org/courses'], ref: c.id })}
+        ${certSheet({ name: c.learner_name, title: c.course_title, instructor: c.instructor_name, date: day(c.issued_at), detail: ['verify at', 'amazeconsortium.org/academy'], ref: c.id })}
       </div>`;
       $('#cert-print').addEventListener('click', () => window.print());
       $('#cert-copy').addEventListener('click', async (e) => { try { await navigator.clipboard.writeText(link); e.currentTarget.firstChild.textContent = 'link copied '; } catch (err) { prompt('copy this link', link); } });

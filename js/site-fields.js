@@ -9,6 +9,7 @@
 //             href  a link address
 //             src   an image
 //             visible  a whole section, shown or hidden
+//             pre   a long text shown exactly as typed: every line break and space kept
 // js/site-text.js applies saved values on the public pages; the admin panel
 // reads this same list to build its forms and pulls each field's current
 // built-in wording straight from the page. To make something new editable,
@@ -62,7 +63,7 @@
       { name: 'schools strip', fields: [['home.schools.label', 'label', '.mq-head span']] },
       { name: 'about', fields: [
         ...head('home.about', '#about', 3),
-        ...range(3).map((i) => [`home.about.p${i}`, `paragraph ${i}`, `#about .about-right p:nth-of-type(${i})`, 'html']),
+        ['home.about.text', 'text — paste the whole thing here', '#about .about-right .about-text', 'pre'],
         ['home.about.manifesto', 'large statement', '.manifesto'],
         ...range(4).flatMap((i) => [
           [`home.about.stat${i}.num`, `stat ${i}`, `.about-stats .stat:nth-child(${i}) .stat-num`, 'stat'],
@@ -87,11 +88,13 @@
       { name: 'opportunities', fields: [
         ...head('home.opps', '#opportunities', 1),
         ['home.opps.sub', 'intro text', '.opps-sub'],
-        ...range(4).flatMap((i) => [
-          [`home.opps.${i}.name`, `item ${i} — title`, `.opp-row:nth-child(${i}) .opp-name`],
-          [`home.opps.${i}.desc`, `item ${i} — description`, `.opp-row:nth-child(${i}) .opp-desc`],
-          [`home.opps.${i}.action`, `item ${i} — button word`, `.opp-row:nth-child(${i}) .opp-action b`],
-          [`home.opps.${i}.href`, `item ${i} — link`, `.opp-row:nth-child(${i})`, 'href'],
+        // rows are addressed by data-opp, not by position, so saved text stays with
+        // its own row when one is removed (2 was "ambassador & representative")
+        ...[1, 3, 4].flatMap((i, n) => [
+          [`home.opps.${i}.name`, `item ${n + 1} — title`, `.opp-row[data-opp="${i}"] .opp-name`],
+          [`home.opps.${i}.desc`, `item ${n + 1} — description`, `.opp-row[data-opp="${i}"] .opp-desc`],
+          [`home.opps.${i}.action`, `item ${n + 1} — button word`, `.opp-row[data-opp="${i}"] .opp-action b`],
+          [`home.opps.${i}.href`, `item ${n + 1} — link`, `.opp-row[data-opp="${i}"]`, 'href'],
         ]),
       ] },
       { name: 'team', fields: [
@@ -122,7 +125,9 @@
     ],
   };
 
-  // the academy / structure / courses pages share one skeleton
+  // the apprenticeship / structure / academy pages share one skeleton.
+  // (page ids and keys keep their first names — 'academy' is the apprenticeship page,
+  // 'courses' is the academy page — because saved text is stored under them.)
   const sect = (n) => `section:nth-of-type(${n})`;
   const pageHero = (key, metaCount) => ({ name: 'page top', fields: [
     [`${key}.hero.tag`, 'small label', '.page-hero .hero-tag'],
@@ -151,16 +156,16 @@
   ] });
 
   const academy = {
-    id: 'academy', title: 'the academy', file: 'academy/index.html',
+    id: 'academy', title: 'apprenticeship', file: 'apprenticeship/index.html',
     groups: [
       { name: 'show / hide sections', fields: [
-        ['academy.show.why', 'why the academy exists', sect(2), 'visible'],
+        ['academy.show.why', 'why it exists', sect(2), 'visible'],
         ['academy.show.how', 'how it works', sect(3), 'visible'],
         ['academy.show.get', 'what you get', sect(4), 'visible'],
         ['academy.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
       pageHero('academy', 3),
-      { name: 'why the academy exists', fields: [...sectHead('academy.why', 2),
+      { name: 'why it exists', fields: [...sectHead('academy.why', 2),
         ['academy.why.p1', 'paragraph 1', `${sect(2)} .sect-copy p:nth-child(1)`],
         ['academy.why.p2', 'paragraph 2', `${sect(2)} .sect-copy p:nth-child(2)`]] },
       { name: 'how it works', fields: [...sectHead('academy.how', 3), ...cells('academy.how', 3, 4, 'stage')] },
@@ -193,7 +198,7 @@
   };
 
   const courses = {
-    id: 'courses', title: 'courses page', file: 'courses/index.html',
+    id: 'courses', title: 'academy', file: 'academy/index.html',
     groups: [
       { name: 'show / hide sections', fields: [
         ['courses.show.why', 'why learn here', sect(3), 'visible'],
@@ -201,7 +206,13 @@
         ['courses.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
       pageHero('courses', 3),
-      { name: 'catalogue heading', fields: sectHead('courses.catalog', 2) },
+      // the three sections of the academy; what is listed in each comes from the courses screen
+      ...[['courses', 'courses'], ['programs', 'programs'], ['webinars', 'webinars']].map(([id, name]) => ({ name: `section — ${name}`, fields: [
+        [`courses.sec.${id}.show`, 'show this section', `#${id}`, 'visible'],
+        [`courses.sec.${id}.title`, 'heading', `#${id} .aca-title`],
+        [`courses.sec.${id}.all`, '“all …” link text', `#${id} .aca-all`],
+        [`courses.sec.${id}.empty`, 'shown while there is nothing in it', `#${id} .aca-empty`],
+      ] })),
       { name: 'why learn here', fields: [...sectHead('courses.why', 3), ...cells('courses.why', 3, 4, 'reason')] },
       { name: 'questions', fields: [...sectHead('courses.faq', 4),
         ...range(5).flatMap((i) => [

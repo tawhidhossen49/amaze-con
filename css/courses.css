@@ -457,3 +457,47 @@ button.btn-primary, button.btn-outline { font-family: var(--font-sans); }
 .kind-icon .solid { fill: currentColor; stroke: none; }
 .kind--video .kind-icon { color: var(--green); opacity: 1; }
 .lesson-kicker.lesson-name .kind-icon { opacity: 1; }
+
+/* --------------------------------------------------------------------------
+   academy: courses / programs / webinars sections, and live classes
+   -------------------------------------------------------------------------- */
+#academy-browse { margin-top: clamp(36px, 4vw, 56px); }
+#course-results { margin-top: clamp(36px, 4vw, 56px); }
+#rail-top .rail:last-child { margin-bottom: clamp(48px, 6vw, 88px); }
+.aca-block { padding-top: clamp(28px, 3vw, 40px); border-top: 1px solid var(--line); scroll-margin-top: 96px; }
+.aca-block + .aca-block { margin-top: clamp(56px, 7vw, 104px); }
+.aca-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: clamp(22px, 2.4vw, 32px); }
+.aca-title { font-size: clamp(28px, 3.2vw, 44px); font-weight: 700; line-height: 1.02; letter-spacing: -0.04em; }
+.aca-all { flex: none; padding-bottom: 4px; border-bottom: 1px solid currentColor; color: var(--fg); font: 700 12px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; text-decoration: none; white-space: nowrap; transition: color 0.3s; }
+.aca-all:hover { color: var(--green); }
+.aca-all .aca-arrow { display: inline-block; margin-left: 6px; transition: transform 0.4s var(--ease-out); }
+.aca-all:hover .aca-arrow { transform: translateX(4px); }
+.aca-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.aca-empty { padding: 34px clamp(20px, 2.4vw, 32px); border: 1px dashed var(--line); font-size: 15px; color: var(--muted); }
+.b--live { background: var(--green); border-color: transparent; color: var(--ink); font-weight: 700; }
+.lesson-row small b.is-live { color: var(--ink); background: var(--green); padding: 3px 6px; }
+
+/* a live class inside the player */
+.live { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: clamp(28px, 3.6vw, 48px); border: 1px solid var(--line); background: var(--surface); }
+.live-flag { display: inline-flex; align-items: center; gap: 10px; font: 700 11px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--faint); }
+.live-flag::before { content: ''; width: 8px; height: 8px; background: currentColor; }
+.live--upcoming .live-flag { color: var(--green); }
+.live--live { border-color: var(--green); }
+.live--live .live-flag { color: var(--green); }
+.live--live .live-flag::before { animation: live-pulse 1.4s ease-in-out infinite; }
+.live-when { font-size: clamp(24px, 3vw, 40px); font-weight: 700; line-height: 1.08; letter-spacing: -0.035em; text-transform: lowercase; }
+.live small { font-size: 13px; color: var(--muted); }
+.live .hero-buttons { justify-content: flex-start; margin-top: 12px; }
+.live .hero-buttons:empty { display: none; }
+@keyframes live-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .live--live .live-flag::before { animation: none; } }
+@media (max-width: 1000px) { .aca-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .aca-cards { grid-template-columns: 1fr; }
+  .aca-head { flex-direction: column; align-items: flex-start; gap: 16px; }
+}
+
+/* the academy list starts straight under the page top: no heading of its own, no tall gap */
+#catalogue { padding-top: clamp(28px, 3vw, 44px); }
+#catalogue .catalog-tools { margin-top: 0; }
+#catalogue #lms-notice:not(:empty) { margin-bottom: 24px; }

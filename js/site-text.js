@@ -11,7 +11,7 @@
 
   // ── value helpers, shared with the admin panel ─────────────────────────────
   const DECOR_BEFORE = 'i, svg';
-  const DECOR_AFTER = '.btn-arrow, .hero-link > b';
+  const DECOR_AFTER = '.btn-arrow, .aca-arrow, .hero-link > b';
   const ALLOWED = { EM: [], STRONG: [], B: [], I: [], BR: [], SPAN: ['class'], A: ['href', 'class', 'target', 'rel'] };
 
   // keeps only simple inline formatting; anything else becomes plain text
@@ -36,9 +36,10 @@
     if (type === 'visible') return el.hasAttribute('hidden') ? '0' : '1';
     if (type === 'href') return el.getAttribute('href') || '';
     if (type === 'src') return el.getAttribute('src') || '';
+    if (type === 'pre') return el.textContent;   // exactly as written, nothing collapsed
     if (type === 'html') return el.innerHTML.trim().replace(/\s+/g, ' ');
     const copy = el.cloneNode(true);
-    copy.querySelectorAll(`${DECOR_BEFORE}, .btn-arrow`).forEach((n) => n.remove());
+    copy.querySelectorAll(`${DECOR_BEFORE}, .btn-arrow, .aca-arrow`).forEach((n) => n.remove());
     if (el.matches('.hero-link')) copy.querySelectorAll('b').forEach((n) => n.remove());
     return copy.textContent.trim().replace(/\s+/g, ' ');
   }
@@ -46,6 +47,11 @@
   function write(el, type, value) {
     if (!el) return;
     if (type === 'visible') { el.hidden = value === '0'; return; }
+    if (type === 'pre') {   // plain text, kept character for character; the page then sets it out
+      el.textContent = value;
+      el.dispatchEvent(new CustomEvent('amaze:text', { bubbles: true }));
+      return;
+    }
     if (type === 'href') {
       // an edited link may be a web, mail or phone link, or a path on this site — never script
       const u = String(value).trim();

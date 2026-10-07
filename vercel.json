@@ -1,4 +1,8 @@
 {
+  "redirects": [
+    { "source": "/courses", "destination": "/academy/", "permanent": true },
+    { "source": "/courses/:path*", "destination": "/academy/:path*", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/(.*)",

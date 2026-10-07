@@ -5,11 +5,11 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://amazeconsortium.org/courses/</loc>
+    <loc>https://amazeconsortium.org/academy/</loc>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://amazeconsortium.org/academy/</loc>
+    <loc>https://amazeconsortium.org/apprenticeship/</loc>
     <priority>0.8</priority>
   </url>
   <url>

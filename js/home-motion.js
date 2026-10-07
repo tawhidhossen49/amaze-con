@@ -1,6 +1,6 @@
 // ── SITE MOTION ─────────────────────────────────────────────────────────────
 // Presentation only: preloader, hero intro, smooth scroll and scroll reveals.
-// Shared by the home page and the academy / structure pages — every block
+// Shared by the home page and apprenticeship / structure pages — every block
 // checks for its own elements, so a page only gets the motion it has markup for.
 // Nothing in here fetches or writes data — the content scripts inline in
 // index.html stay the single source of truth for what's on the page.
@@ -40,6 +40,7 @@
     gsap.ticker.add((time) => lenis.raf(time * 1000));
     gsap.ticker.lagSmoothing(0);
     lenis.stop();
+    window.AMAZE_lenis = lenis;   // for page scripts that need to move the page themselves
 
     // in-page anchors go through Lenis so they don't fight the smooth scroll
     document.addEventListener('click', (e) => {

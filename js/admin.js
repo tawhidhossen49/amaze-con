@@ -169,7 +169,7 @@
   }
 
   // ── shell ──────────────────────────────────────────────────────────────────
-  const VIEWS = { pages: ['pages', pagesView], lists: ['lists', listsView], courses: ['courses', coursesView], learners: ['learners', learnersView], admins: ['admins', adminsView] };
+  const VIEWS = { pages: ['pages', pagesView], lists: ['lists', listsView], courses: ['academy', coursesView], learners: ['learners', learnersView], admins: ['admins', adminsView] };
   let main, savebar, dirtyGuard = () => false;
 
   function shell() {
@@ -227,7 +227,7 @@
       return { ...f, builtIn, value: f.key in stored ? stored[f.key] : builtIn };
     });
     const groups = [...new Set(fields.map((f) => f.group))];
-    const hints = { html: 'you can use &lt;em&gt;word&lt;/em&gt; for the green accent, &lt;a href="…"&gt; for a link and &lt;br&gt; for a line break.', stat: 'a number, optionally followed by a symbol — e.g. 25+' };
+    const hints = { pre: 'paste your text here. it appears on the page exactly as it looks in this box — every line break, blank line and space is kept. a short text is shown in full; a long one is cut short on the page with a “read more” button that appears by itself.', html: 'you can use &lt;em&gt;word&lt;/em&gt; for the green accent, &lt;a href="…"&gt; for a link and &lt;br&gt; for a line break.', stat: 'a number, optionally followed by a symbol — e.g. 25+' };
 
     main.innerHTML = head('pages', 'every piece of wording, every button link and every image on the static pages. a field outlined in green differs from what is saved.',
       `<a class="btn" href="${A.root + page.file}" target="_blank" rel="noopener">view page ↗</a>`)
@@ -236,9 +236,10 @@
         const fs = fields.filter((f) => f.group === g);
         const edited = fs.filter((f) => f.key in stored).length;
         return `<details class="group"${gi === 0 ? ' open' : ''}><summary>${esc(g)}<small>${fs.length} fields${edited ? ` · <b>${edited} edited</b>` : ''}</small></summary><div class="group-body">${fs.map((f) => {
-          const long = f.type === 'html' || f.value.length > 70 || f.builtIn.length > 70;
+          const long = f.type === 'html' || f.type === 'pre' || f.value.length > 70 || f.builtIn.length > 70;
           const control = f.type === 'src' ? imageField(f.key, f.value)
             : f.type === 'visible' ? `<select name="${f.key}"><option value="1"${f.value === '1' ? ' selected' : ''}>shown</option><option value="0"${f.value === '0' ? ' selected' : ''}>hidden</option></select>`
+            : f.type === 'pre' ? `<textarea name="${f.key}" rows="${Math.min(28, Math.max(10, f.value.split('\n').length + Math.ceil(f.value.length / 90)))}" style="white-space:pre-wrap;line-height:1.6;">\n${esc(f.value)}</textarea>`
             : long ? `<textarea name="${f.key}" rows="${Math.min(8, Math.max(2, Math.ceil(f.value.length / 80)))}">${esc(f.value)}</textarea>`
               : `<input name="${f.key}" value="${esc(f.value)}">`;
           const tag = f.type === 'src' ? 'div' : 'label';   // the image control has its own <label>
@@ -357,8 +358,31 @@
     });
   }
 
-  // ── courses ────────────────────────────────────────────────────────────────
+  // ── academy: courses, programs, webinars ───────────────────────────────────
+  const TYPES = { course: 'courses', program: 'programs', webinar: 'webinars' };
+  const typeOf = (c) => (TYPES[c.kind] ? c.kind : 'course');
+  // <input type="datetime-local"> works in the admin's own time zone; the database stores one exact moment
+  const toLocalInput = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+  const fromLocalInput = (v) => (v ? new Date(v).toISOString() : null);
+  const whenText = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+  // Programs, webinars and live-class dates need four columns added by
+  // seed/website-backend-05-academy.sql. Until that has been run, those fields
+  // are left out of every save so nothing else breaks.
+  let academyReady = null;
+  async function checkAcademy() {
+    if (academyReady !== null) return academyReady;
+    const [a, b, c] = await Promise.all([
+      sb.from('courses').select('kind,starts_at').limit(1),
+      sb.from('course_lessons').select('live_at').limit(1),
+      sb.from('lesson_content').select('live_url').limit(1),
+    ]);
+    academyReady = !a.error && !b.error && !c.error;
+    return academyReady;
+  }
+  const setupNote = () => (academyReady ? '' : '<p class="empty" style="margin-bottom:20px;border-color:var(--green);color:var(--fg);">one step left to switch on programs, webinars and live-class dates: open supabase → sql editor, paste the file <b>seed/website-backend-05-academy.sql</b> and press run (once). until then everything is saved as a course and the fields marked “needs setup” are ignored.</p>');
+
   async function coursesView(courseId) {
+    await checkAcademy();
     if (courseId) return courseEditor(courseId);
     const [courses, lessons] = await Promise.all([
       run(sb.from('courses').select('*').order('sort_order').order('created_at')),
@@ -366,21 +390,24 @@
     ]);
     if (!courses || !lessons) return;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
-    main.innerHTML = head('courses', 'draft courses are only visible here. publish one to put it in the catalogue.',
-      '<button class="btn btn--solid" data-new>+ new course</button>')
-      + `<div class="rows">${courses.map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
+    const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
+    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. the headings and text of the page itself are under pages → academy.',
+      Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
+      + setupNote()
+      + Object.keys(TYPES).map((type) => `<div class="h2"><span>// ${TYPES[type]} — ${rowsOf(type).length}</span></div>
+      <div class="rows">${rowsOf(type).map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
           <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge">featured</span>' : ''}</strong>
-            <span class="sub">${esc(c.category)} · ${esc(c.level)} · ${count(c.id)} lessons · ${c.access === 'open' ? 'open to everyone' : 'free account'}</span></div>
-          <div class="row-actions"><a class="btn btn--sm" href="${A.root}courses/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
-        </div>`).join('') || '<p class="empty">no courses yet — create the first one.</p>'}</div>`;
-    $('[data-new]', main).addEventListener('click', () => courseEditor(null));
+            <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${esc(c.category)} · ${esc(c.level)} · ${count(c.id)} lessons · ${c.access === 'open' ? 'open to everyone' : 'free account'}</span></div>
+          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
+        </div>`).join('') || `<p class="empty">no ${TYPES[type]} yet.</p>`}</div>`).join('');
+    $$('[data-new]', main).forEach((b) => b.addEventListener('click', () => courseEditor(null, null, b.dataset.new)));
     main.onclick = async (e) => {
       const row = e.target.closest('.row'); if (!row) return;
       const c = courses.find((x) => x.id === row.dataset.id);
       if (e.target.closest('[data-open]')) return go('courses', c.id);
       if (e.target.closest('[data-toggle]')) {
         const status = c.status === 'published' ? 'draft' : 'published';
-        if (await run(sb.from('courses').update({ status }).eq('id', c.id), status === 'published' ? 'published — now in the catalogue' : 'moved back to draft')) coursesView();
+        if (await run(sb.from('courses').update({ status }).eq('id', c.id), status === 'published' ? 'published — now on the academy page' : 'moved back to draft')) coursesView();
       }
     };
   }
@@ -401,8 +428,9 @@
     return out.filter((q) => q.q && q.options.length >= 2);
   }
 
-  async function courseEditor(id, openLesson) {
-    let course = { id: '', title: '', category: 'general', level: 'beginner', access: 'account', status: 'draft', outcomes: [], sort_order: 0 };
+  async function courseEditor(id, openLesson, newKind) {
+    await checkAcademy();
+    let course = { id: '', title: '', kind: TYPES[newKind] ? newKind : 'course', category: 'general', level: 'beginner', access: 'account', status: 'draft', outcomes: [], sort_order: 0 };
     let modules = [], lessons = [];
     if (id) {
       const [c, m, l] = await Promise.all([
@@ -413,6 +441,8 @@
       if (!c || c === true || !m || !l) { if (c === true) toast('that course no longer exists', true); return go('courses'); }
       course = c; modules = m === true ? [] : m; lessons = l === true ? [] : l;
     }
+    const noun = typeOf(course);
+    const needs = academyReady ? '' : ' — needs setup';
     const opt = (value, list) => list.map((o) => `<option${o === value ? ' selected' : ''}>${o}</option>`).join('');
     let content = null;
     // 'new:<module id>' means a blank form for a lesson that doesn't exist yet
@@ -425,9 +455,13 @@
       <div class="form-grid">
         <label class="field field--wide"><span>lesson title</span><input name="title" required value="${esc(l.title || '')}"></label>
         <label class="field field--wide"><span>module</span><select name="module_id">${modules.map((m) => `<option value="${m.id}"${m.id === moduleId ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select></label>
-        <label class="field"><span>type</span><select name="kind">${[['article', 'reading'], ['video', 'video'], ['quiz', 'quiz (built in)'], ['form', 'test / assignment (google form)']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="field"><span>type</span><select name="kind">${[['article', 'reading'], ['video', 'video'], ['live', 'live class (on a date)'], ['quiz', 'quiz (built in)'], ['form', 'test / assignment (google form)']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>length in minutes</span><input name="duration_min" type="number" min="1" value="${l.duration_min || 5}"></label>
-        <div class="field field--wide"><div class="field-top"><span>video — paste a youtube link, or upload your own video file</span><label class="linkish" style="cursor:pointer;">upload a video file<input type="file" accept="video/mp4,video/webm,video/quicktime,video/*" hidden data-video-upload></label></div>
+        <label class="field"><span>live class — date and time${needs}</span><input name="live_at" type="datetime-local" value="${toLocalInput(l.live_at)}">
+          <small class="hint">for “live class” lessons. set it in your own time; each learner sees it converted to theirs. leave empty to show “date to be announced”.</small></label>
+        <label class="field"><span>live class — link to join${needs}</span><input name="live_url" value="${esc((content && content.live_url) || '')}" placeholder="https://meet.google.com/…  or  https://zoom.us/j/…">
+          <small class="hint">google meet, zoom, youtube live — any link. only people who can open the lesson see it. after the class, paste the recording in the video box below.</small></label>
+        <div class="field field--wide"><div class="field-top"><span>video — paste a youtube link, or upload your own video file (for a live class: the recording, afterwards)</span><label class="linkish" style="cursor:pointer;">upload a video file<input type="file" accept="video/mp4,video/webm,video/quicktime,video/*" hidden data-video-upload></label></div>
           <input name="video_url" value="${esc((content && content.video_url) || '')}" placeholder="https://youtu.be/…  or  https://www.youtube.com/watch?v=…">
           <small class="hint" data-video-status>any youtube link works (long videos included) and plays inside the lesson. vimeo and google drive links work too. uploaded files should be .mp4, up to 50 MB on supabase's free plan.</small></div>
         <label class="field field--wide"><span>form link — for test / assignment lessons</span><input name="form_url" value="${esc((content && content.form_url) || '')}" placeholder="https://docs.google.com/forms/d/e/…/viewform">
@@ -444,16 +478,21 @@
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
     </form>`;
 
-    main.innerHTML = head(id ? esc(course.title) : 'new course', id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${esc(course.status)}</span>` : 'fill in the details, save, then add modules and lessons.',
-      `<button class="btn" data-back>← all courses</button>${id ? `<a class="btn" href="${A.root}courses/course.html?c=${encodeURIComponent(id)}" target="_blank" rel="noopener">view ↗</a>` : ''}`)
+    main.innerHTML = head(id ? esc(course.title) : 'new ' + noun, id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${esc(course.status)}</span>` : 'fill in the details, save, then add modules and lessons.',
+      `<button class="btn" data-back>← academy</button>${id ? `<a class="btn" href="${A.root}academy/course.html?c=${encodeURIComponent(id)}" target="_blank" rel="noopener">view ↗</a>` : ''}`)
+      + setupNote()
       + `<form id="course-form"><div class="form-grid">
+        <label class="field"><span>what this is — the section it appears in${needs}</span><select name="kind">${Object.keys(TYPES).map((t) => `<option value="${t}"${t === noun ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <small class="hint">course = self-paced lessons · program = a longer guided track · webinar = a single live session.</small></label>
+        <label class="field"><span>start date and time (optional)${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
+          <small class="hint">a webinar's date or a program's first day — shown on its card and page, in each visitor's own time. leave empty for something people can start any time.</small></label>
         <label class="field field--wide"><span>title</span><input name="title" required value="${esc(course.title)}"></label>
         <label class="field field--wide"><span>one-line summary</span><input name="tagline" value="${esc(course.tagline || '')}"></label>
         <label class="field field--wide"><span>description</span><textarea name="description" rows="4">${esc(course.description || '')}</textarea></label>
         <label class="field"><span>category</span><input name="category" required value="${esc(course.category)}"></label>
         <label class="field"><span>level</span><select name="level">${opt(course.level, ['beginner', 'intermediate', 'advanced', 'all levels'])}</select></label>
         <label class="field"><span>duration (as shown, e.g. 6 weeks)</span><input name="duration" value="${esc(course.duration || '')}"></label>
-        <label class="field"><span>position in the catalogue (lower = earlier)</span><input name="sort_order" type="number" value="${course.sort_order || 0}"></label>
+        <label class="field"><span>position in its section (lower = earlier)</span><input name="sort_order" type="number" value="${course.sort_order || 0}"></label>
         <label class="field"><span>who can read the lessons</span><select name="access"><option value="account"${course.access === 'account' ? ' selected' : ''}>anyone with a free account</option><option value="open"${course.access === 'open' ? ' selected' : ''}>everyone, no account needed</option></select></label>
         <label class="field"><span>status</span><select name="status">${opt(course.status, ['draft', 'published'])}</select></label>
         <label class="field field--wide"><span>what learners will be able to do — one per line</span><textarea name="outcomes" rows="4">${esc((course.outcomes || []).join('\n'))}</textarea></label>
@@ -470,9 +509,9 @@
         <div class="field"><span>“taught by” — photo (the first letter of the name is shown without one)</span>${imageField('instructor_img', course.instructor_img)}</div>
         <div class="field"><span>course image — the picture at the top of its card (wide, 16:9 works best)</span>${imageField('cover', course.cover)}</div>
       </div>
-      <label class="check"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> feature this course at the top of the catalogue</label>
+      <label class="check"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> feature this at the top of its section</label>
       <label class="check"><input type="checkbox" name="sequential"${course.sequential ? ' checked' : ''}> lock the order — a lesson opens only after the ones before it are complete</label>
-      <div class="editor-foot"><button class="btn btn--solid" type="submit">${id ? 'save course details' : 'create course'}</button>${id ? '<button class="btn btn--danger" type="button" data-delete-course>delete course</button>' : ''}</div></form>`
+      <div class="editor-foot"><button class="btn btn--solid" type="submit">${id ? 'save details' : 'create ' + noun}</button>${id ? `<button class="btn btn--danger" type="button" data-delete-course>delete ${noun}</button>` : ''}</div></form>`
       + (id ? `<div class="h2"><span>// curriculum — ${modules.length} modules, ${lessons.length} lessons</span><button class="btn btn--sm btn--solid" data-add-module>+ add module</button></div>
         ${modules.map((m, mi) => {
           const ls = lessons.filter((l) => l.module_id === m.id);
@@ -480,7 +519,7 @@
             <header><div><strong>${String(mi + 1).padStart(2, '0')} — ${esc(m.title)}${m.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong>${m.summary ? `<span class="sub" style="display:block;margin-top:4px;font-size:13px;color:var(--muted);">${esc(m.summary)}</span>` : ''}</div>
               <div class="row-actions"><button class="btn btn--sm" data-mmove="-1"${mi === 0 ? ' disabled' : ''}>↑</button><button class="btn btn--sm" data-mmove="1"${mi === modules.length - 1 ? ' disabled' : ''}>↓</button><button class="btn btn--sm" data-mhide>${m.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-medit>rename</button><button class="btn btn--sm btn--danger" data-mdel>delete</button></div></header>
             <div class="rows">${ls.map((l, li) => (l.id === openLesson ? lessonForm(l, m.id) : `<div class="row row--plain" data-lesson="${l.id}">
-              <div><strong>${esc(l.title)}${l.is_preview ? '<span class="badge badge--on">preview</span>' : ''}${l.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub">${{ video: '▶ video', article: '▤ reading', quiz: '☑ quiz', form: '✎ test' }[l.kind] || esc(l.kind)} · ${l.duration_min} min</span></div>
+              <div><strong>${esc(l.title)}${l.is_preview ? '<span class="badge badge--on">preview</span>' : ''}${l.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub">${{ video: '▶ video', article: '▤ reading', quiz: '☑ quiz', form: '✎ test', live: '◉ live class' }[l.kind] || esc(l.kind)} · ${l.kind === 'live' ? (l.live_at ? whenText(l.live_at) + ' · ' : 'no date yet · ') : ''}${l.duration_min} min</span></div>
               <div class="row-actions"><button class="btn btn--sm" data-lmove="-1"${li === 0 ? ' disabled' : ''}>↑</button><button class="btn btn--sm" data-lmove="1"${li === ls.length - 1 ? ' disabled' : ''}>↓</button><button class="btn btn--sm" data-lhide>${l.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-ledit>edit</button><button class="btn btn--sm btn--danger" data-ldel>delete</button></div>
             </div>`)).join('') || '<p class="empty" style="border:0;padding:20px 0;">no lessons in this module yet.</p>'}
             ${openLesson === 'new:' + m.id ? lessonForm({}, m.id) : ''}</div>
@@ -512,8 +551,8 @@
       const n = (k) => shown.filter((l) => l.kind === k).length;
       const access = $('#course-form [name=access]', main).value === 'open' ? 'open to everyone' : 'free account';
       $('#course-form [name=includes]', main).value = [
-        n('video') && `video lessons | ${n('video')}`, n('article') && `readings | ${n('article')}`, n('quiz') && `quizzes | ${n('quiz')}`, n('form') && `tests & assignments | ${n('form')}`,
-        'notes & q&a | on every lesson', 'pace | your own', `access | ${access}`, 'certificate | verifiable',
+        n('video') && `video lessons | ${n('video')}`, n('article') && `readings | ${n('article')}`, n('quiz') && `quizzes | ${n('quiz')}`, n('form') && `tests & assignments | ${n('form')}`, n('live') && `live classes | ${n('live')}`,
+        'notes & q&a | on every lesson', n('live') ? 'pace | live, on set dates' : 'pace | your own', `access | ${access}`, 'certificate | verifiable',
       ].filter(Boolean).join('\n');
     });
     $('#course-form', main).addEventListener('submit', async (e) => {
@@ -528,12 +567,14 @@
         trailer_url: v.trailer_url.trim() || null, language: v.language.trim().toLowerCase() || 'english', sequential: !!v.sequential, updated_at: new Date().toISOString(),
         instructor_name: v.instructor_name || null, instructor_role: v.instructor_role || null, instructor_img: v.instructor_img || null, cover: v.cover || null,
       };
-      if (id) { if (await run(sb.from('courses').update(row).eq('id', id), 'course saved')) reload(); return; }
+      if (academyReady) { row.kind = TYPES[v.kind] ? v.kind : 'course'; row.starts_at = fromLocalInput(v.starts_at); }
+      else if (v.kind !== 'course' || v.starts_at) toast('saved as a course without a date — run seed/website-backend-05-academy.sql in supabase to switch programs, webinars and dates on', true);
+      if (id) { if (await run(sb.from('courses').update(row).eq('id', id), 'saved')) reload(); return; }
       const newId = slug(row.title);
       if (!newId) return toast('give the course a title first', true);
       const { data: clash } = await sb.from('courses').select('id').eq('id', newId).maybeSingle();
       if (clash) return toast('there is already a course with that title — choose a different one', true);
-      if (await run(sb.from('courses').insert({ ...row, id: newId }), 'course created — now add a module')) go('courses', newId);
+      if (await run(sb.from('courses').insert({ ...row, id: newId }), 'created — now add a module')) go('courses', newId);
     });
     if (!id) return;
     courseExtras($('#course-extras', main), id, lessons);
@@ -607,8 +648,10 @@
         const quiz = textToQuiz(v.quiz);
         const resources = v.resources.split('\n').map((line) => line.split('|').map((x) => x.trim())).filter((x) => x.length >= 2 && x[1]).map(([label, ...rest]) => ({ label: label || rest.join('|'), url: rest.join('|') }));
         if (v.kind === 'form' && !v.form_url.trim()) return toast('paste the form link for this test', true);
+        if (v.kind === 'live' && !academyReady) toast('the live class is saved, but its date and link need seed/website-backend-05-academy.sql to be run in supabase first', true);
         if (v.kind === 'quiz' && !quiz.length) return toast('a quiz needs at least one question with two options — see the format note under the box', true);
         const row = { course_id: id, module_id: v.module_id || lf.dataset.module, title: v.title.trim(), kind: v.kind, duration_min: Math.max(1, +v.duration_min || 5), is_preview: !!v.is_preview, is_hidden: !!v.is_hidden };
+        if (academyReady) row.live_at = v.kind === 'live' ? fromLocalInput(v.live_at) : null;
         let lessonId = lf.dataset.lesson;
         if (lessonId) { if (!(await run(sb.from('course_lessons').update(row).eq('id', lessonId)))) return; }
         else {
@@ -616,7 +659,7 @@
           if (!made) return;
           lessonId = made.id;
         }
-        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url: v.video_url.trim() || null, form_url: v.form_url.trim() || null, body: v.body || null, quiz: quiz.length ? quiz : null, resources }), 'lesson saved')) {
+        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url: v.video_url.trim() || null, form_url: v.form_url.trim() || null, body: v.body || null, quiz: quiz.length ? quiz : null, resources, ...(academyReady ? { live_url: v.live_url.trim() || null } : {}) }), 'lesson saved')) {
           // keep numbering contiguous module by module, including the new lesson
           const fresh = await run(sb.from('course_lessons').select('*').eq('course_id', id).order('sort_order'));
           if (fresh && fresh !== true) { lessons = fresh; await renumberLessons(modules, (mid) => fresh.filter((x) => x.module_id === mid)); }
@@ -669,7 +712,7 @@
 
       <div class="h2"><span>// certificates issued — ${certs.length}</span></div>
       <div class="rows">${certs.map((c) => `<div class="row row--plain" data-kind="cert" data-id="${esc(c.id)}"><div><strong style="text-transform:none;">${esc(c.learner_name)}</strong><span class="sub" style="text-transform:none;">${esc(c.id)} · ${when(c.issued_at)}</span></div>
-        <div class="row-actions"><a class="btn btn--sm" href="${A.root}courses/certificate.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm btn--danger" data-x="del">revoke</button></div></div>`).join('') || '<p class="empty">none yet.</p>'}</div>`;
+        <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/certificate.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm btn--danger" data-x="del">revoke</button></div></div>`).join('') || '<p class="empty">none yet.</p>'}</div>`;
 
     const again = () => courseExtras(el, id, lessons);
     el.onsubmit = async (e) => {
