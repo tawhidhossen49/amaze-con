@@ -1,0 +1,8 @@
+# Not part of the public website — kept out of the deployment.
+seed/
+raw-video/
+test-courses image/
+BLUEPRINT.md
+*.md
+.gitignore
+sequences/*/_qa/

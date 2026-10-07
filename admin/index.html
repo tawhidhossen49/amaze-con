@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>admin — amaze consortium</title>
+<meta name="description" content="amaze consortium site administration.">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
+<script>
+  // the admin panel must never run inside another site's frame
+  if (top !== self) { document.documentElement.style.display = 'none'; top.location = self.location; }
+</script>
 <link rel="icon" href="../amazelogo.ico" type="image/x-icon">
 <link rel="stylesheet" href="../css/home.css">
 <link rel="stylesheet" href="../css/courses.css">
@@ -19,7 +25,7 @@
 <script src="../js/site-config.js"></script>
 <script src="../js/site-fields.js"></script>
 <script src="../js/site-text.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
 <script src="../js/admin.js"></script>
 </body>
 </html>

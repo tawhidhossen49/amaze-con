@@ -48,10 +48,14 @@
   async function loadOutline() {
     try {
       if (!sb) throw new Error('no client');
-      const [c, m, l] = await Promise.all([
-        sb.from('courses').select('*').eq('status', 'published').order('sort_order'),
-        sb.from('course_modules').select('*').order('sort_order'),
-        sb.from('course_lessons').select('*').order('sort_order'),
+      // the client library retries a dead connection for several seconds; give up after five
+      const [c, m, l] = await Promise.race([
+        Promise.all([
+          sb.from('courses').select('*').eq('status', 'published').order('sort_order'),
+          sb.from('course_modules').select('*').order('sort_order'),
+          sb.from('course_lessons').select('*').order('sort_order'),
+        ]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timed out')), 5000)),
       ]);
       if (c.error || m.error || l.error) throw (c.error || m.error || l.error);
       // admins can read drafts and hidden rows; the public pages never show them
@@ -69,23 +73,39 @@
   }
 
   async function loadLearner() {
-    Object.assign(S.done, local.get(LOCAL_PROGRESS));
+    const device = local.get(LOCAL_PROGRESS);
+    Object.assign(S.done, device);
     if (!sb || S.preview) return;
     const { data } = await sb.auth.getSession();
     S.user = data.session ? data.session.user : null;
     if (!S.user) return;
     S.name = (S.user.user_metadata && S.user.user_metadata.full_name) || '';
-    const [en, pr, ce, ad] = await Promise.all([
+    S.admin = (await soft(sb.rpc('is_admin'), false)) === true;
+    // Admin logins are kept apart from learner accounts: an admin can open any
+    // lesson to check it, but nothing is recorded against them (the database
+    // refuses it too). Their clicking-through is remembered on this device only.
+    if (S.admin) return;
+
+    // Anything completed on this device before signing in moves into the
+    // account, so no progress is lost by creating one late.
+    const known = new Map(S.lessons.map((l) => [l.id, l.course_id]));
+    const carry = Object.keys(device).filter((id) => known.has(id));
+    if (carry.length) {
+      const courses = [...new Set(carry.map((id) => known.get(id)))];
+      await sb.from('enrollments').upsert(courses.map((c) => ({ user_id: S.user.id, course_id: c, learner_name: S.name, learner_email: S.user.email })), { onConflict: 'user_id,course_id', ignoreDuplicates: true });
+      const { error } = await sb.from('lesson_progress').upsert(carry.map((id) => ({ user_id: S.user.id, lesson_id: id, course_id: known.get(id) })), { onConflict: 'user_id,lesson_id', ignoreDuplicates: true });
+      if (!error) local.set(LOCAL_PROGRESS, {});
+    }
+
+    const [en, pr, ce] = await Promise.all([
       soft(sb.from('enrollments').select('course_id,enrolled_at,completed_at')),
       soft(sb.from('lesson_progress').select('lesson_id')),
       soft(sb.from('certificates').select('id,course_id').eq('user_id', S.user.id)),
-      soft(sb.rpc('is_admin'), false),
     ]);
     S.done = {};   // a signed-in learner's record is the account's, not the device's
     en.forEach((r) => { S.enrolled[r.course_id] = r; });
     pr.forEach((r) => { S.done[r.lesson_id] = true; });
     ce.forEach((r) => { S.certs[r.course_id] = r.id; });
-    S.admin = ad === true;
   }
 
   const lessonsOf = (id) => S.lessons.filter((l) => l.course_id === id).sort((a, b) => a.sort_order - b.sort_order);
@@ -127,7 +147,7 @@
   }
 
   async function enrol(course) {
-    if (!S.user || S.enrolled[course.id]) return;
+    if (!S.user || S.admin || S.enrolled[course.id]) return;
     const row = { user_id: S.user.id, course_id: course.id, learner_name: S.name, learner_email: S.user.email };
     const { error } = await sb.from('enrollments').insert(row);
     if (!error) S.enrolled[course.id] = { course_id: course.id, completed_at: null };
@@ -135,7 +155,7 @@
 
   async function markDone(course, lesson, score) {
     S.done[lesson.id] = true;
-    if (!S.user) { local.set(LOCAL_PROGRESS, S.done); return; }
+    if (!S.user || S.admin) { local.set(LOCAL_PROGRESS, S.done); return; }
     await enrol(course);
     await sb.from('lesson_progress').upsert({ user_id: S.user.id, lesson_id: lesson.id, course_id: course.id, quiz_score: score ?? null });
     if (stats(course).pct === 100 && S.enrolled[course.id] && !S.enrolled[course.id].completed_at) {
@@ -208,6 +228,8 @@
     }
     return `<video src="${esc(url)}" controls playsinline preload="metadata"></video>`;
   }
+  // a link is only used if it is a normal web address (or a path on this site)
+  const safeUrl = (v) => (/^(https?:)?\/\//i.test(String(v || '').trim()) ? String(v).trim() : /^[a-z][a-z0-9+.-]*:/i.test(String(v || '').trim()) ? '#' : A.root + String(v || '').trim().replace(/^\/+/, ''));
   // a Google Form link in the shape that can be shown inside the page
   function formEmbed(url) {
     if (!/docs\.google\.com\/forms/.test(url)) return url;
@@ -232,7 +254,9 @@
     return $('.dialog-body', dialog);
   }
   function closeDialog() { if (dialog) dialog.classList.remove('is-open'); }
+  const plain = (message) => (/failed to fetch|networkerror|load failed/i.test(message) ? 'can\'t reach the server — check your internet connection and try again.' : message);
   function say(body, text, isError) {
+    text = plain(text);
     let el = $('.dialog-msg', body);
     if (!el) { el = document.createElement('div'); el.className = 'dialog-msg'; body.appendChild(el); }
     el.classList.toggle('is-error', !!isError);
@@ -283,8 +307,8 @@
 
   function accountDialog() {
     const body = openDialog(`
-      <span class="lesson-kicker">your account</span>
-      <h2>${esc(S.name || 'learner')}</h2>
+      <span class="lesson-kicker">${S.admin ? 'admin login' : 'learner account'}</span>
+      <h2>${esc(S.name || (S.admin ? 'admin' : 'learner'))}</h2>
       <p>${esc(S.user.email)}</p>
       <ul class="account-list">
         <li><a href="${A.root}courses/my.html">my learning <span>→</span></a></li>
@@ -311,11 +335,12 @@
   function wireAccountButton() {
     const btn = $('#lms-account');
     if (!btn) return;
-    btn.textContent = S.user ? (S.name.split(' ')[0] || 'account') : 'sign in';
+    btn.textContent = S.user ? (S.admin ? 'admin' : S.name.split(' ')[0] || 'account') : 'sign in';
     btn.addEventListener('click', () => (S.user ? accountDialog() : authDialog()));
   }
 
-  const notice = () => (S.preview ? '<div class="lms-notice">preview mode — the course database isn\'t connected yet, so these are sample courses and your progress is kept on this device only.</div>' : '');
+  const adminNote = () => (S.admin ? `<div class="lms-notice">you are signed in with an admin login, so you are previewing — nothing you do here is saved as learner progress. to take courses, sign out and use a learner account. <a href="${A.root}admin/index.html" style="color:var(--green)">open the admin panel →</a></div>` : '');
+  const notice = () => adminNote() + (S.preview ? '<div class="lms-notice">preview mode — the course database isn\'t connected yet, so these are sample courses and your progress is kept on this device only.</div>' : '');
 
   // ── course card — image on top, then title, instructor, badges, action ────
   const LOCAL_SAVED = 'amaze.lms.saved';
@@ -444,7 +469,8 @@
           const by = (fn) => S.courses.slice().sort(fn);
           const going = S.courses.filter((c) => started(c) && stats(c).pct < 100);
           const kept = S.courses.filter((c) => saved()[c.id]);
-          const seen = S.courses.find((c) => c.id === localStorage.getItem(LOCAL_VIEWED));
+          let last = null; try { last = localStorage.getItem(LOCAL_VIEWED); } catch (e) {}
+          const seen = S.courses.find((c) => c.id === last);
           const related = seen ? S.courses.filter((c) => c.id !== seen.id && (c.category === seen.category || c.level === seen.level)) : [];
           const rated = by(SORTS.rated).filter((c) => num(c, 'reviews') > 0);
           rails.innerHTML = rail('continue learning', going, { resume: true })
@@ -507,8 +533,9 @@
     const lessonUrl = (l) => `learn.html?c=${enc(course.id)}&l=${l.id}`;
     const preview = st.lessons.find((l) => l.is_preview);
     let action;
-    if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the course' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
-    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.user ? 'enrol — it\'s free' : 'start the course'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
+    if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
+    else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the course' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
+    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? 'enrol — it\'s free' : 'start the course'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     else action = '<button class="btn-primary" id="join" type="button">create a free account to enrol <span class="btn-arrow" aria-hidden="true">→</span></button>';
     const second = !going && preview && !open ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
@@ -535,7 +562,7 @@
       const c = shown.filter((r) => r.rating === n).length;
       return `<li><span>${n} ★</span><div class="progress"><i style="width:${shown.length ? (c / shown.length) * 100 : 0}%"></i></div><span>${c}</span></li>`;
     }).join('');
-    const reviewForm = S.user && S.enrolled[course.id] && !mineReview ? `
+    const reviewForm = S.user && !S.admin && S.enrolled[course.id] && !mineReview ? `
       <form class="review-form" id="review-form">
         <span class="lesson-kicker">rate this course</span>
         <div class="star-pick" role="radiogroup" aria-label="rating">${[1, 2, 3, 4, 5].map((n) => `<label><input type="radio" name="rating" value="${n}" required><span>★</span></label>`).join('')}</div>
@@ -599,7 +626,7 @@
 
     wireModules(root);
     const enrolBtn = $('#enrol');
-    if (enrolBtn) enrolBtn.addEventListener('click', async () => { await enrol(course); location.href = lessonUrl(st.next); });
+    if (enrolBtn) enrolBtn.addEventListener('click', async () => { enrolBtn.disabled = true; await enrol(course); location.href = lessonUrl(st.next); });
     const join = $('#join');
     if (join) join.addEventListener('click', () => authDialog('signup'));
     const rf = $('#review-form');
@@ -656,8 +683,8 @@
         <p>create a free account to unlock every lesson in this course, keep your progress and notes, and earn the certificate.</p>
         <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signup">create a free account <span class="btn-arrow" aria-hidden="true">→</span></button>
         <button class="btn-outline" type="button" data-auth="signin">sign in <span class="btn-arrow" aria-hidden="true">→</span></button></div></div>`;
-    } else if (lesson.kind === 'quiz') {
-      const qs = content.quiz || [];
+    } else if (lesson.kind === 'quiz' && (content.quiz || []).length) {
+      const qs = content.quiz;
       bodyHtml = (content.body ? `<div class="prose" style="margin-bottom:32px;">${markdown(content.body)}</div>` : '') + `<form class="quiz">${qs.map((q, qi) => `
         <fieldset class="quiz-q">
           <h3><small>${pad2(qi + 1)}</small><span>${inline(q.q)}</span></h3>
@@ -669,8 +696,8 @@
       </form>`;
     } else if (lesson.kind === 'form') {
       bodyHtml = (content.body ? `<div class="prose" style="margin-bottom:32px;">${markdown(content.body)}</div>` : '')
-        + (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(content.form_url))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
-          <p class="form-alt">form not showing? <a href="${esc(content.form_url)}" target="_blank" rel="noopener noreferrer">open it in a new tab ↗</a> — then come back and mark it as submitted.</p>`
+        + (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
+          <p class="form-alt">form not showing? <a href="${esc(safeUrl(content.form_url))}" target="_blank" rel="noopener noreferrer">open it in a new tab ↗</a> — then come back and mark it as submitted.</p>`
           : '<p class="lms-empty">the form for this lesson hasn\'t been added yet.</p>');
     } else {
       bodyHtml = (content.video_url ? `<div class="lesson-video">${videoEmbed(content.video_url)}</div>` : '')
@@ -678,7 +705,7 @@
     }
 
     const usable = !!content;
-    const isQuiz = usable && lesson.kind === 'quiz';
+    const isQuiz = usable && lesson.kind === 'quiz' && (content.quiz || []).length > 0;
     const doneLabel = lesson.kind === 'form' ? (next ? 'i have submitted it — continue' : 'i have submitted it — finish') : (next ? 'complete & continue' : 'complete the course');
     const tabs = usable ? `
       <div class="tabs-bar" role="tablist">
@@ -692,7 +719,7 @@
         <small class="hint" id="note-status">${S.user ? 'saved to your account' : 'saved on this device — sign in to keep notes across devices'}</small>
       </div>
       <div class="tab-panel" data-panel="resources" hidden>
-        ${resources.length ? `<ul class="resources">${resources.map((r) => `<li><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><span class="lesson-name">${ICON.file}<span>${esc(r.label || r.url)}</span></span><i>↓</i></a></li>`).join('')}</ul>` : '<p class="lms-empty" style="padding:28px 0;">no files or links for this lesson.</p>'}
+        ${resources.length ? `<ul class="resources">${resources.map((r) => `<li><a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener noreferrer"><span class="lesson-name">${ICON.file}<span>${esc(r.label || r.url)}</span></span><i>↓</i></a></li>`).join('')}</ul>` : '<p class="lms-empty" style="padding:28px 0;">no files or links for this lesson.</p>'}
       </div>
       <div class="tab-panel" data-panel="qa" hidden id="qa"></div>
       <div class="tab-panel" data-panel="news" hidden>
@@ -855,7 +882,13 @@
         <a class="crumb rise" href="index.html">← all courses</a>
         <div class="hero-tag rise"><i></i>my learning</div>
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
-        ${S.user || S.preview ? '' : '<p class="page-sub rise rise-3" style="margin-top:28px;">you are not signed in, so this is the progress saved on this device. <button class="linkish" id="my-signin" style="font-size:inherit;">sign in</button> to see your account.</p>'}
+        ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">
+          <strong>sign in to keep your place.</strong>
+          <p>a free learner account saves the courses you enrol in, every lesson you finish, your notes and your certificates — so you can stop anywhere and carry on later, on any device.</p>
+          <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signup">create a free account <span class="btn-arrow" aria-hidden="true">→</span></button>
+          <button class="btn-outline" type="button" data-auth="signin">sign in <span class="btn-arrow" aria-hidden="true">→</span></button></div>
+          ${mine.length ? '<p style="margin:22px 0 0;font-size:13px;">the progress below is saved on this device only. it moves into your account as soon as you sign in.</p>' : ''}
+        </div>`}
         <ul class="course-facts rise rise-3" style="grid-template-columns:repeat(3,1fr);margin:clamp(36px,5vw,64px) 0 clamp(40px,5vw,72px);">
           <li><small>courses started</small><span>${mine.length}</span></li>
           <li><small>lessons completed</small><span>${lessonsDone}</span></li>
@@ -870,7 +903,7 @@
             <div class="hero-buttons" style="justify-content:flex-end;"><a class="btn-outline" href="course.html?c=${enc(c.id)}">review <span class="btn-arrow" aria-hidden="true">→</span></a>
             <a class="btn-primary" href="certificate.html?${S.certs[c.id] ? 'id=' + enc(S.certs[c.id]) : 'c=' + enc(c.id)}">certificate <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`).join('')}</div>` : ''}
       </div></section>`;
-    const si = $('#my-signin'); if (si) si.addEventListener('click', () => authDialog());
+    $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
     wireSaves(root);
   }
 
@@ -899,7 +932,7 @@
       const rows = S.preview ? [] : await soft(sb.rpc('get_certificate', { p_id: id }));
       const c = rows[0];
       if (!c) {
-        root.innerHTML = '<div class="gate" style="max-width:640px;"><strong>no certificate with that reference.</strong><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="index.html">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>';
+        root.innerHTML = '<div class="gate" style="max-width:640px;"><h1>no certificate with that reference.</h1><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="index.html">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>';
         return;
       }
       document.title = `certificate — ${c.learner_name}`;
@@ -922,14 +955,14 @@
     if (S.certs[course.id]) { location.replace(`certificate.html?id=${enc(S.certs[course.id])}`); return; }
     const st = stats(course);
     if (st.pct < 100 || !st.count) {
-      root.innerHTML = `<div class="gate" style="max-width:640px;"><strong>not quite there yet.</strong><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be waiting here.</p><div class="hero-buttons"><a class="btn-primary" href="learn.html?c=${enc(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
+      root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>not quite there yet.</h1><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be waiting here.</p><div class="hero-buttons"><a class="btn-primary" href="learn.html?c=${enc(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
       return;
     }
     document.title = `certificate — ${course.title}`;
 
     // signed in: the database checks the work and issues a permanent, verifiable certificate
-    if (S.user) {
-      root.innerHTML = `<div class="gate" style="max-width:640px;"><span class="lesson-kicker">course complete</span><strong style="margin-top:14px;">claim your certificate.</strong>
+    if (S.user && !S.admin) {
+      root.innerHTML = `<div class="gate" style="max-width:640px;"><span class="lesson-kicker">course complete</span><h1 style="margin-top:14px;">claim your certificate.</h1>
         <p>enter your name exactly as it should be printed. it can't be changed once the certificate is issued.</p>
         <form id="claim"><label class="field" style="margin-top:0;"><span>name on the certificate</span><input name="name" required minlength="2" maxlength="80" value="${esc(S.name)}"></label>
         <button class="btn-primary" type="submit" style="margin-top:24px;">issue my certificate <span class="btn-arrow" aria-hidden="true">→</span></button></form></div>`;

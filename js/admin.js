@@ -14,8 +14,13 @@
 // listed in the `admins` table. Hiding or bypassing this page changes nothing.
 (function () {
   const A = window.AMAZE;
-  const sb = window.supabase.createClient(A.url, A.key);
   const app = document.getElementById('admin');
+  if (!window.supabase) {
+    app.innerHTML = '<div class="admin-gate"><div class="dialog-box" style="width:min(480px,100%);"><span class="lesson-kicker">can\'t start</span><h1 style="font-size:30px;letter-spacing:-0.04em;margin:8px 0;">the admin panel couldn\'t load</h1><p style="font-size:14px;line-height:1.6;color:var(--muted);">a file it needs didn\'t download — usually a connection problem or a blocker extension. check your internet connection and reload the page.</p><div class="dialog-links"><button class="linkish" onclick="location.reload()">reload</button></div></div></div>';
+    return;
+  }
+  const sb = window.supabase.createClient(A.url, A.key);
+  const plain = (message) => (/failed to fetch|networkerror|load failed/i.test(message) ? 'can\'t reach the server — check your internet connection and try again.' : message);
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -27,7 +32,7 @@
   let toastEl, toastTimer;
   function toast(text, isError) {
     if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; document.body.appendChild(toastEl); }
-    toastEl.textContent = text;
+    toastEl.textContent = plain(text);
     toastEl.classList.toggle('is-error', !!isError);
     toastEl.classList.add('is-on');
     clearTimeout(toastTimer);
@@ -53,6 +58,11 @@
   const imageField = (name, value) => `<div class="with-upload"><div class="thumb">${value ? `<img src="${esc(img(value))}" alt="">` : 'none'}</div>
     <input name="${name}" value="${esc(value || '')}" placeholder="image address, or upload →" data-image>
     <label class="btn btn--sm" style="align-self:stretch;">upload<input type="file" accept="image/*" hidden data-upload="${name}"></label></div>`;
+  // a thumbnail that fails to load is replaced by its initials (as plain text, never markup)
+  document.addEventListener('error', (e) => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && t.dataset.fallback !== undefined) t.replaceWith(document.createTextNode(t.dataset.fallback));
+  }, true);
   // one listener handles every upload button and live thumbnail on the page
   document.addEventListener('change', async (e) => {
     const input = e.target.closest('[data-upload]');
@@ -108,7 +118,7 @@
   function note(box, text, isError) {
     let el = $('.dialog-msg', box);
     if (!el) { el = document.createElement('div'); el.className = 'dialog-msg'; box.appendChild(el); }
-    el.classList.toggle('is-error', !!isError); el.textContent = text;
+    el.classList.toggle('is-error', !!isError); el.textContent = plain(text);
   }
 
   // Email and password only. Admin logins are created by hand in the Supabase
@@ -116,7 +126,7 @@
   function signIn() {
     const box = gate(`
       <span class="lesson-kicker">amaze consortium — admin</span>
-      <h2 style="font-size:34px;line-height:1;letter-spacing:-0.04em;margin:8px 0;">sign in</h2>
+      <h1 style="font-size:34px;line-height:1;letter-spacing:-0.04em;margin:8px 0;">sign in</h1>
       <form>
         <label class="field"><span>email</span><input name="email" type="email" required autocomplete="email"></label>
         <label class="field"><span>password</span><input name="password" type="password" required autocomplete="current-password"></label>
@@ -138,7 +148,7 @@
     if (!user) return signIn();
     const { data: ok, error } = await sb.rpc('is_admin');
     if (error) {
-      const box = gate(`<span class="lesson-kicker">setup needed</span><h2 style="font-size:30px;letter-spacing:-0.04em;margin:8px 0;">the database isn't set up yet</h2>
+      const box = gate(`<span class="lesson-kicker">setup needed</span><h1 style="font-size:30px;letter-spacing:-0.04em;margin:8px 0;">the database isn't set up yet</h1>
         <p style="font-size:14px;line-height:1.6;color:var(--muted);">open the supabase project, go to <b>sql editor</b>, paste the contents of <b>seed/website-backend.sql</b> and run it. then add yourself as the first admin:</p>
         <pre>insert into public.admins (email) values ('${esc(user.email)}');</pre>
         <div class="dialog-links"><button class="linkish" id="retry">i've done that — retry</button><button class="linkish" id="out">sign out</button></div>`);
@@ -147,9 +157,9 @@
       return;
     }
     if (ok !== true) {
-      const box = gate(`<span class="lesson-kicker">no access</span><h2 style="font-size:30px;letter-spacing:-0.04em;margin:8px 0;">this account isn't an admin</h2>
-        <p style="font-size:14px;line-height:1.6;color:var(--muted);">you are signed in as <b>${esc(user.email)}</b>, but that email is not on the admin list. an existing admin can add it under <b>admins</b>; the very first one is added from the supabase sql editor:</p>
-        <pre>insert into public.admins (email) values ('${esc(user.email)}');</pre>
+      const box = gate(`<span class="lesson-kicker">no access</span><h1 style="font-size:30px;letter-spacing:-0.04em;margin:8px 0;">this account isn't an admin</h1>
+        <p style="font-size:14px;line-height:1.6;color:var(--muted);">you are signed in as <b>${esc(user.email)}</b>. accounts created by signing up on the website are learner accounts and can't open this panel.</p>
+        <p style="font-size:14px;line-height:1.6;color:var(--muted);margin-top:12px;">to make someone an admin, add them in supabase under <b>authentication → users → add user</b> — they get access automatically — or an existing admin can add this email on the <b>admins</b> screen.</p>
         <div class="dialog-links"><button class="linkish" id="retry">retry</button><button class="linkish" id="out">sign out</button></div>`);
       $('#retry', box).addEventListener('click', boot);
       $('#out', box).addEventListener('click', async () => { await sb.auth.signOut(); boot(); });
@@ -303,7 +313,7 @@
       + `<p style="margin:-8px 0 20px;font-size:13px;color:var(--muted);">${cfg.note} ${rows.length} item${rows.length === 1 ? '' : 's'}, shown in this order.</p>`
       + (editId === 'new' ? form({}) : '')
       + `<div class="rows">${rows.map((r, i) => (r.id === editId ? form(r) : `<div class="row" data-id="${esc(r.id)}">
-          <div class="thumb">${r.img ? `<img src="${esc(img(r.img))}" alt="" onerror="this.replaceWith('${esc(r.initials || '—')}')">` : esc(r.initials || '—')}</div>
+          <div class="thumb">${r.img ? `<img src="${esc(img(r.img))}" alt="" data-fallback="${esc(r.initials || '—')}">` : esc(r.initials || '—')}</div>
           <div><strong>${esc(r.name)}${r.hidden ? '<span class="badge">hidden</span>' : ''}</strong>${r.subtitle || r.url ? `<span class="sub">${esc(r.subtitle || r.url)}</span>` : ''}</div>
           <div class="row-actions"><button class="btn btn--sm" data-hide>${r.hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-move="-1"${i === 0 ? ' disabled' : ''} aria-label="move up">↑</button><button class="btn btn--sm" data-move="1"${i === rows.length - 1 ? ' disabled' : ''} aria-label="move down">↓</button><button class="btn btn--sm" data-edit>edit</button><button class="btn btn--sm btn--danger" data-del>delete</button></div>
         </div>`)).join('') || '<p class="empty">nothing here yet.</p>'}</div>`;
@@ -727,22 +737,55 @@
 
   // ── admins ─────────────────────────────────────────────────────────────────
   async function adminsView() {
-    const rows = await run(sb.from('admins').select('*').order('added_at'));
+    const [rows, setting, auth] = await Promise.all([
+      run(sb.from('admins').select('*').order('added_at')),
+      sb.from('site_settings').select('value').eq('key', 'auto_admin').maybeSingle(),
+      fetch(`${A.url}/auth/v1/settings`, { headers: { apikey: A.key } }).then((r) => r.json()).catch(() => null),
+    ]);
     if (!rows) return;
     const list = rows === true ? [] : rows;
-    main.innerHTML = head('admins', 'people who can sign in here and change the site. adding an email here gives it access — the login itself (email and password) is created in supabase under authentication → users → add user, with “auto confirm user” ticked.')
-      + `<form class="editor" id="add-admin" style="border-color:var(--line);"><div class="form-grid"><label class="field field--wide"><span>add an admin by email</span><input name="email" type="email" required placeholder="name@example.com"></label></div><div class="editor-foot"><button class="btn btn--solid" type="submit">add admin</button></div></form>`
+    const hasSwitch = !setting.error;
+    let auto = hasSwitch && !!setting.data && setting.data.value === true;
+
+    // Automatic access tells a dashboard-added account from a website sign-up by
+    // one thing: website sign-ups are confirmed through an emailed link. If the
+    // project stops requiring that link, or lets people in through another
+    // provider, the two look the same — so the rule is switched off on the spot.
+    const others = auth && auth.external ? Object.keys(auth.external).filter((k) => auth.external[k] && k !== 'email') : [];
+    const unsafe = auth ? [auth.mailer_autoconfirm && '“confirm email” is turned off', others.length && `sign-in with ${others.join(', ')} is turned on`].filter(Boolean) : [];
+    if (auto && unsafe.length) {
+      const { error } = await sb.from('site_settings').update({ value: false }).eq('key', 'auto_admin');
+      if (!error) auto = false;
+    }
+
+    main.innerHTML = head('admins', 'people who can sign in here and change the site.')
+      + (hasSwitch ? `<div class="editor" style="border-color:${unsafe.length ? '#ff6b5e' : 'var(--line)'};padding-top:20px;">
+          <label class="check" style="margin-top:0;"><input type="checkbox" id="auto-admin"${auto ? ' checked' : ''}${unsafe.length ? ' disabled' : ''}> anyone i add in supabase becomes an admin automatically</label>
+          <p style="margin-top:12px;font-size:13px;line-height:1.6;color:var(--muted);">${unsafe.length
+            ? `<b style="color:#ff6b5e;">switched off for safety:</b> ${unsafe.join(' and ')} in this supabase project, so a website sign-up can no longer be told apart from an account you added. turn that setting back, or add admins by email below.`
+            : 'add a person under <b>authentication → users → add user</b> (or send them an invitation) and they can sign in here straight away — nothing else to do. people who sign up on the website stay learners. removing someone below takes their access away for good; it is only granted at the moment they are added.'}</p>
+        </div>` : '')
+      + `<form class="editor" id="add-admin" style="border-color:var(--line);">
+          <p style="padding-top:18px;font-size:13px;line-height:1.6;color:var(--muted);">or create an admin login here. it is a new, separate account: an email that already has a learner account can't be used, and admin logins don't enrol in courses.</p>
+          <div class="form-grid"><label class="field"><span>email for the new admin</span><input name="email" type="email" required autocomplete="off" placeholder="name@example.com"></label>
+          <label class="field"><span>password (at least 8 characters)</span><input name="password" type="text" required minlength="8" autocomplete="off"></label></div>
+          <div class="editor-foot"><button class="btn btn--solid" type="submit">create admin login</button></div></form>`
       + `<div class="rows">${list.map((r) => `<div class="row row--plain" data-email="${esc(r.email)}"><div><strong style="text-transform:none;">${esc(r.email)}${r.email.toLowerCase() === user.email.toLowerCase() ? '<span class="badge badge--on">you</span>' : ''}</strong></div>
         <div class="row-actions">${r.email.toLowerCase() === user.email.toLowerCase() ? '' : '<button class="btn btn--sm btn--danger" data-remove>remove</button>'}</div></div>`).join('')}</div>`;
+    const sw = $('#auto-admin', main);
+    if (sw) sw.addEventListener('change', async () => {
+      if (!(await run(sb.from('site_settings').update({ value: sw.checked }).eq('key', 'auto_admin'), sw.checked ? 'on — people you add in supabase become admins' : 'off — add admins by email below'))) sw.checked = !sw.checked;
+    });
     $('#add-admin', main).addEventListener('submit', async (e) => {
       e.preventDefault();
-      const email = new FormData(e.target).get('email').trim().toLowerCase();
-      if (await run(sb.from('admins').insert({ email }), 'admin added')) adminsView();
+      const f = new FormData(e.target);
+      // creates the login and its admin access together, in the database
+      if (await run(sb.rpc('create_admin', { p_email: f.get('email').trim(), p_password: f.get('password') }), 'admin login created — they can sign in now')) adminsView();
     });
     main.onclick = async (e) => {
       const b = e.target.closest('[data-remove]'); if (!b) return;
       const email = b.closest('.row').dataset.email;
-      if (!confirm(`remove ${email} as an admin?`)) return;
+      if (!confirm(`remove ${email} as an admin? they lose access to this panel straight away. (the login itself stays in supabase until you delete it there.)`)) return;
       if (await run(sb.from('admins').delete().eq('email', email), 'removed')) adminsView();
     };
   }

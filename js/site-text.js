@@ -46,7 +46,12 @@
   function write(el, type, value) {
     if (!el) return;
     if (type === 'visible') { el.hidden = value === '0'; return; }
-    if (type === 'href') { el.setAttribute('href', value); return; }
+    if (type === 'href') {
+      // an edited link may be a web, mail or phone link, or a path on this site — never script
+      const u = String(value).trim();
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(u) || /^(https?:|mailto:|tel:)/i.test(u)) el.setAttribute('href', u);
+      return;
+    }
     if (type === 'src') { el.setAttribute('src', value); return; }
     if (type === 'html') { el.innerHTML = sanitize(value); return; }
     if (type === 'stat') {

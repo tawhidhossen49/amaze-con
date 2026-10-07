@@ -17,7 +17,7 @@
   --bg-2: #0a0c0b;
   --fg: #f3f5f2;
   --muted: rgba(243,245,242,0.6);
-  --faint: rgba(243,245,242,0.38);
+  --faint: rgba(243,245,242,0.54);
   --line: rgba(255,255,255,0.11);
   --surface: rgba(255,255,255,0.03);
   --accent-ink: var(--green);
@@ -36,7 +36,7 @@
 .theme-light {
   --fg: #0a0c0b;
   --muted: rgba(10,12,11,0.68);
-  --faint: rgba(10,12,11,0.48);
+  --faint: rgba(10,12,11,0.6);
   --line: rgba(10,12,11,0.16);
   --surface: rgba(10,12,11,0.035);
   --accent-ink: #0a7a52;
@@ -75,6 +75,7 @@ a { color: inherit; }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
 
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .container { max-width: var(--container); margin-inline: auto; }
 
 /* small tracked label — the one secondary text style on the site */
@@ -196,10 +197,13 @@ nav#navbar.is-hidden { transform: translateY(-110%); }
 .dropdown-menu li a:hover { color: var(--ink); background: var(--green); padding-left: 22px; }
 
 .nav-right { display: flex; align-items: center; gap: 14px; }
+.nav-signin { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1px solid rgba(255,255,255,0.24); color: var(--fg); text-decoration: none; white-space: nowrap; font: 700 13px/1 var(--font-sans); text-transform: lowercase; transition: border-color 0.3s ease, color 0.3s ease; }
+.nav-signin:hover { border-color: var(--green); color: var(--green); }
 .nav-cta { min-height: 40px; padding-left: 18px; font-size: 13px; }
 .nav-cta .btn-arrow { width: 40px; margin-left: 16px; font-size: 13px; }
 
 .hamburger {
+  padding: 0; background: transparent; color: inherit; font: inherit;
   display: none; flex-direction: column; justify-content: center; align-items: center; gap: 5px;
   width: 42px; height: 42px; cursor: pointer; border: 1px solid rgba(255,255,255,0.24);
 }
@@ -273,7 +277,7 @@ section { padding: var(--space-section) var(--gutter); position: relative; }
   background: linear-gradient(to bottom, rgba(5,6,6,0.72) 0%, rgba(5,6,6,0) 22%, rgba(5,6,6,0) 72%, var(--bg) 100%);
 }
 
-.hero-flow { position: relative; z-index: 1; margin-top: -100vh; margin-top: -100svh; }
+.hero-flow { position: relative; z-index: 1; overflow-x: clip; /* the text's shade is wider than the page */ margin-top: -100vh; margin-top: -100svh; }
 .cap {
   position: relative; min-height: 100vh; min-height: 100svh; display: grid; place-items: center;
   padding: calc(var(--nav-h) + 16px) var(--gutter) 96px;
@@ -680,6 +684,9 @@ footer { background: var(--bg); border-top: 1px solid var(--line); padding: clam
   .adv-go { width: 40px; height: 40px; }
   .rail-btn { width: 44px; height: 44px; }
 }
+
+/* on short screens the scroll hint would sit on top of the hero buttons */
+@media (max-height: 760px) { .scroll-indicator { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

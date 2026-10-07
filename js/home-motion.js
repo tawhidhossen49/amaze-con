@@ -122,8 +122,8 @@
   const top = hero || document.querySelector('.page-hero');
   const introLines = top ? gsap.utils.toArray(top.querySelectorAll('.line > span')) : [];
   const introFades = top ? gsap.utils.toArray(top.querySelectorAll('[data-hero-fade]')) : [];
-  gsap.set(introLines, { yPercent: 115 });
-  gsap.set(introFades, { autoAlpha: 0, y: 26 });
+  if (introLines.length) gsap.set(introLines, { yPercent: 115 });
+  if (introFades.length) gsap.set(introFades, { autoAlpha: 0, y: 26 });
   gsap.set('#navbar', { yPercent: -140 });
 
   const intro = gsap.timeline({
@@ -133,10 +133,9 @@
       ScrollTrigger.refresh();
     },
   });
-  intro
-    .to(introLines, { yPercent: 0, duration: 1.25, ease: 'expo.out', stagger: 0.09 }, 0.1)
-    .to(introFades, { autoAlpha: 1, y: 0, duration: 1.1, ease: 'power3.out', stagger: 0.08 }, 0.35)
-    .to('#navbar', { yPercent: 0, duration: 1.1, ease: 'expo.out' }, 0.3);
+  if (introLines.length) intro.to(introLines, { yPercent: 0, duration: 1.25, ease: 'expo.out', stagger: 0.09 }, 0.1);
+  if (introFades.length) intro.to(introFades, { autoAlpha: 1, y: 0, duration: 1.1, ease: 'power3.out', stagger: 0.08 }, 0.35);
+  intro.to('#navbar', { yPercent: 0, duration: 1.1, ease: 'expo.out' }, 0.3);
 
   let released = false;
   function release() {

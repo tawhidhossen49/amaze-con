@@ -1,0 +1,57 @@
+/* ==========================================================================
+   amaze consortium — legal pages (terms, privacy, code of conduct)
+   Loaded after home.css: same tokens, nav and footer. These pages keep their
+   own markup (.doc-*, .sec-*), which the admin panel addresses for editing.
+   ========================================================================== */
+
+.page-hero { padding: calc(var(--nav-h) + clamp(56px, 8vw, 120px)) var(--gutter) clamp(40px, 5vw, 72px); border-bottom: 1px solid var(--line); }
+.hero-inner { max-width: var(--container); margin: 0 auto; }
+.page-tag {
+  display: flex; align-items: center; gap: 14px; margin-bottom: clamp(22px, 2.6vw, 36px);
+  font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--muted);
+}
+.page-tag::before { content: ''; width: 8px; height: 8px; background: var(--green); flex-shrink: 0; }
+.page-h1 { font-size: clamp(38px, 8.2vw, 128px); font-weight: 700; line-height: 0.92; letter-spacing: -0.04em; text-transform: lowercase; }
+.page-h1 em { font-style: normal; color: var(--green); }
+.page-meta { display: flex; flex-wrap: wrap; margin-top: clamp(32px, 4vw, 56px); border-left: 1px solid var(--line); }
+.meta-item { padding: 2px 22px 4px 18px; border-right: 1px solid var(--line); font: 400 10px/1.3 var(--font-sans); letter-spacing: 0.18em; text-transform: lowercase; color: var(--faint); }
+.meta-item span { display: block; margin-top: 10px; font-size: 14px; line-height: 1.4; letter-spacing: 0; color: var(--fg); }
+
+.doc-layout {
+  max-width: var(--container); margin: 0 auto; padding: clamp(48px, 6vw, 88px) var(--gutter) var(--space-section);
+  display: grid; grid-template-columns: 230px minmax(0, 760px); gap: clamp(32px, 7vw, 112px); align-items: start;
+}
+.doc-toc { position: sticky; top: 92px; max-height: calc(100vh - 116px); overflow-y: auto; scrollbar-width: thin; }
+.toc-label { font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--green); }
+.toc-list { list-style: none; margin-top: 18px; border-left: 1px solid var(--line); }
+.toc-list a {
+  display: block; margin-left: -1px; padding: 8px 14px; border-left: 2px solid transparent;
+  font-size: 12px; line-height: 1.35; color: var(--faint); text-decoration: none; text-transform: lowercase;
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+.toc-list a:hover { color: var(--fg); }
+.toc-list a.active { color: var(--green); border-left-color: var(--green); }
+
+.doc-highlight { margin-bottom: clamp(32px, 4vw, 48px); padding: 20px 22px; border: 1px solid var(--line); border-left: 3px solid var(--green); background: var(--surface); }
+.doc-highlight p { font-size: 15px; line-height: 1.7; color: var(--fg); }
+.doc-section { padding: clamp(32px, 4vw, 48px) 0; border-top: 1px solid var(--line); scroll-margin-top: 84px; }
+.doc-section .doc-highlight { margin: 18px 0 0; }
+.sec-num { display: block; font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.16em; color: var(--green); }
+.sec-title { margin: 12px 0 18px; font-size: clamp(22px, 2.5vw, 34px); font-weight: 700; line-height: 1.06; letter-spacing: -0.035em; text-transform: lowercase; }
+.doc-p { margin-bottom: 14px; font-size: 16px; line-height: 1.75; color: var(--muted); }
+.doc-p:last-child { margin-bottom: 0; }
+.doc-p a, .doc-highlight a, .doc-ul a { color: var(--green) !important; }
+.doc-ul { list-style: none; margin: 6px 0 16px; }
+.doc-ul li { position: relative; padding: 7px 0 7px 22px; font-size: 15px; line-height: 1.6; color: var(--muted); }
+.doc-ul li::before { content: ''; position: absolute; left: 0; top: 16px; width: 7px; height: 7px; background: var(--green); }
+
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: 1fr; }
+  /* contents become a compact block above the text instead of a pinned column */
+  .doc-toc { position: static; max-height: none; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+  .toc-list { display: grid; grid-template-columns: 1fr 1fr; }
+  .page-meta { flex-direction: column; border-left: 0; border-top: 1px solid var(--line); }
+  .meta-item { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .meta-item span { margin-top: 0; text-align: right; }
+}
+@media (max-width: 480px) { .toc-list { grid-template-columns: 1fr; } }

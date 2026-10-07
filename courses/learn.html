@@ -11,13 +11,15 @@
 <link rel="stylesheet" href="../css/subpage.css">
 <link rel="stylesheet" href="../css/courses.css">
 <script src="../js/site-config.js"></script>
+<noscript><style>.reveal { opacity: 1; transform: none; }</style></noscript>
 </head>
 <body data-view="learn" class="view-learn">
+  <noscript><p style="padding:120px 24px 0;max-width:640px;margin:0 auto;">the courses need javascript to load. please turn it on in your browser, or email learn@amazeconsortium.org.</p></noscript>
 
   <!-- the lesson player: its own top bar, no site nav — filled in by js/lms.js -->
-  <div id="player-root"></div>
+  <div id="player-root"><p class="lms-loading">loading the lesson…</p></div>
 
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
 <script defer src="../js/lms.js"></script>
 </body>
 </html>

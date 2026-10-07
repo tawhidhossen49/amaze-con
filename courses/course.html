@@ -10,8 +10,10 @@
 <link rel="stylesheet" href="../css/subpage.css">
 <link rel="stylesheet" href="../css/courses.css">
 <script src="../js/site-config.js"></script>
+<noscript><style>.reveal { opacity: 1; transform: none; }</style></noscript>
 </head>
 <body data-view="course" class="view-course">
+  <noscript><p style="padding:120px 24px 0;max-width:640px;margin:0 auto;">the courses need javascript to load. please turn it on in your browser, or email learn@amazeconsortium.org.</p></noscript>
   <div class="scroll-progress" aria-hidden="true"></div>
 
   <!-- NAV — same bar as the home page, plus the learner account button -->
@@ -40,9 +42,9 @@
     </ul>
     <div class="nav-right">
       <button class="nav-account" id="lms-account" type="button">sign in</button>
-      <div class="hamburger" id="hamburger" onclick="toggleMobileNav()" role="button" tabindex="0" aria-label="open menu">
+      <button type="button" class="hamburger" id="hamburger" onclick="toggleMobileNav()" aria-label="open menu" aria-expanded="false" aria-controls="mobile-nav">
         <span></span><span></span><span></span>
-      </div>
+      </button>
     </div>
   </nav>
 
@@ -59,7 +61,7 @@
   </div>
 
   <!-- filled in by js/lms.js from the ?c= course id -->
-  <main id="course-root" style="min-height:100vh;"></main>
+  <main id="course-root" style="min-height:100vh;"><p class="lms-loading">loading the course…</p></main>
   <!-- FOOTER -->
   <footer>
     <div class="footer-inner">
@@ -93,15 +95,21 @@
   reveals.forEach(r => observer.observe(r));
 
   // Mobile nav
-  function toggleMobileNav() {
-    document.getElementById('mobile-nav').classList.toggle('open');
+  function toggleMobileNav(force) {
+    const menu = document.getElementById('mobile-nav'), btn = document.getElementById('hamburger');
+    const open = menu.classList.toggle('open', typeof force === 'boolean' ? force : undefined);
+    btn.setAttribute('aria-expanded', String(open));
+    // the page behind the menu stays put while it is open
+    document.documentElement.style.overflow = open ? 'hidden' : '';
+    if (open) menu.querySelector('.close-nav').focus(); else if (document.activeElement && menu.contains(document.activeElement)) btn.focus();
   }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.getElementById('mobile-nav').classList.contains('open')) toggleMobileNav(false); });
 </script>
 
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" integrity="sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js" integrity="sha384-FKTX0CNJ8ngN1oGMBReVu7mvjTJyjFiD5etb1NKnYxc+8eFI2O0KWnksTN+oTFcu" crossorigin="anonymous"></script>
 <script defer src="../js/home-motion.js"></script>
 <script defer src="../js/lms.js"></script>
 </body>
