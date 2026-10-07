@@ -14,6 +14,9 @@
 <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
 
 <link rel="stylesheet" href="css/home.css">
+<script src="js/site-config.js"></script>
+<script src="js/site-fields.js"></script>
+<script src="js/site-text.js" data-page="home"></script>
 
 <script>
   // Scroll stays locked while the preloader is up. The timeout is a failsafe
@@ -55,6 +58,7 @@
   <li><a href="#divisions">initiatives</a></li>
   <li><a href="#founder">founder</a></li>
   <li><a href="#executives">team</a></li>
+  <li><a href="courses/index.html">courses</a></li>
   <li class="nav-dropdown">
     <span class="nav-more" tabindex="0">more <span class="nav-more-arrow">↓</span></span>
     <ul class="dropdown-menu">
@@ -82,6 +86,7 @@
     <a href="#divisions" onclick="toggleMobileNav()">initiatives</a>
     <a href="#founder" onclick="toggleMobileNav()">founder</a>
     <a href="#executives" onclick="toggleMobileNav()">team</a>
+    <a href="courses/index.html" onclick="toggleMobileNav()">courses</a>
     <a href="#advisors" onclick="toggleMobileNav()">advisors</a>
     <a href="#contact" onclick="toggleMobileNav()">contact</a>
     <a href="academy/index.html" onclick="toggleMobileNav()">the academy</a>
@@ -150,29 +155,17 @@
 </section>
 
 <script>
-// ── SUPABASE (shared with the members portal) ───────────────────────────────
-// This is the project's public "anon"/"publishable" key. It is DESIGNED
-// to be shipped to the browser — Supabase calls it "publishable" for
-// that reason, the same way a Stripe publishable key or a Google Maps
-// API key is meant to sit in client-side code. It is NOT a secret, and
-// it was already present in the members portal's own JS bundle before
-// this site used it, so putting it here doesn't expose anything that
-// wasn't already effectively public.
-//
-// What actually matters is what this key is ALLOWED to do, which is
-// controlled by Row Level Security (RLS) on the database side, not by
-// hiding this string (which isn't possible for a static site anyway —
-// there's no server here to keep a real secret on). The `site_content`
-// table below has RLS enabled with a public-READ / signed-in-only-WRITE
-// policy, so this key can only ever fetch this content from the browser,
-// never modify it — see seed/migration-site-content.sql in the members
-// portal project for the exact policy.
-const SITE_SB_URL = 'https://vgcfuykztrcuumznvggu.supabase.co';
-const SITE_SB_KEY = 'sb_publishable_9P2SPrcJ61MXvqwQTuImDw_OxWms087';
+// ── SUPABASE ────────────────────────────────────────────────────────────────
+// The project URL and publishable key live in js/site-config.js. The key is
+// DESIGNED to be shipped to the browser; what it may do is controlled by Row
+// Level Security on the database side (seed/website-backend.sql): this
+// content is public-READ / admin-only-WRITE, so the key can only ever fetch
+// it from here, never modify it.
+const SITE_SB_URL = window.AMAZE.url;
+const SITE_SB_KEY = window.AMAZE.key;
 
-// Fetches one content type from the shared `site_content` table (see the
-// members portal → "public website" section, which manages every type
-// listed there). Falls back to `fallback` if the request fails or the
+// Fetches one content type from the `site_content` table (managed from the
+// admin panel at /admin → lists). Falls back to `fallback` if the request fails or the
 // table is empty (e.g. offline preview, or before the table exists),
 // so a section never renders blank.
 async function fetchSiteContent(type, fallback) {
@@ -940,6 +933,7 @@ if (advisors.length) setActiveAdvisor(0);
         <span>amaze consortium — strategic ecosystem</span>
       </div>
       <ul class="footer-nav">
+        <li><a href="courses/index.html">courses</a></li>
         <li><a href="academy/index.html">the academy</a></li>
         <li><a href="structure/index.html">our structure</a></li>
         <li><a href="tos/index.html">terms & conditions</a></li>
@@ -950,7 +944,6 @@ if (advisors.length) setActiveAdvisor(0);
       </ul>
       <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
     </div>
-    <div class="footer-wordmark" aria-hidden="true"><span>a</span><span>m</span><span>a</span><span>z</span><span>e</span></div>
   </footer>
 
 <script>

@@ -29,7 +29,7 @@ Scope: `index.html`, `academy/index.html`, `structure/index.html`. Presentation 
 | 10 | Team (`#team`) | wide photo + two-column copy | inset → full clip reveal | photo, copy |
 | 11 | Partners (`#partners`) | ruled logo directory ending in a "become a partner" cell | hover colour | Supabase `partner` |
 | 12 | Contact (`#contact`) | giant CTA type, email, ruled social row | line mask | email, WhatsApp, 5 socials |
-| 13 | Footer | links + giant wordmark | letters rise | all links |
+| 13 | Footer | logo, links, copyright line | — | all links |
 
 ### Count-proof sections
 
@@ -46,3 +46,39 @@ Same nav, tokens, buttons, labels and footer as the home page via `css/home.css`
 - Added: `css/subpage.css`, `sequences/hero/` (frames, poster, manifest).
 - To swap the clip: replace the files in `raw-video/`, then run `python <skill>/scripts/extract_frames.py "raw-video/amaze logo 169.mp4" --name hero --out sequences --frames 120 --width 1600 --mobile-src "raw-video/amaze hero 916.mp4" --mobile-width 720`. If the frame count changes, update `data-frames` on `.hero-canvas`.
 - Not touched: `fetchSiteContent()`, Supabase URL/key, fallback data, analytics, `learn.html`, `apply/`, `donate/`, `code/`, `guidebook/`, `privacy/`, `tos/`, `simplespeek/`, `seed/`.
+
+## Courses (`/courses`)
+
+A small learning platform on the site's own Supabase project (`seed/website-backend.sql`).
+
+| Page | What it does |
+|---|---|
+| `courses/index.html` | catalogue: featured course, category filter, search, "continue learning" for returning learners, why-learn-here, FAQ |
+| `courses/course.html?c=` | one course: facts, outcomes, curriculum accordion, instructor, enrol / continue |
+| `courses/learn.html?c=&l=` | lesson player: outline with ticks, video / article / quiz lessons, progress bar, complete-and-continue |
+| `courses/certificate.html?c=` | printable completion certificate |
+
+- **Structure**: course → modules → lessons. Lesson outlines are public; lesson content sits in its own table so it can be gated.
+- **Access**: a course is either `open` (anyone) or `account` (free sign-up). Preview lessons are always open. Enforced by Row Level Security, not by the page.
+- **Progress**: stored per account (`enrollments`, `lesson_progress`); without an account, on the device. Quizzes pass at 70%.
+- **Fallback**: if the database can't be reached the pages show `courses/sample.json` in a labelled preview mode.
+- Code: `js/lms.js`, `css/courses.css`. `learn.html` at the site root now redirects to `/courses`.
+
+### Learning-platform features (part 2 — needs `seed/website-backend-02-lms.sql`)
+
+- **Lesson types**: video (YouTube, Vimeo, Google Drive, .mp4), reading, built-in quiz, and test / assignment (an embedded Google Form the learner marks as submitted).
+- **In the player**: private notes, files and links per lesson, Q&A with instructor replies, course announcements, optional locked lesson order.
+- **Course page**: introduction video, skills, requirements, audience, learner count, ratings and reviews (one per enrolled learner).
+- **Learner dashboard**: `courses/my.html`.
+- **Certificates**: issued by the database only when every lesson is complete; each has a reference anyone can check at `courses/certificate.html?id=`.
+- **Admin**: everything above is edited under courses; lessons, modules and list items can be hidden without deleting; every page section has a shown / hidden switch under pages.
+- Each feature is left out of the page, not broken, if its table isn't there yet.
+
+## Admin panel (`/admin`)
+
+Sign-in with a Supabase account whose confirmed email is in the `admins` table. Five screens: **pages** (every heading, paragraph, button, link and image on the home, academy, structure, courses and legal pages), **lists** (schools, subsidiaries, executives, advisors, partners), **courses** (courses, modules, lessons, quizzes, publish), **learners** (read-only), **admins**.
+
+- `js/site-fields.js` is the single list of editable fields (key, label, selector, type). The admin builds its forms from it and reads each field's built-in wording from the page itself; `js/site-text.js` applies saved values on the public pages. To make something new editable, add one line there.
+- A page shows its own HTML unless a value has been saved for a field, so the site still works with the database offline.
+- Code: `admin/index.html`, `js/admin.js`, `css/admin.css`, `js/site-config.js`.
+

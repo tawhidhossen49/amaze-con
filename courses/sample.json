@@ -1,0 +1,550 @@
+{
+ "courses": [
+  {
+   "id": "web-development-fundamentals",
+   "title": "web development fundamentals",
+   "tagline": "html and css from a blank file to a page you can put online.",
+   "description": "a first course in building for the web. you will learn how a browser turns files into a page, write semantic html, and style and lay it out with css — the way working front-end developers actually do it.",
+   "category": "web development",
+   "level": "beginner",
+   "duration": "6 weeks",
+   "access": "account",
+   "featured": true,
+   "instructor_name": "amaze web team",
+   "instructor_role": "havestack technologies",
+   "outcomes": [
+    "explain what happens between typing a url and seeing a page",
+    "write clean, semantic html for a real page",
+    "style and lay out a page with modern css",
+    "read and debug a page with browser developer tools"
+   ],
+   "status": "published",
+   "sort_order": 1,
+   "cover": "img/courses/web-development-fundamentals.jpg",
+   "instructor_img": null
+  },
+  {
+   "id": "writing-research-proposals",
+   "title": "writing research proposals",
+   "tagline": "structure, argue and format a proposal that gets read to the end.",
+   "description": "a short, practical course from the research desk. you will learn what a reviewer is actually looking for, how to turn an interest into an answerable question, and how to lay out a proposal so the argument is impossible to miss.",
+   "category": "research",
+   "level": "beginner",
+   "duration": "2 weeks",
+   "access": "open",
+   "featured": false,
+   "instructor_name": "research desk",
+   "instructor_role": "amaze research, innovation & exploration society",
+   "outcomes": [
+    "state a research question that can actually be answered",
+    "structure a proposal a reviewer can follow in one read",
+    "justify a method, a timeline and a budget"
+   ],
+   "status": "published",
+   "sort_order": 2,
+   "cover": "img/courses/writing-research-proposals.jpg",
+   "instructor_img": null
+  },
+  {
+   "id": "public-speaking-and-communication",
+   "title": "public speaking & communication",
+   "tagline": "structure a talk, hold a room, and stay clear under pressure.",
+   "description": "a practical course for anyone who has to present — in class, at an event, or to a room of strangers. it covers how to build a talk around one idea, how to open and close, and how to manage your voice and your nerves.",
+   "category": "leadership",
+   "level": "beginner",
+   "duration": "3 weeks",
+   "access": "account",
+   "featured": false,
+   "instructor_name": "amaze consortium",
+   "instructor_role": "the amaze academy",
+   "outcomes": [
+    "build any talk around a single clear idea",
+    "open and close in a way people remember",
+    "control pace, pauses and nerves while speaking"
+   ],
+   "status": "published",
+   "sort_order": 3,
+   "cover": "img/courses/public-speaking-and-communication.jpg",
+   "instructor_img": null
+  }
+ ],
+ "modules": [
+  {
+   "id": "a2bcb8b2-8e34-566b-b4e2-efe10e128a34",
+   "course_id": "web-development-fundamentals",
+   "title": "how the web works",
+   "summary": "the mental model everything else sits on.",
+   "sort_order": 1
+  },
+  {
+   "id": "2b7838bd-7db3-5395-869a-5756a274d39b",
+   "course_id": "web-development-fundamentals",
+   "title": "writing html",
+   "summary": "structure a page so people and machines can both read it.",
+   "sort_order": 2
+  },
+  {
+   "id": "c4aab0b6-0577-58b7-8b20-b7cff1bb4b9b",
+   "course_id": "web-development-fundamentals",
+   "title": "styling with css",
+   "summary": "make it look intentional.",
+   "sort_order": 3
+  },
+  {
+   "id": "1b4f74a6-8c0c-539b-bc32-ed851128bbfb",
+   "course_id": "writing-research-proposals",
+   "title": "the argument",
+   "summary": "what a proposal has to prove.",
+   "sort_order": 1
+  },
+  {
+   "id": "fab4da8e-0481-569b-a224-1cbb39ed1c17",
+   "course_id": "writing-research-proposals",
+   "title": "the document",
+   "summary": "lay it out so the argument is obvious.",
+   "sort_order": 2
+  },
+  {
+   "id": "b72821e7-40f2-5f24-a830-3886b99de30c",
+   "course_id": "public-speaking-and-communication",
+   "title": "building the talk",
+   "summary": "what to say, and in what order.",
+   "sort_order": 1
+  },
+  {
+   "id": "4d4f17a7-1d42-5c24-a561-6ff29461a18d",
+   "course_id": "public-speaking-and-communication",
+   "title": "delivering it",
+   "summary": "voice, pace and pressure.",
+   "sort_order": 2
+  }
+ ],
+ "lessons": [
+  {
+   "id": "67cdfc17-dcaf-533f-9c79-01ab60c0f95b",
+   "course_id": "web-development-fundamentals",
+   "module_id": "a2bcb8b2-8e34-566b-b4e2-efe10e128a34",
+   "title": "what happens when you open a page",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": true,
+   "sort_order": 1
+  },
+  {
+   "id": "7e4051d1-a9eb-5965-8c62-ba3c52a4260f",
+   "course_id": "web-development-fundamentals",
+   "module_id": "a2bcb8b2-8e34-566b-b4e2-efe10e128a34",
+   "title": "your tools: an editor and a browser",
+   "kind": "article",
+   "duration_min": 5,
+   "is_preview": false,
+   "sort_order": 2
+  },
+  {
+   "id": "2141d1c8-8fd9-5f5b-8fa6-639482a7a073",
+   "course_id": "web-development-fundamentals",
+   "module_id": "a2bcb8b2-8e34-566b-b4e2-efe10e128a34",
+   "title": "check: how the web works",
+   "kind": "quiz",
+   "duration_min": 4,
+   "is_preview": false,
+   "sort_order": 3
+  },
+  {
+   "id": "0117ded5-9da1-5760-a604-96db1cbb3a8e",
+   "course_id": "web-development-fundamentals",
+   "module_id": "2b7838bd-7db3-5395-869a-5756a274d39b",
+   "title": "the skeleton of a page",
+   "kind": "article",
+   "duration_min": 7,
+   "is_preview": false,
+   "sort_order": 4
+  },
+  {
+   "id": "a22f4e9a-d52d-58fd-93d0-82e838473616",
+   "course_id": "web-development-fundamentals",
+   "module_id": "2b7838bd-7db3-5395-869a-5756a274d39b",
+   "title": "choosing the right element",
+   "kind": "article",
+   "duration_min": 8,
+   "is_preview": false,
+   "sort_order": 5
+  },
+  {
+   "id": "60d0f8a0-ad3d-5a3a-810e-b66ba78c8eea",
+   "course_id": "web-development-fundamentals",
+   "module_id": "c4aab0b6-0577-58b7-8b20-b7cff1bb4b9b",
+   "title": "selectors and the box model",
+   "kind": "article",
+   "duration_min": 8,
+   "is_preview": false,
+   "sort_order": 6
+  },
+  {
+   "id": "c562e7f6-52b7-5323-b701-9823ccd935a5",
+   "course_id": "web-development-fundamentals",
+   "module_id": "c4aab0b6-0577-58b7-8b20-b7cff1bb4b9b",
+   "title": "layout with flexbox",
+   "kind": "article",
+   "duration_min": 9,
+   "is_preview": false,
+   "sort_order": 7
+  },
+  {
+   "id": "7a6c2676-8df9-525b-be69-b34d0fa5c690",
+   "course_id": "web-development-fundamentals",
+   "module_id": "c4aab0b6-0577-58b7-8b20-b7cff1bb4b9b",
+   "title": "check: html and css",
+   "kind": "quiz",
+   "duration_min": 5,
+   "is_preview": false,
+   "sort_order": 8
+  },
+  {
+   "id": "d2365ae9-4648-5c56-9a0e-d7ba14ba2b86",
+   "course_id": "writing-research-proposals",
+   "module_id": "1b4f74a6-8c0c-539b-bc32-ed851128bbfb",
+   "title": "what a reviewer is looking for",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": true,
+   "sort_order": 1
+  },
+  {
+   "id": "c85f28fa-4bfc-5482-8ac6-4f46647317c6",
+   "course_id": "writing-research-proposals",
+   "module_id": "1b4f74a6-8c0c-539b-bc32-ed851128bbfb",
+   "title": "from an interest to a question",
+   "kind": "article",
+   "duration_min": 7,
+   "is_preview": false,
+   "sort_order": 2
+  },
+  {
+   "id": "384fc9ad-64af-5e23-9e70-c1bbac65bc2d",
+   "course_id": "writing-research-proposals",
+   "module_id": "fab4da8e-0481-569b-a224-1cbb39ed1c17",
+   "title": "the standard structure",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": false,
+   "sort_order": 3
+  },
+  {
+   "id": "43cf18f6-7e79-54fb-ab31-9fa1d333f9f9",
+   "course_id": "writing-research-proposals",
+   "module_id": "fab4da8e-0481-569b-a224-1cbb39ed1c17",
+   "title": "method, timeline and budget",
+   "kind": "article",
+   "duration_min": 7,
+   "is_preview": false,
+   "sort_order": 4
+  },
+  {
+   "id": "92dc6a08-0cb8-5884-8ca5-67bb7d192977",
+   "course_id": "writing-research-proposals",
+   "module_id": "fab4da8e-0481-569b-a224-1cbb39ed1c17",
+   "title": "check: proposals",
+   "kind": "quiz",
+   "duration_min": 4,
+   "is_preview": false,
+   "sort_order": 5
+  },
+  {
+   "id": "c5d52683-e712-5d2f-851e-51f71281b9d5",
+   "course_id": "public-speaking-and-communication",
+   "module_id": "b72821e7-40f2-5f24-a830-3886b99de30c",
+   "title": "one talk, one idea",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": true,
+   "sort_order": 1
+  },
+  {
+   "id": "2b9f5977-c9b6-58e8-95db-9a81ec7b9dd8",
+   "course_id": "public-speaking-and-communication",
+   "module_id": "b72821e7-40f2-5f24-a830-3886b99de30c",
+   "title": "how to open and how to close",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": false,
+   "sort_order": 2
+  },
+  {
+   "id": "fbb5dd56-63af-5b26-98a4-175ee788bca8",
+   "course_id": "public-speaking-and-communication",
+   "module_id": "4d4f17a7-1d42-5c24-a561-6ff29461a18d",
+   "title": "pace, pauses and voice",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": false,
+   "sort_order": 3
+  },
+  {
+   "id": "874b6172-6686-5199-b009-9a2b4137530e",
+   "course_id": "public-speaking-and-communication",
+   "module_id": "4d4f17a7-1d42-5c24-a561-6ff29461a18d",
+   "title": "nerves and difficult questions",
+   "kind": "article",
+   "duration_min": 6,
+   "is_preview": false,
+   "sort_order": 4
+  },
+  {
+   "id": "093accef-b4a3-501d-8d11-58055f36ccbb",
+   "course_id": "public-speaking-and-communication",
+   "module_id": "4d4f17a7-1d42-5c24-a561-6ff29461a18d",
+   "title": "check: speaking",
+   "kind": "quiz",
+   "duration_min": 4,
+   "is_preview": false,
+   "sort_order": 5
+  }
+ ],
+ "content": [
+  {
+   "lesson_id": "67cdfc17-dcaf-533f-9c79-01ab60c0f95b",
+   "video_url": null,
+   "body": "## one request, one response\n\nwhen you type an address and press enter, your browser does three things. it looks up which computer owns that name, it asks that computer for a file, and it turns the file it gets back into what you see.\n\nthe file is almost always **html**. html describes what is on the page: a heading, a paragraph, an image. it does not say how any of it should look.\n\nas the browser reads the html it finds references to other files — stylesheets, scripts, images — and requests each of those too.\n\n## the three languages\n\n- **html** is the content and its structure\n- **css** is how that content looks and where it sits\n- **javascript** is what the page does when you interact with it\n\nthis course covers the first two. learn them in that order: a page with good html and no css still works. a page with beautiful css and bad html does not.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "7e4051d1-a9eb-5965-8c62-ba3c52a4260f",
+   "video_url": null,
+   "body": "you need exactly two programs.\n\n## a code editor\n\ninstall **visual studio code**. it is free and it is what most of the industry uses. create a folder for this course, open it in the editor, and make a file called `index.html`.\n\n## a browser with developer tools\n\nevery modern browser ships with developer tools. open any page, right-click something, and choose **inspect**. you will see the html on the left and the css that applies to the selected element on the right.\n\nget into the habit now: when something looks wrong, inspect it before you guess. the tools show you what the browser actually did, which is often not what you think you told it to do.\n\n## your first page\n\n```\n<h1>hello</h1>\n<p>this is my first page.</p>\n```\n\nsave the file and open it in your browser. that is a web page.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "2141d1c8-8fd9-5f5b-8fa6-639482a7a073",
+   "video_url": null,
+   "body": null,
+   "quiz": [
+    {
+     "q": "which language describes what is on a page, without saying how it looks?",
+     "options": [
+      "css",
+      "html",
+      "javascript",
+      "http"
+     ],
+     "answer": 1,
+     "why": "html is content and structure. css handles appearance."
+    },
+    {
+     "q": "something on your page looks wrong. what should you do first?",
+     "options": [
+      "rewrite the css from scratch",
+      "inspect the element in developer tools",
+      "clear the browser cache",
+      "add more javascript"
+     ],
+     "answer": 1,
+     "why": "the developer tools show what the browser actually applied, so you fix the real cause."
+    },
+    {
+     "q": "a page has well-written html but its stylesheet fails to load. what happens?",
+     "options": [
+      "nothing is shown",
+      "the browser shows an error page",
+      "the content still appears, unstyled",
+      "the page reloads forever"
+     ],
+     "answer": 2,
+     "why": "html works on its own. that is why it comes first."
+    }
+   ]
+  },
+  {
+   "lesson_id": "0117ded5-9da1-5760-a604-96db1cbb3a8e",
+   "video_url": null,
+   "body": "every html document has the same outer shape.\n\n```\n<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>my page</title>\n  </head>\n  <body>\n    <h1>my page</h1>\n  </body>\n</html>\n```\n\n- `<!doctype html>` tells the browser to use modern rules\n- `<head>` holds information **about** the page: its title, its language, its stylesheets\n- `<body>` holds everything a visitor sees\n\n## elements and attributes\n\nan **element** is an opening tag, some content, and a closing tag: `<p>hello</p>`. an **attribute** adds detail inside the opening tag: `lang=\"en\"`.\n\nindent nested elements. the browser does not care, but the next person to read your file — usually you, in a month — will.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "a22f4e9a-d52d-58fd-93d0-82e838473616",
+   "video_url": null,
+   "body": "html has an element for most kinds of content. using the right one is called writing **semantic** html.\n\n## why it matters\n\nscreen readers, search engines and browsers all read your tags to understand the page. a `<button>` can be focused and pressed with a keyboard. a `<div>` that only looks like a button cannot.\n\n## the ones you will use every day\n\n- `<h1>` to `<h6>` for headings, in order, with one `<h1>` per page\n- `<p>` for paragraphs\n- `<a href=\"...\">` for links\n- `<img src=\"...\" alt=\"...\">` for images, always with `alt` text\n- `<ul>` and `<ol>` with `<li>` for lists\n- `<header>`, `<nav>`, `<main>`, `<section>`, `<footer>` for the regions of a page\n\na good test: read your html with the styles turned off. if the page still makes sense top to bottom, the structure is right.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "60d0f8a0-ad3d-5a3a-810e-b66ba78c8eea",
+   "video_url": null,
+   "body": "a css rule has two parts: a **selector** that picks elements, and **declarations** that style them.\n\n```\np {\n  color: #333;\n  line-height: 1.6;\n}\n```\n\n## three selectors cover most of your work\n\n- `p` selects every paragraph\n- `.card` selects every element with `class=\"card\"`\n- `.card p` selects paragraphs inside a card\n\nprefer classes. they are reusable and they do not break when the html changes.\n\n## every element is a box\n\nfrom the inside out: **content**, **padding**, **border**, **margin**. padding is space inside the border. margin is space outside it.\n\nadd this to the top of every stylesheet you write:\n\n```\n* { box-sizing: border-box; }\n```\n\nit makes `width` include padding and border, which is how almost everyone expects it to work.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "c562e7f6-52b7-5323-b701-9823ccd935a5",
+   "video_url": null,
+   "body": "flexbox lays out items in one direction — a row or a column — and decides how they share the space.\n\n```\n.row {\n  display: flex;\n  gap: 16px;\n  justify-content: space-between;\n  align-items: center;\n}\n```\n\n- `display: flex` goes on the **parent**\n- `gap` sets the space between children\n- `justify-content` positions them along the main direction\n- `align-items` positions them across it\n\n## the pattern you will use most\n\na navigation bar: logo on the left, links on the right, everything vertically centred. that is the four lines above.\n\nwhen a layout needs rows **and** columns at once, reach for css grid instead. for a single line of things, flexbox is the right tool.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "7a6c2676-8df9-525b-be69-b34d0fa5c690",
+   "video_url": null,
+   "body": null,
+   "quiz": [
+    {
+     "q": "where does `display: flex` go?",
+     "options": [
+      "on each child",
+      "on the parent",
+      "on the body only",
+      "in the html head"
+     ],
+     "answer": 1,
+     "why": "flex is set on the container; its direct children become flex items."
+    },
+    {
+     "q": "which is the best choice for something a visitor clicks to submit a form?",
+     "options": [
+      "<div>",
+      "<span>",
+      "<button>",
+      "<a>"
+     ],
+     "answer": 2,
+     "why": "a button is focusable and keyboard-operable by default."
+    },
+    {
+     "q": "padding is the space…",
+     "options": [
+      "outside the border",
+      "inside the border",
+      "between two elements",
+      "around the whole page"
+     ],
+     "answer": 1,
+     "why": "padding sits between the content and the border; margin sits outside."
+    }
+   ]
+  },
+  {
+   "lesson_id": "d2365ae9-4648-5c56-9a0e-d7ba14ba2b86",
+   "video_url": null,
+   "body": "a proposal is not a description of a topic. it is an argument that a specific piece of work is worth doing and that you can do it.\n\na reviewer reads with four questions in mind.\n\n- **what is the problem?** and who says it is a problem\n- **what do we not yet know?** the gap your work fills\n- **what exactly will you do?** concretely, step by step\n- **why you, and why now?** your access, your skills, your timing\n\nif any one of these is unclear, the proposal fails, however good the idea.\n\n## write the one-paragraph version first\n\nbefore any formatting, answer the four questions in four sentences. if you cannot, you are not ready to write the long version. if you can, the long version is mostly evidence for those four sentences.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "c85f28fa-4bfc-5482-8ac6-4f46647317c6",
+   "video_url": null,
+   "body": "\"i am interested in youth unemployment\" is an interest. it is not a question.\n\n## narrow it three times\n\n- **who?** recent graduates of public universities\n- **where and when?** in dhaka, in the last three years\n- **what about them?** how long they take to find a first job, and what predicts it\n\nnow you have: *what predicts the time to first employment among recent public-university graduates in dhaka?*\n\n## test the question\n\n- can it be answered with data you can actually get?\n- would the answer change what someone does?\n- can it be answered in the time you have?\n\na smaller question answered well is worth more than a large one answered vaguely. reviewers know this.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "384fc9ad-64af-5e23-9e70-c1bbac65bc2d",
+   "video_url": null,
+   "body": "most funders and institutions expect roughly the same sections, in this order.\n\n- **title and summary** — the four-sentence version\n- **background** — what is known, and the gap\n- **research question and objectives**\n- **method** — data, sample, analysis\n- **timeline**\n- **budget**\n- **expected outcomes** — who will use the result\n\n## rules that make it readable\n\nput the question on the first page. reviewers should not have to hunt for it.\n\none idea per paragraph, and make the first sentence carry it. a reviewer who reads only first sentences should still follow the argument.\n\ncite the gap. \"little is known about…\" needs a reference showing you looked.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "43cf18f6-7e79-54fb-ab31-9fa1d333f9f9",
+   "video_url": null,
+   "body": "these three sections are where a reviewer decides whether you can deliver.\n\n## method\n\nsay what data you will collect, from whom, how many, and how you will analyse it. name the limits honestly. a method that admits its weaknesses is more convincing than one that claims none.\n\n## timeline\n\nbreak the work into phases with dates. include time for things that always take longer than planned: permissions, recruitment, cleaning data.\n\n## budget\n\nevery line should trace back to a step in the method. if the method says 200 survey responses, the budget should show what 200 responses cost.\n\na budget that is obviously padded costs you trust. so does one that is obviously too small to do the work.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "92dc6a08-0cb8-5884-8ca5-67bb7d192977",
+   "video_url": null,
+   "body": null,
+   "quiz": [
+    {
+     "q": "which of these is a research question rather than an interest?",
+     "options": [
+      "youth unemployment in bangladesh",
+      "the future of education",
+      "what predicts time to first job among recent graduates in dhaka?",
+      "problems facing students"
+     ],
+     "answer": 2,
+     "why": "it names who, where, and what is being measured."
+    },
+    {
+     "q": "where should the research question appear?",
+     "options": [
+      "in the appendix",
+      "on the first page",
+      "after the budget",
+      "only in the title"
+     ],
+     "answer": 1,
+     "why": "a reviewer should never have to search for it."
+    },
+    {
+     "q": "every budget line should trace back to…",
+     "options": [
+      "the background section",
+      "a step in the method",
+      "the summary",
+      "the references"
+     ],
+     "answer": 1,
+     "why": "the budget is the cost of doing what the method describes."
+    }
+   ]
+  },
+  {
+   "lesson_id": "c5d52683-e712-5d2f-851e-51f71281b9d5",
+   "video_url": null,
+   "body": "most weak talks have the same problem: too many points. the audience leaves remembering none of them.\n\n## the one-sentence test\n\nbefore you make a single slide, finish this sentence: *after this talk, the audience will believe that…*\n\nif you need the word \"and\", you have two talks. pick one.\n\n## build everything around it\n\n- three supporting points, at most\n- one story or example for each\n- cut anything that does not serve the sentence, however interesting it is\n\nthis feels like throwing away good material. it is. that is what makes the rest land.\n\n## structure\n\nsay what you will argue, argue it, then say what you argued. it feels repetitive to write. it feels clear to hear, because listeners cannot scroll back.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "2b9f5977-c9b6-58e8-95db-9a81ec7b9dd8",
+   "video_url": null,
+   "body": "people decide in the first thirty seconds whether to keep listening, and they remember the last thirty longest. spend your preparation time accordingly.\n\n## openings that work\n\n- a specific story: \"last march, three of us were standing outside a locked hall…\"\n- a surprising fact\n- a question the audience genuinely wants answered\n\n## openings that do not\n\nthanking the organisers, apologising for being nervous, reading your own title aloud.\n\n## closing\n\nend on your one sentence, said plainly. then stop. do not trail off into \"so, yeah, that is it\".\n\nmemorise your first two lines and your last line word for word. everything in between can be looser, but those must be automatic.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "fbb5dd56-63af-5b26-98a4-175ee788bca8",
+   "video_url": null,
+   "body": "nervous speakers speed up. the fix is not to \"slow down\" in general — it is to pause in specific places.\n\n## where to pause\n\n- after your opening line\n- before and after your main point\n- after a question, long enough that it feels slightly uncomfortable\n\na two-second pause feels endless to you and natural to the room.\n\n## voice\n\nspeak to the back row, not the front. drop your pitch at the end of a statement; rising pitch makes a claim sound like a question.\n\n## practise out loud\n\nreading a talk silently is not rehearsal. say it aloud, standing, at least three times. record one run and listen to it once. you will hear your filler words immediately, and hearing them is most of the cure.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "874b6172-6686-5199-b009-9a2b4137530e",
+   "video_url": null,
+   "body": "nerves do not go away with experience. experienced speakers have simply learned what to do with them.\n\n## before you speak\n\narrive early and stand where you will stand. breathe out for longer than you breathe in, a few times. know your first two lines so well that you could say them half asleep — the first thirty seconds carry you past the worst of it.\n\n## when a question is hard\n\n- repeat it back. this buys time and makes sure you understood\n- if you do not know, say so, and say how you would find out\n- if it is hostile, answer the content and ignore the tone\n\n\"i do not know, but here is what i would check\" is a strong answer. bluffing is not, and audiences can tell.",
+   "quiz": null
+  },
+  {
+   "lesson_id": "093accef-b4a3-501d-8d11-58055f36ccbb",
+   "video_url": null,
+   "body": null,
+   "quiz": [
+    {
+     "q": "you have five strong points for a ten-minute talk. what should you do?",
+     "options": [
+      "speak faster to fit them all",
+      "cut to the three that best support one idea",
+      "put all five on one slide",
+      "skip the introduction"
+     ],
+     "answer": 1,
+     "why": "fewer points, properly supported, is what an audience remembers."
+    },
+    {
+     "q": "which parts of a talk should you memorise word for word?",
+     "options": [
+      "the whole talk",
+      "only the statistics",
+      "the first two lines and the last line",
+      "nothing"
+     ],
+     "answer": 2,
+     "why": "the opening carries you through the worst nerves and the close is what people remember."
+    },
+    {
+     "q": "you are asked a question you cannot answer. the best response is to…",
+     "options": [
+      "change the subject",
+      "guess confidently",
+      "say you do not know and how you would find out",
+      "ask them to email you and move on quickly"
+     ],
+     "answer": 2,
+     "why": "honesty with a next step keeps your credibility."
+    }
+   ]
+  }
+ ]
+}

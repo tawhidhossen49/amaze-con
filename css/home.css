@@ -69,6 +69,7 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--green); }
 
+[hidden] { display: none !important; }
 img { max-width: 100%; }
 a { color: inherit; }
 button { font-family: inherit; }
@@ -604,7 +605,7 @@ a.advisor-row:hover .adv-go { background: var(--green); border-color: var(--gree
 /* --------------------------------------------------------------------------
    Footer
    -------------------------------------------------------------------------- */
-footer { background: var(--bg); border-top: 1px solid var(--line); padding: clamp(40px, 5vw, 64px) var(--gutter) 0; overflow: hidden; }
+footer { background: var(--bg); border-top: 1px solid var(--line); padding: clamp(40px, 5vw, 64px) var(--gutter); }
 .footer-inner { max-width: var(--container); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 28px; }
 .footer-logo { display: flex; align-items: center; gap: 14px; }
 .footer-logo img { height: 28px; }
@@ -613,13 +614,6 @@ footer { background: var(--bg); border-top: 1px solid var(--line); padding: clam
 .footer-nav a { font-size: 13px; color: var(--muted); text-decoration: none; text-transform: lowercase; transition: color 0.3s; }
 .footer-nav a:hover { color: var(--green); }
 .footer-copy { font: 400 10px/1.5 var(--font-sans); letter-spacing: 0.12em; color: var(--faint); }
-.footer-wordmark {
-  display: flex; justify-content: center; margin-top: clamp(32px, 5vw, 72px);
-  font-size: 27vw; font-weight: 700; line-height: 0.74; letter-spacing: -0.07em; text-transform: lowercase;
-  margin-bottom: -0.1em; user-select: none; overflow: hidden;
-}
-.footer-wordmark span { display: inline-block; color: rgba(243,245,242,0.1); }
-.footer-wordmark span:last-child { color: var(--green); }
 
 /* --------------------------------------------------------------------------
    Responsive

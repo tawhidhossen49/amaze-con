@@ -6,7 +6,9 @@
 // index.html stay the single source of truth for what's on the page.
 // If GSAP/Lenis fail to load (offline, blocked CDN) or the visitor prefers
 // reduced motion, the page falls back to its static, fully visible state.
-(function () {
+// It waits for js/site-text.js to apply any wording saved from the admin panel
+// (capped at 1.8s there), so headings are animated with their final text.
+(window.siteContentReady || Promise.resolve()).then(function () {
   const root = document.documentElement;
   const pre = document.getElementById('preloader');
   const hero = document.getElementById('hero');
@@ -248,14 +250,6 @@
     });
   }
 
-  // ── footer wordmark ────────────────────────────────────────────────────────
-  if (document.querySelector('.footer-wordmark')) {
-    gsap.from('.footer-wordmark span', {
-      yPercent: 100, duration: 1.3, ease: 'expo.out', stagger: 0.06,
-      scrollTrigger: { trigger: '.footer-wordmark', start: 'top 96%', once: true },
-    });
-  }
-
   // Sections fill in asynchronously (Supabase content, images), which moves
   // everything below them — re-measure triggers whenever the page height changes.
   let refreshTimer = null, lastHeight = 0;
@@ -266,4 +260,4 @@
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => ScrollTrigger.refresh(), 200);
   }).observe(document.body);
-})();
+});
