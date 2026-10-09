@@ -469,7 +469,7 @@
   // (editable in the admin panel) and its first few cards. Choosing a type,
   // category or level, sorting, or searching swaps them for one grid of results.
   function catalog() {
-    const browse = $('#academy-browse'), results = $('#course-results'), top = $('#rail-top');
+    const browse = $('#academy-browse'), results = $('#course-results'), top = $('#rail-top'), feat = $('#aca-feature');
     const chips = $('#course-chips'), search = $('#course-search'), sort = $('#course-sort'), level = $('#course-level'), category = $('#course-category');
     const SHOWN = 6;   // cards per section before "all …" takes over
     $('#lms-notice').innerHTML = notice();
@@ -499,7 +499,7 @@
     const browsing = () => active === 'all' && !search.value.trim() && !level.value && !category.value && sort.value === 'recommended';
     function draw() {
       const plain = browsing();
-      browse.hidden = !plain; results.hidden = plain;
+      browse.hidden = !plain; results.hidden = plain; feat.hidden = !plain || !featured.length;
       if (plain) {
         const going = S.courses.filter((c) => started(c) && stats(c).pct < 100);
         const kept = S.courses.filter((c) => saved()[c.id]);
@@ -545,6 +545,71 @@
     wireSaves(results);
     // a link such as academy/index.html#webinars opens the page at that section
     const hashType = { '#courses': 'course', '#programs': 'program', '#webinars': 'webinar' }[location.hash];
+
+    // ── the featured card ────────────────────────────────────────────────────
+    // Whatever is marked "featured" in the admin panel is shown above everything
+    // else in one large card of its own. With more than one, the card moves on to
+    // the next by itself every few seconds, round and round without stopping, and
+    // the numbered tabs under it jump straight to one (soonest date comes first).
+    const featured = schedule(S.courses.filter((c) => c.featured).sort(SORTS.recommended));
+    const startsIn = (d) => {
+      const sec = (new Date(d) - Date.now()) / 1000;
+      if (sec <= 0) return '';
+      const days = Math.floor(sec / 86400);
+      return days >= 1 ? `starts in ${days} day${days === 1 ? '' : 's'}` : `starts in ${Math.max(1, Math.floor(sec / 3600))} h`;
+    };
+    let featAt = 0, featTall = 0;
+    window.addEventListener('resize', () => { featTall = 0; const st = $('.feat-stage', feat); if (st) st.style.minHeight = ''; });
+    function featShow(i, animate) {
+      featAt = i;
+      const c = featured[i], st = stats(c), type = typeOf(c), n = S.numbers[c.id] || {};
+      const state = c.starts_at ? liveState(c.starts_at, st.minutes) : '';
+      const href = started(c) && st.next ? `learn.html?c=${enc(c.id)}&l=${st.next.id}` : `course.html?c=${enc(c.id)}`;
+      const media = c.cover ? `<img src="${esc(imageUrl(c.cover))}" alt="">`
+        : `<span class="feat-blank"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg><b>${esc(c.category)}</b></span>`;
+      const facts = [
+        c.starts_at ? [type === 'webinar' ? 'date' : 'starts', when(c.starts_at)] : ['pace', 'start any time'],
+        ['lessons', `${st.count} · ${length(st.minutes)}`],
+        ['level', esc(c.level)],
+        +n.reviews > 0 ? ['rating', `★ ${(+n.rating).toFixed(1)} (${n.reviews})`] : ['cost', 'free'],
+      ];
+      const soon = state === 'upcoming' ? startsIn(c.starts_at) : '';
+      $('.feat-stage', feat).innerHTML = `<article class="feat${animate ? ' is-new' : ''}">
+        <div class="feat-in">
+          <a class="feat-media" href="${href}" tabindex="-1" aria-hidden="true">${media}<span class="feat-sheen"></span></a>
+          <div class="feat-body">
+            <div class="feat-kicker"><span class="feat-star"><i aria-hidden="true">★</i>featured ${type}</span>${state === 'live' ? '<span class="feat-state is-live">live now</span>' : soon ? `<span class="feat-state">${soon}</span>` : ''}</div>
+            <h2 class="feat-title"><a href="${href}">${esc(c.title)}</a></h2>
+            ${c.tagline ? `<p class="feat-tag">${esc(c.tagline)}</p>` : ''}
+            <ul class="feat-facts">${facts.map(([k, v]) => `<li><small>${k}</small><span>${v}</span></li>`).join('')}</ul>
+            <div class="feat-foot">
+              <a class="btn-primary" href="${href}">${started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">→</span></a>
+              <span class="feat-by">with <b>${esc(c.instructor_name || 'amaze consortium')}</b></span>
+            </div>
+          </div>
+        </div>
+      </article>`;
+      $$('.feat-tabs button', feat).forEach((b, k) => {
+        b.classList.toggle('is-on', k === i); b.setAttribute('aria-pressed', String(k === i));
+        // the bar on the active tab is the timer: restarting it starts the wait for the next change
+        const bar = $('i', b); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = '';
+      });
+      // entries differ in height; the card keeps the tallest so the page below never jumps when it changes
+      const stage = $('.feat-stage', feat);
+      featTall = Math.max(featTall, stage.firstElementChild.offsetHeight);
+      stage.style.minHeight = featTall + 'px';
+    }
+    if (featured.length) {
+      $('.feat-tabs', feat).innerHTML = featured.length > 1
+        ? featured.map((c, k) => `<button type="button" data-feat="${k}"><small>${pad2(k + 1)}</small><span>${esc(c.title)}</span><em>${typeOf(c)}</em><i></i></button>`).join('') : '';
+      $('.feat-tabs', feat).hidden = featured.length < 2;
+      feat.addEventListener('click', (e) => { const b = e.target.closest('[data-feat]'); if (b && !b.classList.contains('is-on')) featShow(+b.dataset.feat, true); });
+      // when the active tab's bar has run its course, the next entry swipes in — after the last comes the first again
+      feat.addEventListener('animationend', (e) => { if (e.animationName === 'feat-bar' && featured.length > 1 && !feat.hidden) featShow((featAt + 1) % featured.length, true); });
+      // it waits while the card is off screen, and while the pointer is on it so it can be read and clicked
+      new IntersectionObserver(([en]) => feat.classList.toggle('is-away', !en.isIntersecting), { threshold: 0.2 }).observe(feat);
+      featShow(0, false);
+    }
     draw();
     if (hashType) { const b = $(`.aca-block[data-kind="${hashType}"]`); if (b) setTimeout(() => b.scrollIntoView({ block: 'start' }), 400); }
 

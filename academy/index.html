@@ -69,20 +69,23 @@
           <span class="line"><span>learn, build</span></span>
           <span class="line"><span><em>&amp; get placed.</em></span></span>
       </h1>
-      <div class="page-hero-foot" data-hero-fade>
-        <p class="page-sub">courses to work through at your own pace, programs that take you further, and live webinars — all taught by the same people running our subsidiaries, research desks and creative studios.</p>
-        <ul class="page-meta">
-          <li><small>format</small><span>self-paced &amp; live, online</span></li>
-          <li><small>cost</small><span>free with an account</span></li>
-          <li><small>on completion</small><span>a named certificate</span></li>
-        </ul>
-      </div>
     </div>
   </section>
 
   <section class="sect" id="catalogue">
     <div class="sect-inner">
       <div id="lms-notice"></div>
+
+      <!-- the featured card: whatever is marked "featured" in the admin panel, above everything else.
+           js/lms.js fills it. the outer box is the admin panel's show / hide switch; the inner one
+           hides itself while filtering and when nothing is featured -->
+      <div id="aca-feature-wrap">
+        <div class="feat-wrap" id="aca-feature" hidden>
+          <div class="feat-top"><span class="feat-label">featured</span></div>
+          <div class="feat-stage"></div>
+          <div class="feat-tabs" hidden></div>
+        </div>
+      </div>
 
       <div class="catalog-tools">
         <div class="chips" id="course-chips" role="group" aria-label="show courses, programs or webinars"></div>

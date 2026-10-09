@@ -391,20 +391,25 @@
     if (!courses || !lessons) return;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
-    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. the headings and text of the page itself are under pages → academy.',
+    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
       Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
       + setupNote()
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>// ${TYPES[type]} — ${rowsOf(type).length}</span></div>
       <div class="rows">${rowsOf(type).map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
-          <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge">featured</span>' : ''}</strong>
+          <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}</strong>
             <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${esc(c.category)} · ${esc(c.level)} · ${count(c.id)} lessons · ${c.access === 'open' ? 'open to everyone' : 'free account'}</span></div>
-          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
+          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
         </div>`).join('') || `<p class="empty">no ${TYPES[type]} yet.</p>`}</div>`).join('');
     $$('[data-new]', main).forEach((b) => b.addEventListener('click', () => courseEditor(null, null, b.dataset.new)));
     main.onclick = async (e) => {
       const row = e.target.closest('.row'); if (!row) return;
       const c = courses.find((x) => x.id === row.dataset.id);
       if (e.target.closest('[data-open]')) return go('courses', c.id);
+      if (e.target.closest('[data-feature]')) {
+        const note = c.featured ? 'no longer featured' : c.status === 'published' ? 'featured — it now has the large card at the top of the academy page' : 'featured — it will appear in the large card once it is published';
+        if (await run(sb.from('courses').update({ featured: !c.featured }).eq('id', c.id), note)) coursesView();
+        return;
+      }
       if (e.target.closest('[data-toggle]')) {
         const status = c.status === 'published' ? 'draft' : 'published';
         if (await run(sb.from('courses').update({ status }).eq('id', c.id), status === 'published' ? 'published — now on the academy page' : 'moved back to draft')) coursesView();
@@ -509,7 +514,7 @@
         <div class="field"><span>“taught by” — photo (the first letter of the name is shown without one)</span>${imageField('instructor_img', course.instructor_img)}</div>
         <div class="field"><span>course image — the picture at the top of its card (wide, 16:9 works best)</span>${imageField('cover', course.cover)}</div>
       </div>
-      <label class="check"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> feature this at the top of its section</label>
+      <label class="check"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> ★ featured — show this in the large featured card at the very top of the academy page (and first in its own section)</label>
       <label class="check"><input type="checkbox" name="sequential"${course.sequential ? ' checked' : ''}> lock the order — a lesson opens only after the ones before it are complete</label>
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${id ? 'save details' : 'create ' + noun}</button>${id ? `<button class="btn btn--danger" type="button" data-delete-course>delete ${noun}</button>` : ''}</div></form>`
       + (id ? `<div class="h2"><span>// curriculum — ${modules.length} modules, ${lessons.length} lessons</span><button class="btn btn--sm btn--solid" data-add-module>+ add module</button></div>

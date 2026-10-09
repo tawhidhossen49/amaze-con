@@ -205,7 +205,16 @@
         ['courses.show.faq', 'questions', '#faq', 'visible'],
         ['courses.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
-      pageHero('courses', 3),
+      { name: 'page top', fields: [
+        ['courses.hero.tag', 'small label', '.page-hero .hero-tag'],
+        ['courses.hero.title1', 'headline — line 1', line('.page-h1', 1), 'html'],
+        ['courses.hero.title2', 'headline — line 2', line('.page-h1', 2), 'html'],
+      ] },
+      // which entries are featured is chosen on the academy screen (the ★ button, or the tick box in an entry)
+      { name: 'featured card', fields: [
+        ['courses.feat.show', 'show the featured card at the top of the page', '#aca-feature-wrap', 'visible'],
+        ['courses.feat.label', 'small label above the card', '#aca-feature .feat-label'],
+      ] },
       // the three sections of the academy; what is listed in each comes from the courses screen
       ...[['courses', 'courses'], ['programs', 'programs'], ['webinars', 'webinars']].map(([id, name]) => ({ name: `section — ${name}`, fields: [
         [`courses.sec.${id}.show`, 'show this section', `#${id}`, 'visible'],
