@@ -91,9 +91,42 @@
     target.value = url;
     const kind = input.closest('form').querySelector('[name=kind]');
     if (kind.value === 'article') kind.value = 'video';
-    status.textContent = `uploaded: ${file.name}. save the lesson to publish it.`;
+    // an uploaded video has no title of its own: start from the file name, for the admin to rewrite
+    const title = input.closest('form').querySelector('[name=title]');
+    const named = !title.value.trim() || title.value === title.dataset.auto;
+    if (named) { const guess = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim().toLowerCase(); title.value = guess; title.dataset.auto = guess; }
+    status.textContent = `uploaded: ${file.name}. ${named ? 'the lesson title above was filled in from the file name — write the title you want learners to see, then save.' : 'save the lesson to publish it.'}`;
+    if (named) { title.focus(); title.select(); }
     toast('video uploaded');
   });
+  // A lesson's title from its video. Paste a YouTube (or Vimeo) link and the video's own
+  // title is looked up and written into "lesson title"; an uploaded file starts with its
+  // file name. Either way the box stays editable, and a title typed by hand is never replaced.
+  async function titleFromVideo(input) {
+    const form = input.closest('form'); if (!form) return;
+    const title = form.querySelector('[name=title]'), status = form.querySelector('[data-video-status]');
+    const url = input.value.trim();
+    const mine = !title.value.trim() || title.value === title.dataset.auto;   // empty, or still the one we filled in
+    let site = null;
+    try { const h = new URL(url).hostname.replace(/^(www\.|m\.)/, ''); site = /^(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(h) ? 'youtube' : /vimeo\.com$/.test(h) ? 'vimeo' : null; } catch (e) {}
+    if (!site || input.dataset.looked === url) return;
+    input.dataset.looked = url;
+    try {
+      const api = site === 'youtube' ? 'https://www.youtube.com/oembed?format=json&url=' : 'https://vimeo.com/api/oembed.json?url=';
+      const res = await fetch(api + encodeURIComponent(url));
+      if (!res.ok) throw new Error('not found');
+      const got = String((await res.json()).title || '').trim().slice(0, 140);
+      if (!got) throw new Error('no title');
+      if (mine) { title.value = got; title.dataset.auto = got; if (status) status.textContent = `title taken from the video: “${got}”. change it above if you like, then save.`; }
+      else if (status) status.textContent = `this video is called “${got}” — your own title above is kept.`;
+      const kind = form.querySelector('[name=kind]'); if (kind && kind.value === 'article') kind.value = 'video';
+    } catch (e) {
+      if (status) status.textContent = 'could not read that video’s title (it may be private, or the link is not a video) — type the lesson title yourself.';
+    }
+  }
+  document.addEventListener('change', (e) => { const i = e.target.closest && e.target.closest('form[data-lesson] [name=video_url]'); if (i) titleFromVideo(i); });
+  document.addEventListener('paste', (e) => { const i = e.target.closest && e.target.closest('form[data-lesson] [name=video_url]'); if (i) setTimeout(() => titleFromVideo(i), 60); });
+
   // "attach a file" on a lesson: uploads it and adds a "name | link" line
   document.addEventListener('change', async (e) => {
     const input = e.target.closest('[data-attach]');
@@ -381,30 +414,64 @@
   }
   const setupNote = () => (academyReady ? '' : '<p class="empty" style="margin-bottom:20px;border-color:var(--green);color:var(--fg);">one step left to switch on programs, webinars and live-class dates: open supabase → sql editor, paste the file <b>seed/website-backend-05-academy.sql</b> and press run (once). until then everything is saved as a course and the fields marked “needs setup” are ignored.</p>');
 
+  // ── payment ────────────────────────────────────────────────────────────────
+  // Kept with the site's other saved text (site_text), under keys starting "pay.":
+  //   pay.course.<id>     { paid, price, was, link }        one entry: free or paid, price, previous price, payment form
+  //   pay.settings        { link, price, currency, note }   older general values, no longer edited here: an entry
+  //                                                         with no price or link of its own still falls back to them
+  //   pay.ok.<id>         [user id, …]                      learners whose payment has been confirmed
+  // An entry with nothing saved is paid at the general price.
+  async function payLoad() {
+    const rows = await run(sb.from('site_text').select('key,value').like('key', 'pay.%'));
+    const out = { settings: {}, course: {}, ok: {} };
+    (rows && rows !== true ? rows : []).forEach((r) => {
+      let v; try { v = JSON.parse(r.value); } catch (e) { return; }
+      if (r.key === 'pay.settings') out.settings = v || {};
+      else if (r.key.startsWith('pay.course.')) out.course[r.key.slice(11)] = v || {};
+      else if (r.key.startsWith('pay.ok.')) out.ok[r.key.slice(7)] = Array.isArray(v) ? v : [];
+    });
+    return out;
+  }
+  const paySave = (key, value, okText) => run(sb.from('site_text').upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }), okText);
+  const feeOf = (pay, id) => {
+    const own = pay.course[id] || {}, unit = String(pay.settings.currency || '৳').trim(), amount = String(own.price || pay.settings.price || '').trim();
+    const money = (v) => (/^[a-z]/i.test(unit) ? `${unit} ${v}` : unit + v);
+    const paid = own.paid !== false;
+    return { paid, priced: !paid || !!amount, label: !paid ? 'free' : amount ? money(amount) + (own.was ? ` · was ${money(own.was)}` : '') : 'paid — no price set' };
+  };
+  const webLink = (v) => /^https?:\/\/\S+$/i.test(v);
+
   async function coursesView(courseId) {
     await checkAcademy();
     if (courseId) return courseEditor(courseId);
-    const [courses, lessons] = await Promise.all([
+    const [courses, lessons, pay] = await Promise.all([
       run(sb.from('courses').select('*').order('sort_order').order('created_at')),
       run(sb.from('course_lessons').select('course_id')),
+      payLoad(),
     ]);
     if (!courses || !lessons) return;
+    const ps = pay.settings;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
-    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
+    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. each row shows its price: press “make free” / “make paid” to switch, and “edit” to set the price, the previous price and the payment link. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
       Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
       + setupNote()
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>// ${TYPES[type]} — ${rowsOf(type).length}</span></div>
       <div class="rows">${rowsOf(type).map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
-          <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}</strong>
+          <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}<span class="badge${feeOf(pay, c.id).priced ? ' badge--on' : ''}"${feeOf(pay, c.id).priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(feeOf(pay, c.id).label)}</span></strong>
             <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${esc(c.category)} · ${esc(c.level)} · ${count(c.id)} lessons · ${c.access === 'open' ? 'open to everyone' : 'free account'}</span></div>
-          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
+          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-fee title="${feeOf(pay, c.id).paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${feeOf(pay, c.id).paid ? 'make free' : 'make paid'}</button><button class="btn btn--sm" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
         </div>`).join('') || `<p class="empty">no ${TYPES[type]} yet.</p>`}</div>`).join('');
     $$('[data-new]', main).forEach((b) => b.addEventListener('click', () => courseEditor(null, null, b.dataset.new)));
     main.onclick = async (e) => {
       const row = e.target.closest('.row'); if (!row) return;
       const c = courses.find((x) => x.id === row.dataset.id);
       if (e.target.closest('[data-open]')) return go('courses', c.id);
+      if (e.target.closest('[data-fee]')) {
+        const own = pay.course[c.id] || {}, toPaid = own.paid === false;
+        if (await paySave('pay.course.' + c.id, { ...own, paid: toPaid }, toPaid ? (own.price || ps.price ? 'now paid' : 'now paid — open it with “edit” to set its price') : 'now free')) coursesView();
+        return;
+      }
       if (e.target.closest('[data-feature]')) {
         const note = c.featured ? 'no longer featured' : c.status === 'published' ? 'featured — it now has the large card at the top of the academy page' : 'featured — it will appear in the large card once it is published';
         if (await run(sb.from('courses').update({ featured: !c.featured }).eq('id', c.id), note)) coursesView();
@@ -448,6 +515,9 @@
     }
     const noun = typeOf(course);
     const needs = academyReady ? '' : ' — needs setup';
+    const pay = await payLoad();
+    const own = pay.course[id] || {};
+    const usual = (() => { const n = {}; Object.values(pay.course).forEach((c) => { if (c.link) n[c.link] = (n[c.link] || 0) + 1; }); return Object.keys(n).sort((x, y) => n[y] - n[x])[0] || pay.settings.link || ''; })();
     const opt = (value, list) => list.map((o) => `<option${o === value ? ' selected' : ''}>${o}</option>`).join('');
     let content = null;
     // 'new:<module id>' means a blank form for a lesson that doesn't exist yet
@@ -458,7 +528,8 @@
 
     const lessonForm = (l, moduleId) => `<form class="editor" data-lesson="${esc(l.id || '')}" data-module="${esc(moduleId)}" style="margin:12px 0;">
       <div class="form-grid">
-        <label class="field field--wide"><span>lesson title</span><input name="title" required value="${esc(l.title || '')}"></label>
+        <label class="field field--wide"><span>lesson title — the one thing people can read before they pay</span><input name="title" required value="${esc(l.title || '')}">
+          <small class="hint">paste a youtube link below and this fills in with the video’s own title; upload a video and write your own. you can always change it.</small></label>
         <label class="field field--wide"><span>module</span><select name="module_id">${modules.map((m) => `<option value="${m.id}"${m.id === moduleId ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select></label>
         <label class="field"><span>type</span><select name="kind">${[['article', 'reading'], ['video', 'video'], ['live', 'live class (on a date)'], ['quiz', 'quiz (built in)'], ['form', 'test / assignment (google form)']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>length in minutes</span><input name="duration_min" type="number" min="1" value="${l.duration_min || 5}"></label>
@@ -478,7 +549,7 @@
       </div>
       <div class="field"><div class="field-top"><span>files and links for this lesson — one per line, as: name | link</span><label class="linkish" style="cursor:pointer;">attach a file<input type="file" hidden data-attach="resources"></label></div>
         <textarea name="resources" rows="3" placeholder="lecture slides | https://…">${esc(((content && content.resources) || []).map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea></div>
-      <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> free preview — readable without an account</label>
+      <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> free preview — readable without an account (free entries only: in a paid entry every lesson stays locked until payment is confirmed)</label>
       <label class="check"><input type="checkbox" name="is_hidden"${l.is_hidden ? ' checked' : ''}> hidden — keep this lesson out of the course for now</label>
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
     </form>`;
@@ -492,6 +563,14 @@
         <label class="field"><span>start date and time (optional)${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
           <small class="hint">a webinar's date or a program's first day — shown on its card and page, in each visitor's own time. leave empty for something people can start any time.</small></label>
         <label class="field field--wide"><span>title</span><input name="title" required value="${esc(course.title)}"></label>
+        <label class="field"><span>free or paid</span><select name="pay_paid"><option value="1"${own.paid !== false ? ' selected' : ''}>paid — learners go to the payment page</option><option value="0"${own.paid === false ? ' selected' : ''}>free — anyone with an account can enrol</option></select></label>
+        <label class="field"><span>price learners pay now (the discounted price)</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
+          <small class="hint">just the number — the currency (${esc(pay.settings.currency || '৳')}) is added for you. ${pay.settings.price ? `leave empty and it stays at ${esc(pay.settings.currency || '৳')}${esc(pay.settings.price)}, the price saved earlier for everything.` : 'a paid entry without a price just says “paid”.'}</small></label>
+        <label class="field"><span>previous price — shown crossed out beside it (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
+          <small class="hint">fill this in to show a discount, the way course sites do: the price above in bold, this one struck through, and the saving as “% off”. it has to be higher than the price above; leave it empty for no discount.</small></label>
+        <div class="field"></div>
+        <label class="field field--wide"><span>payment link — the google sheet or form that “pay now” opens</span><input name="pay_link" value="${esc(own.link || usual)}" placeholder="https://docs.google.com/…">
+          <small class="hint">paste the share link, and make sure anyone with the link can open it. ${!own.link && usual ? 'this is the link your other entries use, filled in for you — it is saved when you save this entry. ' : ''}without a link, the “pay now” button says “payment opens soon”.</small></label>
         <label class="field field--wide"><span>one-line summary</span><input name="tagline" value="${esc(course.tagline || '')}"></label>
         <label class="field field--wide"><span>description</span><textarea name="description" rows="4">${esc(course.description || '')}</textarea></label>
         <label class="field"><span>category</span><input name="category" required value="${esc(course.category)}"></label>
@@ -574,12 +653,18 @@
       };
       if (academyReady) { row.kind = TYPES[v.kind] ? v.kind : 'course'; row.starts_at = fromLocalInput(v.starts_at); }
       else if (v.kind !== 'course' || v.starts_at) toast('saved as a course without a date — run seed/website-backend-05-academy.sql in supabase to switch programs, webinars and dates on', true);
-      if (id) { if (await run(sb.from('courses').update(row).eq('id', id), 'saved')) reload(); return; }
+      const ownLink = v.pay_link.trim();
+      if (ownLink && !webLink(ownLink)) return toast('the payment link has to be a full web address starting with https://', true);
+      const num = (x) => parseFloat(String(x).replace(/[^0-9.]/g, ''));
+      const nowPrice = v.pay_price.trim(), wasPrice = v.pay_was.trim();
+      if (wasPrice && !(num(wasPrice) > num(nowPrice || pay.settings.price))) return toast('the previous price has to be higher than the price learners pay now — or leave it empty', true);
+      const fee = { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice, link: ownLink };
+      if (id) { if ((await run(sb.from('courses').update(row).eq('id', id))) && (await paySave('pay.course.' + id, fee, 'saved'))) reload(); return; }
       const newId = slug(row.title);
       if (!newId) return toast('give the course a title first', true);
       const { data: clash } = await sb.from('courses').select('id').eq('id', newId).maybeSingle();
       if (clash) return toast('there is already a course with that title — choose a different one', true);
-      if (await run(sb.from('courses').insert({ ...row, id: newId }), 'created — now add a module')) go('courses', newId);
+      if ((await run(sb.from('courses').insert({ ...row, id: newId }))) && (await paySave('pay.course.' + newId, fee, 'created — now add a module'))) go('courses', newId);
     });
     if (!id) return;
     courseExtras($('#course-extras', main), id, lessons);
@@ -753,14 +838,18 @@
 
   // ── learners ───────────────────────────────────────────────────────────────
   async function learnersView() {
-    const [en, pr, courses, lessons, mods] = await Promise.all([
+    const [en, pr, courses, lessons, mods, pay] = await Promise.all([
       run(sb.from('enrollments').select('*').order('enrolled_at', { ascending: false })),
       run(sb.from('lesson_progress').select('user_id,course_id,lesson_id')),
       run(sb.from('courses').select('id,title')),
       run(sb.from('course_lessons').select('id,course_id,module_id,is_hidden')),
       run(sb.from('course_modules').select('id,is_hidden')),
+      payLoad(),
     ]);
     if (!en || !pr || !courses || !lessons || !mods) return;
+    const isPaid = (cid) => feeOf(pay, cid).paid;
+    const hasPaid = (r) => (pay.ok[r.course_id] || []).includes(r.user_id);
+    const waiting = (r) => isPaid(r.course_id) && !hasPaid(r);
     const list = (x) => (x === true ? [] : x);
     const title = Object.fromEntries(list(courses).map((c) => [c.id, c.title]));
     const hiddenModule = new Set(list(mods).filter((m) => m.is_hidden).map((m) => m.id));
@@ -769,13 +858,22 @@
     const done = (u, c) => list(pr).filter((p) => p.user_id === u && p.course_id === c && visible.has(p.lesson_id)).length;
     const day = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
     const rows = list(en);
-    main.innerHTML = head('learners', 'everyone who has enrolled in a course, most recent first.')
-      + `<div class="tiles"><div><b>${new Set(rows.map((r) => r.user_id)).size}</b><span>learners</span></div><div><b>${rows.length}</b><span>enrolments</span></div><div><b>${rows.filter((r) => r.completed_at).length}</b><span>courses completed</span></div></div>`
-      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>course</th><th>enrolled</th><th>progress</th><th>completed</th><th></th></tr></thead><tbody>${rows.map((r) => {
+    main.innerHTML = head('learners', 'everyone who has enrolled, most recent first. for anything paid, a learner appears here as soon as they press “pay now” — find their reference (the green code under their name) and bkash transaction in your payment sheet, then press “confirm payment”: every lesson unlocks for them. until then they can read the lesson titles but cannot open anything.')
+      + `<div class="tiles"><div><b>${new Set(rows.map((r) => r.user_id)).size}</b><span>learners</span></div><div><b>${rows.length}</b><span>enrolments</span></div><div><b>${rows.filter((r) => r.completed_at).length}</b><span>courses completed</span></div><div><b>${rows.filter(waiting).length}</b><span>payments to check</span></div></div>`
+      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>course</th><th>enrolled</th><th>payment</th><th>progress</th><th>completed</th><th></th></tr></thead><tbody>${rows.map((r) => {
         const t = total(r.course_id), d = Math.min(done(r.user_id, r.course_id), t), pct = t ? Math.round((d / t) * 100) : 0;
-        return `<tr><td><strong>${esc(r.learner_name || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}</span></td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
+        return `<tr><td><strong>${esc(r.learner_name || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}</span>${isPaid(r.course_id) ? `<br><code title="the reference this learner was asked to write in the payment sheet" style="font-size:11px;color:var(--green);">${esc(('AC-' + r.user_id.replace(/-/g, '').slice(0, 6) + '-' + r.course_id.replace(/[^a-z0-9]/gi, '').slice(0, 5)).toUpperCase())}</code>` : ''}</td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${!isPaid(r.course_id) ? '<span class="badge">free</span>' : hasPaid(r) ? `<span class="badge badge--on">paid</span><br><button class="linkish" data-pay="0|${r.user_id}|${esc(r.course_id)}">undo</button>` : `<span class="badge">waiting</span><br><button class="btn btn--sm btn--solid" style="margin-top:8px;" data-pay="1|${r.user_id}|${esc(r.course_id)}">confirm payment</button>`}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
       }).join('')}</tbody></table></div>` : '<p class="empty">no one has enrolled yet.</p>');
     main.onclick = async (e) => {
+      const p = e.target.closest('[data-pay]');
+      if (p) {
+        const [on, uid, cid] = p.dataset.pay.split('|');
+        // read the list again first, so two admins confirming at once don't overwrite each other
+        const fresh = (await payLoad()).ok[cid] || [];
+        const next = on === '1' ? [...new Set([...fresh, uid])] : fresh.filter((x) => x !== uid);
+        if (await paySave('pay.ok.' + cid, next, on === '1' ? 'payment confirmed — the lessons are unlocked for this learner' : 'payment confirmation removed')) learnersView();
+        return;
+      }
       const b = e.target.closest('[data-unenrol]'); if (!b) return;
       const [uid, cid] = b.dataset.unenrol.split('|');
       if (!confirm('remove this learner from the course? their lesson progress is kept, so re-enrolling restores it.')) return;

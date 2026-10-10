@@ -187,7 +187,6 @@
         ['structure.model.p1', 'paragraph 1', `${sect(2)} .sect-copy p:nth-child(1)`, 'html'],
         ['structure.model.p2', 'paragraph 2', `${sect(2)} .sect-copy p:nth-child(2)`],
         ['structure.org.parent', 'chart — parent name', '.org-parent-name'],
-        ['structure.org.parent.tag', 'chart — parent caption', '.org-parent-tag'],
         ...range(5).flatMap((i) => [
           [`structure.org.${i}.name`, `chart — subsidiary ${i}`, `.org-child:nth-child(${i}) .org-child-name`],
           [`structure.org.${i}.tag`, `chart — subsidiary ${i} caption`, `.org-child:nth-child(${i}) .org-child-tag`],
