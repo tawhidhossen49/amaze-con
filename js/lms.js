@@ -813,13 +813,20 @@
     function bar() {
       const st = stats(course);
       return `<a class="exit" href="${courseUrl}" aria-label="back to the course">←</a>
-        <button class="outline-toggle" type="button">lessons</button>
         <strong>${esc(course.title)}</strong>
+        <button class="side-toggle" type="button">course content</button>
         <span class="pct">${st.done} / ${st.count} · ${st.pct}%</span>
         <div class="progress"><i style="width:${st.pct}%"></i></div>`;
     }
 
-    let bodyHtml;
+    // The page is laid out the way course sites do it: one large stage for the thing itself
+    // (the video, the document, the reading, the quiz…), the course content list down the
+    // right, and tabs underneath. `bodyHtml` is what goes on the stage; `about` is any
+    // written text that belongs with a video or document and is shown under "overview".
+    let bodyHtml, about = '', stageKind = 'page';
+    // a document a reading lesson is built around: a pdf attached to it (or a google drive file)
+    const isDoc = (r) => /\.pdf($|[?#])/i.test(String(r.url || '')) || /drive\.google\.com\/file\/d\//.test(String(r.url || ''));
+    let docs = [];
     if (payLocked) {
       const waiting = payState(course) === 'pending';
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
@@ -866,16 +873,29 @@
           ${!join && state !== 'ended' ? '<small>the link to join will appear here before the class starts.</small>' : ''}
         </div>`
         + (content.video_url ? `<span class="lesson-kicker" style="display:block;margin:36px 0 14px;">// recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div>` : state === 'ended' ? '<p class="form-alt">if a recording is published, it will appear here.</p>' : '')
-        + (content.body ? `<div class="prose" style="margin-top:32px;">${markdown(content.body)}</div>` : '');
+;
+      about = content.body || '';
     } else if (lesson.kind === 'form') {
-      bodyHtml = (content.body ? `<div class="prose" style="margin-bottom:32px;">${markdown(content.body)}</div>` : '')
-        + (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
+      about = content.body || '';
+      bodyHtml = (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
           <p class="form-alt">form not showing? <a href="${esc(safeUrl(content.form_url))}" target="_blank" rel="noopener noreferrer">open it in a new tab ↗</a> — then come back and mark it as submitted.</p>`
           : '<p class="lms-empty">the form for this lesson hasn\'t been added yet.</p>');
+    } else if (content.video_url) {
+      stageKind = 'video'; about = content.body || '';
+      bodyHtml = `<div class="lesson-video">${videoEmbed(content.video_url)}</div>`;
+    } else if ((docs = resources.filter(isDoc)).length) {
+      // a reading built around a pdf: the pages are drawn right here, one under another
+      stageKind = 'doc'; about = content.body || '';
+      bodyHtml = `<div class="lp-doc">
+          <div class="lp-doc-bar">${docs.length > 1 ? `<div class="lp-doc-pick">${docs.map((d, i) => `<button type="button" data-doc="${i}"${i ? '' : ' class="is-on"'}>${esc(d.label || 'document ' + (i + 1))}</button>`).join('')}</div>` : `<strong>${esc(docs[0].label || 'document')}</strong>`}
+            <span class="lp-doc-count" id="doc-count"></span><a id="doc-open" href="${esc(safeUrl(docs[0].url))}" target="_blank" rel="noopener noreferrer">open in a new tab ↗</a></div>
+          <div class="lp-doc-pages" id="doc-pages"><p class="lp-doc-msg">opening the document…</p></div>
+        </div>`;
     } else {
-      bodyHtml = (content.video_url ? `<div class="lesson-video">${videoEmbed(content.video_url)}</div>` : '')
-        + `<div class="prose">${markdown(content.body)}</div>`;
+      stageKind = 'read';
+      bodyHtml = `<div class="lp-read"><div class="lp-read-in"><h1 class="lesson-title">${esc(lesson.title)}</h1><div class="prose">${markdown(content.body)}</div></div></div>`;
     }
+    if (payLocked || isLocked || !content) stageKind = 'gate';
 
     const usable = !!content;
     const isQuiz = usable && lesson.kind === 'quiz' && (content.quiz || []).length > 0;
@@ -886,12 +906,20 @@
       : (next ? 'complete & continue' : 'complete the course');
     const tabs = usable ? `
       <div class="tabs-bar" role="tablist">
-        <button class="tab is-active" data-tab="notes">my notes</button>
+        <button class="tab is-active" data-tab="overview">overview</button>
+        <button class="tab" data-tab="notes">notes</button>
         <button class="tab" data-tab="resources">resources<span>${resources.length}</span></button>
         <button class="tab" data-tab="qa">q&amp;a<span>${comments.filter((c) => !c.parent_id).length}</span></button>
         <button class="tab" data-tab="news">announcements<span>${news.length}</span></button>
       </div>
-      <div class="tab-panel" data-panel="notes">
+      <div class="tab-panel" data-panel="overview">
+        ${about ? `<div class="prose">${markdown(about)}</div>` : ''}
+        <div class="lp-about${about ? ' has-text' : ''}">
+          <div><small>${esc(typeOf(course))}</small><strong>${esc(course.title)}</strong>${course.tagline ? `<p>${esc(course.tagline)}</p>` : ''}</div>
+          <ul><li><small>this lesson</small><span>${idx + 1} of ${all.length}</span></li><li><small>section</small><span>${esc(mod ? mod.title : '—')}</span></li><li><small>taught by</small><span>${esc(course.instructor_name || 'amaze consortium')}</span></li></ul>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="notes" hidden>
         <label class="field" style="margin-top:0;"><span>private notes for this lesson — only you can see them</span><textarea id="note" rows="6" placeholder="write as you go…">${esc(note)}</textarea></label>
         <small class="hint" id="note-status">${S.user ? 'saved to your account' : 'saved on this device — sign in to keep notes across devices'}</small>
       </div>
@@ -903,34 +931,137 @@
         ${news.length ? `<ul class="news">${news.map((n) => `<li><small>${ago(n.created_at)}</small><strong>${esc(n.title)}</strong>${n.body ? `<div class="prose">${markdown(n.body)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="lms-empty" style="padding:28px 0;">no announcements for this course.</p>'}
       </div>` : '';
 
+    // the course content list: sections that fold, a tick box per lesson, the current one marked
+    const closedByFee = fee(course).paid && !paidUp(course);
+    const canTick = (l) => !closedByFee && !locked(course, l, all) && l.kind !== 'quiz' && !(l.kind === 'live' && ['upcoming', 'tba'].includes(liveState(l.live_at, l.duration_min)));
+    function sideList() {
+      let n = 0;
+      return modulesOf(course.id).map((m, mi) => {
+        const ls = all.filter((l) => l.module_id === m.id);
+        const mins = ls.reduce((t, l) => t + (l.duration_min || 0), 0), done = ls.filter((l) => S.done[l.id]).length;
+        const rows = ls.map((l) => {
+          n += 1;
+          const isDone = !!S.done[l.id], shut = closedByFee || locked(course, l, all);
+          const meta = l.kind === 'live' ? (l.live_at ? new Date(l.live_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase() + ' · ' + clock(l.live_at) : 'date tba') : `${l.duration_min}min`;
+          const box = shut ? `<span class="lp-tick is-shut" title="locked">${PADLOCK}</span>`
+            : canTick(l) ? `<button class="lp-tick${isDone ? ' is-on' : ''}" type="button" data-tick="${l.id}" aria-pressed="${isDone}" aria-label="${isDone ? 'mark as not done' : 'mark as done'}: ${esc(l.title)}"></button>`
+              : `<span class="lp-tick${isDone ? ' is-on' : ''}" title="${l.kind === 'quiz' ? 'ticked when you pass the quiz' : 'ticked after the class'}"></span>`;
+          return `<li class="lp-item${l.id === lesson.id ? ' is-current' : ''}${isDone ? ' is-done' : ''}${shut ? ' is-shut' : ''}">${box}
+            <a class="lp-row" href="${closedByFee ? `pay.html?c=${enc(course.id)}` : url(l)}"><span class="lesson-name">${n}. ${esc(l.title)}</span><span class="lp-meta">${ICON[l.kind] || ICON.article}<span>${meta}</span></span></a></li>`;
+        }).join('');
+        return `<div class="lp-sec${ls.some((l) => l.id === lesson.id) ? ' is-open' : ''}">
+          <button class="lp-sec-head" type="button" aria-expanded="${ls.some((l) => l.id === lesson.id)}"><div><strong>section ${mi + 1}: ${esc(m.title)}</strong><span>${done} / ${ls.length} | ${length(mins)}</span></div><i aria-hidden="true"></i></button>
+          <ul>${rows}</ul></div>`;
+      }).join('');
+    }
+    let sideOpen = true; try { sideOpen = localStorage.getItem('amaze.lms.side') !== '0'; } catch (e) {}
+
     root.innerHTML = `
       <header class="player-bar">${bar()}</header>
-      <div class="player">
-        <aside class="player-outline">${outline(course, lesson.id, true)}</aside>
-        <main class="player-main"><article class="lesson rise">
-          ${notice()}
-          <div class="lesson-kicker lesson-name">${kindIcon(lesson)}<span>${esc(mod ? mod.title : '')} · lesson ${idx + 1} of ${all.length} · ${KIND[lesson.kind] || esc(lesson.kind)}</span></div>
-          <h1 class="lesson-title">${esc(lesson.title)}</h1>
-          ${bodyHtml}
-          <div class="lesson-foot">
-            ${prev ? `<a class="btn-outline btn-back" href="${url(prev)}">previous <span class="btn-arrow" aria-hidden="true">←</span></a>` : '<span></span>'}
-            ${waiting ? (next && !course.sequential ? `<a class="btn-outline" href="${url(next)}">next lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '<span class="form-alt" style="margin:0;">you can mark this as attended once the class has started.</span>') : ''}
-            ${usable && !isQuiz && !waiting ? `<button class="btn-primary" id="complete" type="button">${S.done[lesson.id] ? (next ? 'next lesson' : 'finish') : doneLabel} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
-            ${isQuiz ? `<a class="btn-outline" id="after-quiz" href="${next ? url(next) : courseUrl}"${S.done[lesson.id] ? '' : ' hidden'}>${next ? 'next lesson' : 'back to the course'} <span class="btn-arrow" aria-hidden="true">→</span></a>` : ''}
-          </div>
-          ${tabs}
-        </article></main>
+      <div class="lp${sideOpen ? '' : ' is-wide'}">
+        <main class="lp-main">
+          <section class="lp-stage lp-stage--${stageKind}" aria-label="${esc(lesson.title)}">
+            ${prev ? `<a class="lp-nav lp-nav--prev" href="${url(prev)}" title="previous: ${esc(prev.title)}" aria-label="previous lesson">‹</a>` : ''}
+            ${bodyHtml}
+            ${next ? `<a class="lp-nav lp-nav--next" href="${url(next)}" title="next: ${esc(next.title)}" aria-label="next lesson">›</a>` : ''}
+          </section>
+          <div class="lp-under"><article class="lesson rise">
+            ${notice()}
+            <div class="lp-head">
+              <div><div class="lesson-kicker lesson-name">${kindIcon(lesson)}<span>${esc(mod ? mod.title : '')} · lesson ${idx + 1} of ${all.length} · ${KIND[lesson.kind] || esc(lesson.kind)}</span></div>
+                ${stageKind === 'read' ? '' : `<h1 class="lesson-title">${esc(lesson.title)}</h1>`}</div>
+              <div class="lesson-foot">
+                ${waiting ? (next && !course.sequential ? `<a class="btn-outline" href="${url(next)}">next lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '<span class="form-alt" style="margin:0;">you can mark this as attended once the class has started.</span>') : ''}
+                ${usable && !isQuiz && !waiting ? `<button class="btn-primary" id="complete" type="button">${S.done[lesson.id] ? (next ? 'next lesson' : 'finish') : doneLabel} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
+                ${isQuiz ? `<a class="btn-outline" id="after-quiz" href="${next ? url(next) : courseUrl}"${S.done[lesson.id] ? '' : ' hidden'}>${next ? 'next lesson' : 'back to the course'} <span class="btn-arrow" aria-hidden="true">→</span></a>` : ''}
+              </div>
+            </div>
+            ${tabs}
+          </article></div>
+        </main>
+        <aside class="lp-side" aria-label="course content">
+          <div class="lp-side-top"><strong>course content</strong><button class="lp-side-close" type="button" aria-label="hide the course content list">✕</button></div>
+          <div class="lp-side-list">${sideList()}</div>
+        </aside>
       </div>`;
 
-    const wireBar = () => $('.outline-toggle', root).addEventListener('click', () => $('.player-outline', root).classList.toggle('is-open'));
+    const layout = $('.lp', root), side = $('.lp-side-list', root);
+    function setSide(open) { sideOpen = open; layout.classList.toggle('is-wide', !open); try { localStorage.setItem('amaze.lms.side', open ? '1' : '0'); } catch (e) {} }
+    const wireBar = () => $('.side-toggle', root).addEventListener('click', () => { setSide(!sideOpen); if (sideOpen && window.innerWidth <= 1000) $('.lp-side', root).scrollIntoView({ behavior: 'smooth' }); });
+    $('.lp-side-close', root).addEventListener('click', () => setSide(false));
+    // sections fold; a tick box marks a lesson done (or not done again) without leaving the page
+    side.addEventListener('click', async (e) => {
+      const head = e.target.closest('.lp-sec-head');
+      if (head) { const open = head.parentElement.classList.toggle('is-open'); head.setAttribute('aria-expanded', String(open)); return; }
+      const tick = e.target.closest('[data-tick]'); if (!tick) return;
+      const l = all.find((x) => x.id === tick.dataset.tick); if (!l || !canTick(l)) return;
+      tick.disabled = true;
+      if (S.done[l.id]) {
+        delete S.done[l.id];
+        if (S.user && !S.admin) await sb.from('lesson_progress').delete().eq('user_id', S.user.id).eq('lesson_id', l.id);
+        else local.set(LOCAL_PROGRESS, S.done);
+      } else await markDone(course, l);
+      const opened = $$('.lp-sec', side).map((x) => x.classList.contains('is-open'));
+      side.innerHTML = sideList();
+      $$('.lp-sec', side).forEach((x, i) => x.classList.toggle('is-open', !!opened[i]));
+      $('.player-bar', root).innerHTML = bar(); wireBar();
+      if (l.id === lesson.id) { const c = $('#complete', root); if (c) c.firstChild.textContent = (S.done[l.id] ? (next ? 'next lesson' : 'finish') : doneLabel) + ' '; }
+    });
+
+    // a pdf: drawn page by page with pdf.js (kept on this site, js/vendor), so it reads the same on a phone as on a laptop
+    async function openDoc(r) {
+      const box = $('#doc-pages', root), count = $('#doc-count', root), link = safeUrl(r.url);
+      $('#doc-open', root).href = link; count.textContent = '';
+      const drive = /drive\.google\.com\/file\/d\/([^/]+)/.exec(link);
+      if (drive) { box.innerHTML = `<iframe class="lp-doc-frame" src="https://drive.google.com/file/d/${esc(drive[1])}/preview" title="${esc(r.label || 'document')}" allow="autoplay"></iframe>`; return; }
+      box.innerHTML = '<p class="lp-doc-msg">opening the document…</p>';
+      try {
+        if (!window.pdfjsLib) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = A.root + 'js/vendor/pdf.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = A.root + 'js/vendor/pdf.worker.min.js';
+        // (isEvalSupported off: the site's security headers do not allow code built from strings, and pdf.js does not need it)
+        const pdf = await window.pdfjsLib.getDocument({ url: link, isEvalSupported: false }).promise;
+        if (r !== docNow) return;   // another document was chosen while this one was loading
+        const first = await pdf.getPage(1), shape = first.getViewport({ scale: 1 });
+        box.innerHTML = Array.from({ length: pdf.numPages }, (_, i) => `<div class="lp-page" data-page="${i + 1}" style="aspect-ratio:${shape.width}/${shape.height};"></div>`).join('');
+        count.textContent = `${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}`;
+        // each page is drawn when it comes near the screen, not all at once
+        const seen = new IntersectionObserver((entries) => entries.forEach(async (en) => {
+          if (!en.isIntersecting) return;
+          seen.unobserve(en.target);
+          const page = await pdf.getPage(+en.target.dataset.page);
+          const scale = (en.target.clientWidth / page.getViewport({ scale: 1 }).width) * Math.min(2, window.devicePixelRatio || 1);
+          const view = page.getViewport({ scale }), canvas = document.createElement('canvas');
+          canvas.width = Math.floor(view.width); canvas.height = Math.floor(view.height);
+          en.target.style.aspectRatio = `${view.width}/${view.height}`;
+          en.target.appendChild(canvas);
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
+          en.target.classList.add('is-drawn');
+        }), { root: box, rootMargin: '800px 0px' });
+        $$('.lp-page', box).forEach((el) => seen.observe(el));
+      } catch (e) {
+        box.innerHTML = `<div class="lp-doc-msg"><strong>this document could not be shown here.</strong><p>open it in a new tab instead — it will open or download there.</p><a class="btn-primary" href="${esc(link)}" target="_blank" rel="noopener noreferrer">open the document <span class="btn-arrow" aria-hidden="true">↗</span></a></div>`;
+      }
+    }
+    let docNow = docs[0];
+    if (stageKind === 'doc') {
+      openDoc(docNow);
+      $$('[data-doc]', root).forEach((b) => b.addEventListener('click', () => { docNow = docs[+b.dataset.doc]; $$('[data-doc]', root).forEach((x) => x.classList.toggle('is-on', x === b)); openDoc(docNow); }));
+    }
+    // ← and → move between lessons, the way they do in a video course (not while typing)
+    document.addEventListener('keydown', (e) => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key === 'ArrowLeft' && prev) location.href = url(prev);
+      if (e.key === 'ArrowRight' && next && !locked(course, next, all)) location.href = url(next);
+    });
     const goNext = () => {
       if (next) { location.href = url(next); return; }
       location.href = stats(course).pct === 100 ? `certificate.html?c=${enc(course.id)}` : courseUrl;
     };
     $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
     wireBar();
-    wireModules(root);
-    const current = $('.lesson-row.is-current', root); if (current) current.scrollIntoView({ block: 'center' });
+    // bring the current lesson into view inside the list, without moving the page itself
+    const current = $('.lp-item.is-current', root);
+    if (current) { const list = $('.lp-side', root); list.scrollTop = Math.max(0, current.offsetTop - list.clientHeight / 2); }
 
     const complete = $('#complete');
     if (complete) complete.addEventListener('click', async () => {
@@ -1038,7 +1169,7 @@
       if (passed) {
         await markDone(course, lesson, score);
         $('.player-bar', root).innerHTML = bar(); wireBar();
-        const row = $('.lesson-row.is-current', root); if (row) row.classList.add('is-done');
+        side.innerHTML = sideList();
         const after = $('#after-quiz');
         after.hidden = false;
         if (!next && stats(course).pct === 100) { after.href = `certificate.html?c=${enc(course.id)}`; after.firstChild.textContent = 'get your certificate '; }

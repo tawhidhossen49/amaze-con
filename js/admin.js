@@ -567,7 +567,8 @@
           <small class="hint">? starts a question · - is a wrong option · * is the correct option · > is the explanation shown after answering. learners pass at 70%.</small></label>
       </div>
       <div class="field"><div class="field-top"><span>files and links for this lesson — one per line, as: name | link</span><label class="linkish" style="cursor:pointer;">attach a file<input type="file" hidden data-attach="resources"></label></div>
-        <textarea name="resources" rows="3" placeholder="lecture slides | https://…">${esc(((content && content.resources) || []).map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea></div>
+        <textarea name="resources" rows="3" placeholder="lecture slides | https://…">${esc(((content && content.resources) || []).map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea>
+        <small class="hint">a pdf attached to a <b>reading</b> lesson opens inside the lesson itself, page by page, the way a video does — learners read it there without downloading. everything else listed here appears under the lesson’s “resources” tab.</small></div>
       <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> free preview — readable without an account (free entries only: in a paid entry every lesson stays locked until payment is confirmed)</label>
       <label class="check"><input type="checkbox" name="is_hidden"${l.is_hidden ? ' checked' : ''}> hidden — keep this lesson out of the course for now</label>
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
