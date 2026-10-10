@@ -689,3 +689,10 @@ button.btn-primary, button.btn-outline { font-family: var(--font-sans); }
 .lesson-row.is-closed:hover { color: var(--fg); }
 .module-lock { display: inline-flex; vertical-align: -2px; margin-right: 10px; }
 .module-lock .kind-icon { width: 13px; height: 13px; stroke: var(--green); }
+
+/* sign in: the google button */
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; margin-top: 26px; padding: 16px 20px; background: #fff; border: 1px solid #fff; color: #1f1f1f; cursor: pointer; font: 700 15px/1 var(--font-sans); letter-spacing: -0.005em; text-transform: lowercase; transition: background 0.3s ease, border-color 0.3s ease, transform 0.4s var(--ease-out); }
+.btn-google svg { flex: none; width: 20px; height: 20px; }
+.btn-google:hover { background: #e9f9f1; border-color: var(--green); transform: translateY(-1px); }
+.btn-google:disabled { opacity: 0.6; cursor: default; transform: none; }
+.dialog-small { margin-top: 18px; font-size: 12px; line-height: 1.6; color: var(--faint); }

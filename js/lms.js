@@ -313,47 +313,27 @@
     el.textContent = text;
   }
 
+  // Learners sign in with their Google account — there is no password to make or forget and
+  // no confirmation email. (Admin logins are separate and stay email + password, on the admin page.)
+  const GOOGLE = '<svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>';
   function authDialog(mode = 'signin') {
     if (S.preview) {
       openDialog('<span class="lesson-kicker">accounts</span><h2>not connected yet</h2><p>learner accounts switch on once the course database is set up. until then every lesson is open and your progress is kept on this device.</p>');
       return;
     }
-    const signup = mode === 'signup', reset = mode === 'reset';
+    const fresh = mode === 'signup';
     const body = openDialog(`
-      <span class="lesson-kicker">${reset ? 'reset password' : signup ? 'create a free account' : 'welcome back'}</span>
-      <h2>${reset ? 'forgot it?' : signup ? 'start learning' : 'sign in'}</h2>
-      <p>${reset ? 'enter your email and we will send you a link to set a new password.' : 'your account keeps your progress, notes and certificates, on any device.'}</p>
-      <form>
-        ${signup ? '<label class="field"><span>full name (as it should appear on certificates)</span><input name="name" required autocomplete="name"></label>' : ''}
-        <label class="field"><span>email</span><input name="email" type="email" required autocomplete="email"></label>
-        ${reset ? '' : `<label class="field"><span>password</span><input name="password" type="password" required minlength="8" autocomplete="${signup ? 'new-password' : 'current-password'}"></label>`}
-        <button class="btn-primary" type="submit">${reset ? 'send reset link' : signup ? 'create account' : 'sign in'} <span class="btn-arrow" aria-hidden="true">→</span></button>
-      </form>
-      <div class="dialog-links">
-        <button class="linkish" data-mode="${signup ? 'signin' : 'signup'}">${signup ? 'i already have an account' : 'create an account'}</button>
-        ${reset ? '<button class="linkish" data-mode="signin">back to sign in</button>' : signup ? '' : '<button class="linkish" data-mode="reset">forgot password?</button>'}
-      </div>`);
-    $$('[data-mode]', body).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.mode)));
-    $('form', body).addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.target);
-      const email = f.get('email').trim(), password = f.get('password');
-      say(body, 'one moment…');
-      if (reset) {
-        const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: A.root + 'academy/index.html' });
-        return say(body, error ? error.message : 'if that email has an account, a reset link is on its way.', !!error);
-      }
-      if (signup) {
-        const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: f.get('name').trim() }, emailRedirectTo: location.href } });
-        if (error) return say(body, error.message, true);
-        // an email that already has an account gets no second email (and no error either): say so
-        if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) return say(body, 'this email already has an account — use “i already have an account” below to sign in, or “forgot password?” on the sign-in screen.', true);
-        if (!data.session) return say(body, 'almost there — open the confirmation email we just sent you, then sign in. (it can take a minute, and may land in spam.)');
-        return location.reload();
-      }
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) return say(body, error.message === 'Email not confirmed' ? 'please confirm your email first — check your inbox.' : error.message, true);
-      location.reload();
+      <span class="lesson-kicker">${fresh ? 'create a free account' : 'welcome'}</span>
+      <h2>${fresh ? 'start learning' : 'sign in'}</h2>
+      <p>use your google account — one click, nothing to remember. it keeps your progress, notes and certificates, on any device.</p>
+      <button class="btn-google" type="button" id="google-go">${GOOGLE}<span>continue with google</span></button>
+      <p class="dialog-small">the name on your google account is the name printed on your certificates. we only receive your name, email address and profile picture.</p>`);
+    $('#google-go', body).addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      say(body, 'taking you to google…');
+      // google sends the learner straight back to the page they were on
+      const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0], queryParams: { prompt: 'select_account' } } });
+      if (error) { e.currentTarget.disabled = false; say(body, /not enabled|unsupported provider/i.test(error.message) ? 'google sign-in is not switched on yet — please try again later.' : error.message, true); }
     });
   }
 
