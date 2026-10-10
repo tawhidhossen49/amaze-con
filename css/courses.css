@@ -713,7 +713,7 @@ button.btn-primary, button.btn-outline { font-family: var(--font-sans); }
 #pay-form .hint { display: block; margin-top: 14px; }
 #pay-form .dialog-msg { margin-top: 16px; }
 .pay-status.is-bad { border-color: #f2b42e; background: rgba(242,180,46,0.07); }
-.pay-status a { color: var(--green); }
+.pay-status a:not(.btn-primary) { color: var(--green); }
 .pay-sent { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 20px 0 16px; border: 1px solid var(--line); }
 .pay-sent > div { padding: 14px 16px; min-width: 0; }
 .pay-sent > div + div { border-left: 1px solid var(--line); }

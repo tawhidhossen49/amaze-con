@@ -99,17 +99,20 @@
     if (named) { title.focus(); title.select(); }
     toast('video uploaded');
   });
-  // A lesson's title from its video. Paste a YouTube (or Vimeo) link and the video's own
-  // title is looked up and written into "lesson title"; an uploaded file starts with its
-  // file name. Either way the box stays editable, and a title typed by hand is never replaced.
+  // A lesson's title from its video. Put a YouTube (or Vimeo) link in the video box and the
+  // lesson takes the video's own title — every time the link changes. The title box stays
+  // editable afterwards. An uploaded file has no title of its own, so that one is typed by hand
+  // (it starts as the file name). Returns once the title box is settled, so saving can wait for it.
   async function titleFromVideo(input) {
     const form = input.closest('form'); if (!form) return;
     const title = form.querySelector('[name=title]'), status = form.querySelector('[data-video-status]');
     const url = input.value.trim();
-    const mine = !title.value.trim() || title.value === title.dataset.auto;   // empty, or still the one we filled in
     let site = null;
     try { const h = new URL(url).hostname.replace(/^(www\.|m\.)/, ''); site = /^(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(h) ? 'youtube' : /vimeo\.com$/.test(h) ? 'vimeo' : null; } catch (e) {}
-    if (!site || input.dataset.looked === url) return;
+    if (!site) return;
+    // the link the lesson was opened with keeps the title it already has — unless there is none
+    if (url === input.defaultValue.trim() && title.value.trim()) return;
+    if (input.dataset.looked === url) return;
     input.dataset.looked = url;
     try {
       const api = site === 'youtube' ? 'https://www.youtube.com/oembed?format=json&url=' : 'https://vimeo.com/api/oembed.json?url=';
@@ -117,8 +120,9 @@
       if (!res.ok) throw new Error('not found');
       const got = String((await res.json()).title || '').trim().slice(0, 140);
       if (!got) throw new Error('no title');
-      if (mine) { title.value = got; title.dataset.auto = got; if (status) status.textContent = `title taken from the video: “${got}”. change it above if you like, then save.`; }
-      else if (status) status.textContent = `this video is called “${got}” — your own title above is kept.`;
+      const before = title.value.trim();
+      title.value = got; title.dataset.auto = got;
+      if (status) status.textContent = `lesson title set to the video's own: “${got}”${before && before !== got ? ` (it was “${before}”)` : ''}. change it above if you want something else, then save.`;
       const kind = form.querySelector('[name=kind]'); if (kind && kind.value === 'article') kind.value = 'video';
     } catch (e) {
       if (status) status.textContent = 'could not read that video’s title (it may be private, or the link is not a video) — type the lesson title yourself.';
@@ -543,8 +547,8 @@
 
     const lessonForm = (l, moduleId) => `<form class="editor" data-lesson="${esc(l.id || '')}" data-module="${esc(moduleId)}" style="margin:12px 0;">
       <div class="form-grid">
-        <label class="field field--wide"><span>lesson title — the one thing people can read before they pay</span><input name="title" required value="${esc(l.title || '')}">
-          <small class="hint">paste a youtube link below and this fills in with the video’s own title; upload a video and write your own. you can always change it.</small></label>
+        <label class="field field--wide"><span>lesson title — the one thing people can read before they pay</span><input name="title" value="${esc(l.title || '')}">
+          <small class="hint">for a youtube video you can leave this alone: put the link in the video box below and the lesson takes the video’s own title, every time you change the link. for a video you upload, write the title here. you can always edit it.</small></label>
         <label class="field field--wide"><span>module</span><select name="module_id">${modules.map((m) => `<option value="${m.id}"${m.id === moduleId ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select></label>
         <label class="field"><span>type</span><select name="kind">${[['article', 'reading'], ['video', 'video'], ['live', 'live class (on a date)'], ['quiz', 'quiz (built in)'], ['form', 'test / assignment (google form)']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>length in minutes</span><input name="duration_min" type="number" min="1" value="${l.duration_min || 5}"></label>
@@ -745,7 +749,10 @@
       lf.scrollIntoView({ block: 'center' });
       lf.addEventListener('submit', async (e) => {
         e.preventDefault();
+        // saving straight after pasting a link: wait for the video's title to arrive first
+        await titleFromVideo(lf.querySelector('[name=video_url]'));
         const v = Object.fromEntries(new FormData(lf));
+        if (!v.title.trim()) return toast('give the lesson a title — or put a youtube link in the video box and it is filled in for you', true);
         const quiz = textToQuiz(v.quiz);
         const resources = v.resources.split('\n').map((line) => line.split('|').map((x) => x.trim())).filter((x) => x.length >= 2 && x[1]).map(([label, ...rest]) => ({ label: label || rest.join('|'), url: rest.join('|') }));
         if (v.kind === 'form' && !v.form_url.trim()) return toast('paste the form link for this test', true);
