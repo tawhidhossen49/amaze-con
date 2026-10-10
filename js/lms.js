@@ -346,7 +346,9 @@
       if (signup) {
         const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: f.get('name').trim() }, emailRedirectTo: location.href } });
         if (error) return say(body, error.message, true);
-        if (!data.session) return say(body, 'almost there — open the confirmation email we just sent you, then sign in.');
+        // an email that already has an account gets no second email (and no error either): say so
+        if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) return say(body, 'this email already has an account — use “i already have an account” below to sign in, or “forgot password?” on the sign-in screen.', true);
+        if (!data.session) return say(body, 'almost there — open the confirmation email we just sent you, then sign in. (it can take a minute, and may land in spam.)');
         return location.reload();
       }
       const { error } = await sb.auth.signInWithPassword({ email, password });
