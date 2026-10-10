@@ -1073,7 +1073,11 @@
     // what was typed, tidied the way the database will store it — or the reason it can't be right
     const readSender = (v) => { let n = String(v).replace(/[^0-9]/g, ''); if (n.startsWith('880')) n = n.slice(2); if (n.length === 10 && n[0] === '1') n = '0' + n; return /^01[3-9]\d{8}$/.test(n) ? n : ''; };
     const readTrx = (v) => { const t = String(v).replace(/\s/g, '').toUpperCase(); return /^[A-Z0-9]{8,12}$/.test(t) ? t : ''; };
+    // what has been typed is kept for this browser tab, so it survives the trip to google and back when signing in
+    const DRAFT = 'amaze.pay.draft.' + course.id;
     let draft = { sender: '', trx: '' }, problem = '', busy = false;
+    try { const kept = JSON.parse(sessionStorage.getItem(DRAFT) || 'null'); if (kept) draft = { sender: String(kept.sender || ''), trx: String(kept.trx || '') }; } catch (e) {}
+    const keep = () => { try { if (draft.sender || draft.trx) sessionStorage.setItem(DRAFT, JSON.stringify(draft)); else sessionStorage.removeItem(DRAFT); } catch (e) {} };
 
     function draw() {
       const mine = S.payments[course.id];
@@ -1106,7 +1110,7 @@
            <p class="hint">the ${type} is unlocked for this account. not you? use the button at the top right to sign out.</p>`;
 
       const how = !open
-        ? `<p class="pay-lead">payments for this ${type} are not open yet. write to <a href="mailto:learn@amazeconsortium.org" style="color:var(--green)">learn@amazeconsortium.org</a> and we will sort it out.</p>`
+        ? `<p class="pay-lead">our bkash number will be shown here. if you do not have it yet, write to <a href="mailto:learn@amazeconsortium.org" style="color:var(--green)">learn@amazeconsortium.org</a> and we will send it to you — the fee is <b style="color:var(--fg)">${esc(f.label)}</b>. once you have paid, fill in the two boxes below.</p>`
         : `<div class="pay-bkash">
              <div><span>bkash number${merchant ? ' (merchant)' : ' (personal)'}</span><strong id="pay-number">${esc(spaced(number))}</strong><button class="linkish" type="button" data-copy="${esc(number)}">copy number</button></div>
              <div><span>amount to send</span><strong>${esc(f.label)}</strong>${f.amount ? `<button class="linkish" type="button" data-copy="${esc(f.amount)}">copy amount</button>` : ''}</div>
@@ -1119,7 +1123,7 @@
            ].map(([t, d], i) => `<li><b>${pad2(i + 1)}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('')}</ol>
            ${set.note ? `<div class="pay-note"><span class="lesson-kicker">from us</span><div class="prose">${markdown(set.note)}</div></div>` : ''}`;
 
-      const canSend = open && (state === 'new' || state === 'rejected');
+      const canSend = state === 'guest' || state === 'new' || state === 'rejected';
       const form = state === 'pending' || state === 'paid' ? '' : `
         <form id="pay-form" novalidate${canSend ? '' : ' class="is-off"'}>
           <div class="form-2">
@@ -1127,15 +1131,14 @@
             <label class="field"><span>transaction id (trxid)</span><input name="trx" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="9FA5LK2B3C" maxlength="14" style="text-transform:uppercase;font-family:ui-monospace,Consolas,monospace;letter-spacing:0.08em;" value="${esc(draft.trx)}"${canSend ? '' : ' disabled'}></label>
           </div>
           ${problem ? `<p class="dialog-msg is-error" role="alert">${esc(problem)}</p>` : ''}
-          <button class="btn-primary" type="submit"${canSend && !busy ? '' : ' disabled'}>${busy ? 'sending…' : 'submit for confirmation'} <span class="btn-arrow" aria-hidden="true">→</span></button>
+          <button class="btn-primary" type="submit"${canSend && !busy ? '' : ' disabled'}>${busy ? 'sending…' : state === 'guest' ? 'sign in and submit' : 'submit for confirmation'} <span class="btn-arrow" aria-hidden="true">→</span></button>
           <p class="hint">only submit after the money has left your bkash account. one transaction id works once.</p>
         </form>`;
 
       const sideButton = state === 'paid' ? ''
-        : state === 'guest' ? '<button class="btn-primary pay-now" type="button" data-auth="signin">sign in to continue <span class="btn-arrow" aria-hidden="true">→</span></button>'
-          : state === 'pending' ? '<span class="btn-primary pay-now is-off" aria-disabled="true">payment being checked <span class="btn-arrow" aria-hidden="true">✓</span></span>'
+        : state === 'pending' ? '<span class="btn-primary pay-now is-off" aria-disabled="true">payment being checked <span class="btn-arrow" aria-hidden="true">✓</span></span>'
             : canSend ? '<a class="btn-primary pay-now" href="#pay-form">enter my transaction id <span class="btn-arrow" aria-hidden="true">↓</span></a>'
-              : `<span class="btn-primary pay-now is-off" aria-disabled="true">${state === 'admin' ? 'admin preview' : 'payment opens soon'} <span class="btn-arrow" aria-hidden="true">→</span></span>`;
+              : '<span class="btn-primary pay-now is-off" aria-disabled="true">admin preview <span class="btn-arrow" aria-hidden="true">→</span></span>';
 
       root.innerHTML = `<section class="pay"><div class="pay-inner">
         ${notice()}
@@ -1180,18 +1183,21 @@
       if (jump) jump.addEventListener('click', (e) => { e.preventDefault(); $('#pay-tell', root).scrollIntoView({ behavior: 'smooth', block: 'center' }); const i = $('#pay-form [name=sender]', root); if (i) setTimeout(() => i.focus({ preventScroll: true }), 500); });
 
       const pf = $('#pay-form', root);
+      if (pf && canSend) pf.addEventListener('input', () => { draft = { sender: pf.sender.value, trx: pf.trx.value }; keep(); });
       if (pf && canSend) pf.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (busy) return;
         const v = new FormData(pf);
-        draft = { sender: String(v.get('sender')).trim(), trx: String(v.get('trx')).trim() };
+        draft = { sender: String(v.get('sender')).trim(), trx: String(v.get('trx')).trim() }; keep();
         const sender = readSender(draft.sender), trx = readTrx(draft.trx);
         problem = !draft.sender || !draft.trx ? 'fill in both boxes: the number you paid from, and the transaction id.'
           : !sender ? 'that does not look like a bkash number. enter the 11-digit number you paid from, for example 017XXXXXXXX.'
-            : sender === readSender(number) ? 'that is our number. enter the number you sent the money from.'
+            : number && sender === readSender(number) ? 'that is our number. enter the number you sent the money from.'
               : !trx ? 'that does not look like a bkash transaction id. it is about ten letters and numbers with no spaces, for example 9FA5LK2B3C — you will find it in the bkash sms as “TrxID”.'
                 : '';
         if (problem) { draw(); return; }
+        // not signed in yet: sign in first — what was typed is waiting when google brings them back
+        if (!S.user) { problem = 'one more step: sign in with google, and you will come straight back here with these two boxes still filled in — then press submit.'; draw(); authDialog('signin'); return; }
         busy = true; draw();
         const { data, error } = await sb.from('payments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name || null, learner_email: S.user.email, amount: f.label, sender, trx_id: trx }).select().single();
         busy = false;
@@ -1209,7 +1215,7 @@
           }
           draw(); return;
         }
-        S.payments[course.id] = data; problem = ''; draft = { sender: '', trx: '' };
+        S.payments[course.id] = data; problem = ''; draft = { sender: '', trx: '' }; keep();
         draw(); window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 
