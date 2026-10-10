@@ -224,6 +224,7 @@
     window.onhashchange = () => { const [v, arg] = route(); if (v in VIEWS) go(v, arg); };
     const [v, arg] = route();
     go(v in VIEWS ? v : 'pages', arg);
+    payBadge();
   }
 
   // '#courses/web-development-fundamentals' → ['courses', 'web-development-fundamentals']
@@ -415,20 +416,18 @@
   const setupNote = () => (academyReady ? '' : '<p class="empty" style="margin-bottom:20px;border-color:var(--green);color:var(--fg);">one step left to switch on programs, webinars and live-class dates: open supabase → sql editor, paste the file <b>seed/website-backend-05-academy.sql</b> and press run (once). until then everything is saved as a course and the fields marked “needs setup” are ignored.</p>');
 
   // ── payment ────────────────────────────────────────────────────────────────
-  // Kept with the site's other saved text (site_text), under keys starting "pay.":
-  //   pay.course.<id>     { paid, price, was, link }        one entry: free or paid, price, previous price, payment form
-  //   pay.settings        { link, price, currency, note }   older general values, no longer edited here: an entry
-  //                                                         with no price or link of its own still falls back to them
-  //   pay.ok.<id>         [user id, …]                      learners whose payment has been confirmed
-  // An entry with nothing saved is paid at the general price.
+  // Prices and the bKash number are kept with the site's other saved text (site_text):
+  //   pay.course.<id>   { paid, price, was }                    one entry: free or paid, price, previous price
+  //   pay.settings      { bkash, bkash_type, note, price, … }   where the fee is sent, and the older general price
+  // An entry with nothing saved is paid. The payments themselves — who sent which transaction id,
+  // and what an admin decided — are rows in the payments table (seed/website-backend-07-bkash-payments.sql).
   async function payLoad() {
     const rows = await run(sb.from('site_text').select('key,value').like('key', 'pay.%'));
-    const out = { settings: {}, course: {}, ok: {} };
+    const out = { settings: {}, course: {} };
     (rows && rows !== true ? rows : []).forEach((r) => {
       let v; try { v = JSON.parse(r.value); } catch (e) { return; }
       if (r.key === 'pay.settings') out.settings = v || {};
       else if (r.key.startsWith('pay.course.')) out.course[r.key.slice(11)] = v || {};
-      else if (r.key.startsWith('pay.ok.')) out.ok[r.key.slice(7)] = Array.isArray(v) ? v : [];
     });
     return out;
   }
@@ -439,7 +438,6 @@
     const paid = own.paid !== false;
     return { paid, priced: !paid || !!amount, label: !paid ? 'free' : amount ? money(amount) + (own.was ? ` · was ${money(own.was)}` : '') : 'paid — no price set' };
   };
-  const webLink = (v) => /^https?:\/\/\S+$/i.test(v);
 
   async function coursesView(courseId) {
     await checkAcademy();
@@ -453,9 +451,17 @@
     const ps = pay.settings;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
-    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. each row shows its price: press “make free” / “make paid” to switch, and “edit” to set the price, the previous price and the payment link. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
+    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. each row shows its price: press “make free” / “make paid” to switch, and “edit” to set the price and the previous price. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
       Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
       + setupNote()
+      + `<div class="h2"><span>// bkash — where learners send the fee</span>${ps.bkash ? '' : '<span class="badge" style="border-color:#f2b42e;color:#f2b42e;">not set — paid entries say “payment opens soon”</span>'}</div>
+      <form class="editor" id="bkash-form" style="margin-bottom:8px;"><div class="form-grid">
+        <label class="field"><span>bkash number</span><input name="bkash" inputmode="numeric" value="${esc(ps.bkash || '')}" placeholder="017XXXXXXXX" maxlength="17">
+          <small class="hint">shown on the payment page of every paid entry. learners send the fee here, then give you their transaction id — you confirm it on the learners screen.</small></label>
+        <label class="field"><span>what kind of bkash account is it</span><select name="bkash_type"><option value="personal"${ps.bkash_type === 'merchant' ? '' : ' selected'}>personal — learners use “send money”</option><option value="merchant"${ps.bkash_type === 'merchant' ? ' selected' : ''}>merchant — learners use “payment”</option></select>
+          <small class="hint">this decides which instruction learners are given. the wrong one makes payments fail in the bkash app.</small></label>
+        <label class="field field--wide"><span>anything else to tell learners on the payment page (optional)</span><textarea name="note" rows="2" placeholder="e.g. payments are checked every evening.">${esc(ps.note || '')}</textarea></label>
+      </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form>`
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>// ${TYPES[type]} — ${rowsOf(type).length}</span></div>
       <div class="rows">${rowsOf(type).map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
           <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}<span class="badge${feeOf(pay, c.id).priced ? ' badge--on' : ''}"${feeOf(pay, c.id).priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(feeOf(pay, c.id).label)}</span></strong>
@@ -463,6 +469,16 @@
           <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-fee title="${feeOf(pay, c.id).paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${feeOf(pay, c.id).paid ? 'make free' : 'make paid'}</button><button class="btn btn--sm" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
         </div>`).join('') || `<p class="empty">no ${TYPES[type]} yet.</p>`}</div>`).join('');
     $$('[data-new]', main).forEach((b) => b.addEventListener('click', () => courseEditor(null, null, b.dataset.new)));
+    $('#bkash-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(e.target));
+      let n = v.bkash.replace(/[^0-9]/g, ''); if (n.startsWith('880')) n = n.slice(2); if (n.length === 10 && n[0] === '1') n = '0' + n;
+      if (n && !/^01[3-9]\d{8}$/.test(n)) return toast('that does not look like a bkash number — it should be 11 digits, like 017XXXXXXXX', true);
+      if (n && n !== (ps.bkash || '') && !confirm(`learners will be told to send their fees to ${n.slice(0, 5)} ${n.slice(5)}.\n\ncheck every digit — money sent to a wrong number cannot be brought back.\n\nsave this number?`)) return;
+      // read the settings again first, so nothing saved elsewhere in the meantime is lost
+      const fresh = (await payLoad()).settings;
+      if (await paySave('pay.settings', { ...fresh, bkash: n, bkash_type: v.bkash_type === 'merchant' ? 'merchant' : 'personal', note: v.note.trim() }, n ? 'bkash details saved' : 'saved — without a number, paid entries say “payment opens soon”')) coursesView();
+    });
     main.onclick = async (e) => {
       const row = e.target.closest('.row'); if (!row) return;
       const c = courses.find((x) => x.id === row.dataset.id);
@@ -517,7 +533,6 @@
     const needs = academyReady ? '' : ' — needs setup';
     const pay = await payLoad();
     const own = pay.course[id] || {};
-    const usual = (() => { const n = {}; Object.values(pay.course).forEach((c) => { if (c.link) n[c.link] = (n[c.link] || 0) + 1; }); return Object.keys(n).sort((x, y) => n[y] - n[x])[0] || pay.settings.link || ''; })();
     const opt = (value, list) => list.map((o) => `<option${o === value ? ' selected' : ''}>${o}</option>`).join('');
     let content = null;
     // 'new:<module id>' means a blank form for a lesson that doesn't exist yet
@@ -563,14 +578,12 @@
         <label class="field"><span>start date and time (optional)${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
           <small class="hint">a webinar's date or a program's first day — shown on its card and page, in each visitor's own time. leave empty for something people can start any time.</small></label>
         <label class="field field--wide"><span>title</span><input name="title" required value="${esc(course.title)}"></label>
-        <label class="field"><span>free or paid</span><select name="pay_paid"><option value="1"${own.paid !== false ? ' selected' : ''}>paid — learners go to the payment page</option><option value="0"${own.paid === false ? ' selected' : ''}>free — anyone with an account can enrol</option></select></label>
+        <label class="field"><span>free or paid</span><select name="pay_paid"><option value="1"${own.paid !== false ? ' selected' : ''}>paid — learners pay by bkash, you confirm it</option><option value="0"${own.paid === false ? ' selected' : ''}>free — anyone with an account can enrol</option></select></label>
         <label class="field"><span>price learners pay now (the discounted price)</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
           <small class="hint">just the number — the currency (${esc(pay.settings.currency || '৳')}) is added for you. ${pay.settings.price ? `leave empty and it stays at ${esc(pay.settings.currency || '৳')}${esc(pay.settings.price)}, the price saved earlier for everything.` : 'a paid entry without a price just says “paid”.'}</small></label>
         <label class="field"><span>previous price — shown crossed out beside it (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
           <small class="hint">fill this in to show a discount, the way course sites do: the price above in bold, this one struck through, and the saving as “% off”. it has to be higher than the price above; leave it empty for no discount.</small></label>
         <div class="field"></div>
-        <label class="field field--wide"><span>payment link — the google sheet or form that “pay now” opens</span><input name="pay_link" value="${esc(own.link || usual)}" placeholder="https://docs.google.com/…">
-          <small class="hint">paste the share link, and make sure anyone with the link can open it. ${!own.link && usual ? 'this is the link your other entries use, filled in for you — it is saved when you save this entry. ' : ''}without a link, the “pay now” button says “payment opens soon”.</small></label>
         <label class="field field--wide"><span>one-line summary</span><input name="tagline" value="${esc(course.tagline || '')}"></label>
         <label class="field field--wide"><span>description</span><textarea name="description" rows="4">${esc(course.description || '')}</textarea></label>
         <label class="field"><span>category</span><input name="category" required value="${esc(course.category)}"></label>
@@ -653,12 +666,10 @@
       };
       if (academyReady) { row.kind = TYPES[v.kind] ? v.kind : 'course'; row.starts_at = fromLocalInput(v.starts_at); }
       else if (v.kind !== 'course' || v.starts_at) toast('saved as a course without a date — run seed/website-backend-05-academy.sql in supabase to switch programs, webinars and dates on', true);
-      const ownLink = v.pay_link.trim();
-      if (ownLink && !webLink(ownLink)) return toast('the payment link has to be a full web address starting with https://', true);
       const num = (x) => parseFloat(String(x).replace(/[^0-9.]/g, ''));
       const nowPrice = v.pay_price.trim(), wasPrice = v.pay_was.trim();
       if (wasPrice && !(num(wasPrice) > num(nowPrice || pay.settings.price))) return toast('the previous price has to be higher than the price learners pay now — or leave it empty', true);
-      const fee = { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice, link: ownLink };
+      const fee = { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice };
       if (id) { if ((await run(sb.from('courses').update(row).eq('id', id))) && (await paySave('pay.course.' + id, fee, 'saved'))) reload(); return; }
       const newId = slug(row.title);
       if (!newId) return toast('give the course a title first', true);
@@ -837,47 +848,106 @@
   }
 
   // ── learners ───────────────────────────────────────────────────────────────
+  // The number on the "learners" button: payments waiting to be checked.
+  async function payBadge() {
+    const btn = $('.admin-nav [data-view=learners]', app); if (!btn) return;
+    let n = 0;
+    try { const { data } = await sb.from('payments').select('id').eq('status', 'pending'); n = Array.isArray(data) ? data.length : 0; } catch (e) {}
+    btn.innerHTML = n ? `learners<span class="badge badge--on" style="margin-left:10px;">${n} to check</span>` : 'learners';
+  }
+
   async function learnersView() {
-    const [en, pr, courses, lessons, mods, pay] = await Promise.all([
+    const [en, pr, courses, lessons, mods, pay, pm] = await Promise.all([
       run(sb.from('enrollments').select('*').order('enrolled_at', { ascending: false })),
       run(sb.from('lesson_progress').select('user_id,course_id,lesson_id')),
       run(sb.from('courses').select('id,title')),
       run(sb.from('course_lessons').select('id,course_id,module_id,is_hidden')),
       run(sb.from('course_modules').select('id,is_hidden')),
       payLoad(),
+      run(sb.from('payments').select('*').order('created_at', { ascending: false })),
     ]);
     if (!en || !pr || !courses || !lessons || !mods) return;
-    const isPaid = (cid) => feeOf(pay, cid).paid;
-    const hasPaid = (r) => (pay.ok[r.course_id] || []).includes(r.user_id);
-    const waiting = (r) => isPaid(r.course_id) && !hasPaid(r);
-    const list = (x) => (x === true ? [] : x);
+    const list = (x) => (x === true || !x ? [] : x);
+    const payments = list(pm);
     const title = Object.fromEntries(list(courses).map((c) => [c.id, c.title]));
     const hiddenModule = new Set(list(mods).filter((m) => m.is_hidden).map((m) => m.id));
     const visible = new Set(list(lessons).filter((l) => !l.is_hidden && !hiddenModule.has(l.module_id)).map((l) => l.id));
     const total = (id) => list(lessons).filter((l) => l.course_id === id && visible.has(l.id)).length;
     const done = (u, c) => list(pr).filter((p) => p.user_id === u && p.course_id === c && visible.has(p.lesson_id)).length;
     const day = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+    const at = (d) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    const isPaid = (cid) => feeOf(pay, cid).paid;
+    // newest payment for a learner in an entry (the list is newest first)
+    const payOf = (u, c) => payments.find((p) => p.user_id === u && p.course_id === c);
+    const waiting = payments.filter((p) => p.status === 'pending').reverse();   // oldest first: first come, first checked
+    const decided = payments.filter((p) => p.status !== 'pending').slice(0, 40);
     const rows = list(en);
-    main.innerHTML = head('learners', 'everyone who has enrolled, most recent first. for anything paid, a learner appears here as soon as they press “pay now” — find their reference (the green code under their name) and bkash transaction in your payment sheet, then press “confirm payment”: every lesson unlocks for them. until then they can read the lesson titles but cannot open anything.')
-      + `<div class="tiles"><div><b>${new Set(rows.map((r) => r.user_id)).size}</b><span>learners</span></div><div><b>${rows.length}</b><span>enrolments</span></div><div><b>${rows.filter((r) => r.completed_at).length}</b><span>courses completed</span></div><div><b>${rows.filter(waiting).length}</b><span>payments to check</span></div></div>`
-      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>course</th><th>enrolled</th><th>payment</th><th>progress</th><th>completed</th><th></th></tr></thead><tbody>${rows.map((r) => {
+    const who = (p) => `<strong style="text-transform:none;">${esc(p.learner_name || '—')}</strong><span class="sub" style="text-transform:none;">${esc(p.learner_email || '')}</span>`;
+    const what = (p) => `${esc(title[p.course_id] || p.course_id)}${p.amount ? ` · <b style="color:var(--fg)">${esc(p.amount)}</b>` : ''}`;
+    const paidOpts = list(courses).filter((c) => isPaid(c.id)).map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
+
+    main.innerHTML = head('learners', 'payments to check come first: a learner pays by bkash, then sends the number they paid from and the transaction id. find that transaction in your bkash app or statement, then confirm it here — their lessons unlock straight away.')
+      + `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));"><div><b>${waiting.length}</b><span>payments to check</span></div><div><b>${new Set(rows.map((r) => r.user_id)).size}</b><span>learners</span></div><div><b>${rows.length}</b><span>enrolments</span></div><div><b>${rows.filter((r) => r.completed_at).length}</b><span>completed</span></div></div>`
+
+      + `<div class="h2"><span>// payments to check — ${waiting.length}</span></div>
+      <div class="rows">${waiting.map((p) => `<div class="row row--plain row--pay" data-pid="${p.id}" style="align-items:center;">
+          <div>${who(p)}<span class="sub">${what(p)} · sent ${at(p.created_at)}</span></div>
+          <div class="pay-check"><div><small>transaction id</small><code>${esc(p.trx_id)}</code><button class="linkish" data-copy="${esc(p.trx_id)}">copy</button></div><div><small>paid from</small><code>${esc(p.sender)}</code></div></div>
+          <div class="row-actions"><button class="btn btn--sm btn--solid" data-review="confirmed">confirm</button><button class="btn btn--sm btn--danger" data-review="rejected">reject</button></div>
+        </div>`).join('') || '<p class="empty">nothing waiting. when a learner submits a bkash transaction id, it appears here.</p>'}</div>
+      <p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted);">confirm only when the transaction id, the amount and the sending number all match what you see in bkash. if something does not match, reject it — the learner is told and can enter it again.</p>`
+
+      + `<div class="h2"><span>// give access without a bkash payment</span></div>
+      <form class="editor" id="grant-form"><div class="form-grid">
+        <label class="field"><span>the learner's email (they must have signed in on the site once)</span><input name="email" type="email" required placeholder="name@gmail.com"></label>
+        <label class="field"><span>which entry</span><select name="course" required>${paidOpts || '<option value="">no paid entries</option>'}</select></label>
+      </div><div class="editor-foot"><button class="btn" type="submit"${paidOpts ? '' : ' disabled'}>give access</button><span style="font-size:13px;color:var(--muted);">for someone who paid in cash, a scholarship, or a team member.</span></div></form>`
+
+      + (decided.length ? `<div class="h2"><span>// decided — the last ${decided.length}</span></div>
+      <div class="rows">${decided.map((p) => `<div class="row row--plain row--pay" data-pid="${p.id}" style="align-items:center;">
+          <div>${who(p)}<span class="sub">${what(p)}</span></div>
+          <div class="pay-check"><div><small>${p.method === 'manual' ? 'given by hand' : 'transaction id'}</small><code>${p.method === 'manual' ? '—' : esc(p.trx_id)}</code></div>
+            <div><small>${p.status} ${p.reviewed_at ? at(p.reviewed_at) : ''}</small><span style="font-size:12px;color:var(--muted);text-transform:none;">${esc(p.reviewed_by || '')}${p.note ? ' — “' + esc(p.note) + '”' : ''}</span></div></div>
+          <div class="row-actions"><span class="badge${p.status === 'confirmed' ? ' badge--on' : ''}" style="margin:0 6px 0 0;">${p.status}</span>${p.status === 'confirmed' ? '<button class="btn btn--sm" data-review="rejected">take back</button>' : '<button class="btn btn--sm" data-review="confirmed">confirm after all</button>'}</div>
+        </div>`).join('')}</div>` : '')
+
+      + `<div class="h2"><span>// everyone enrolled — ${rows.length}</span></div>`
+      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>entry</th><th>enrolled</th><th>payment</th><th>progress</th><th>completed</th><th></th></tr></thead><tbody>${rows.map((r) => {
         const t = total(r.course_id), d = Math.min(done(r.user_id, r.course_id), t), pct = t ? Math.round((d / t) * 100) : 0;
-        return `<tr><td><strong>${esc(r.learner_name || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}</span>${isPaid(r.course_id) ? `<br><code title="the reference this learner was asked to write in the payment sheet" style="font-size:11px;color:var(--green);">${esc(('AC-' + r.user_id.replace(/-/g, '').slice(0, 6) + '-' + r.course_id.replace(/[^a-z0-9]/gi, '').slice(0, 5)).toUpperCase())}</code>` : ''}</td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${!isPaid(r.course_id) ? '<span class="badge">free</span>' : hasPaid(r) ? `<span class="badge badge--on">paid</span><br><button class="linkish" data-pay="0|${r.user_id}|${esc(r.course_id)}">undo</button>` : `<span class="badge">waiting</span><br><button class="btn btn--sm btn--solid" style="margin-top:8px;" data-pay="1|${r.user_id}|${esc(r.course_id)}">confirm payment</button>`}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
+        const p = payOf(r.user_id, r.course_id);
+        const state = !isPaid(r.course_id) ? '<span class="badge">free</span>' : !p ? '<span class="badge">no payment</span>' : `<span class="badge${p.status === 'confirmed' ? ' badge--on' : ''}">${p.status === 'confirmed' ? (p.method === 'manual' ? 'given by hand' : 'paid') : p.status === 'pending' ? 'to check' : 'rejected'}</span>`;
+        return `<tr><td><strong>${esc(r.learner_name || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}</span></td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${state}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
       }).join('')}</tbody></table></div>` : '<p class="empty">no one has enrolled yet.</p>');
+
+    $('#grant-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(e.target));
+      if (!confirm(`give ${v.email.trim()} full access to “${title[v.course] || v.course}” without a bkash payment?`)) return;
+      if (await run(sb.rpc('grant_course_access', { p_email: v.email.trim(), p_course: v.course }), 'access given — their lessons are unlocked')) { payBadge(); learnersView(); }
+    });
     main.onclick = async (e) => {
-      const p = e.target.closest('[data-pay]');
-      if (p) {
-        const [on, uid, cid] = p.dataset.pay.split('|');
-        // read the list again first, so two admins confirming at once don't overwrite each other
-        const fresh = (await payLoad()).ok[cid] || [];
-        const next = on === '1' ? [...new Set([...fresh, uid])] : fresh.filter((x) => x !== uid);
-        if (await paySave('pay.ok.' + cid, next, on === '1' ? 'payment confirmed — the lessons are unlocked for this learner' : 'payment confirmation removed')) learnersView();
+      const copy = e.target.closest('[data-copy]');
+      if (copy) { try { await navigator.clipboard.writeText(copy.dataset.copy); toast('transaction id copied'); } catch (err) { prompt('copy this', copy.dataset.copy); } return; }
+      const rv = e.target.closest('[data-review]');
+      if (rv) {
+        const p = payments.find((x) => x.id === rv.closest('[data-pid]').dataset.pid), to = rv.dataset.review;
+        let note = null;
+        if (to === 'rejected') {
+          note = prompt(p.status === 'confirmed' ? 'this closes the lessons for this learner again. reason (they will see it):' : 'reason — the learner will see this, so they know what to fix:',
+            p.status === 'confirmed' ? 'this payment could not be verified after all. please contact us.' : 'we could not find this transaction id in our bkash account. please check it and enter it again.');
+          if (note === null) return;
+        } else if (!confirm(`confirm ${p.amount || 'this payment'} from ${p.sender} (${p.trx_id}) for ${p.learner_name || p.learner_email}?\n\nonly confirm if you can see this transaction in bkash. their lessons unlock immediately.`)) return;
+        rv.disabled = true;
+        const { error } = await sb.rpc('review_payment', { p_payment: p.id, p_status: to, p_note: note });
+        if (error) { rv.disabled = false; return toast(/payments_trx_once/.test(error.message) ? 'another payment is already using this transaction id, so this one cannot be confirmed as well.' : /payments_one_open/.test(error.message) ? 'this learner already has a newer payment for this entry — decide on that one instead.' : error.message, true); }
+        toast(to === 'confirmed' ? 'confirmed — the lessons are unlocked for this learner' : 'rejected — the learner will see your reason');
+        payBadge(); learnersView();
         return;
       }
       const b = e.target.closest('[data-unenrol]'); if (!b) return;
       const [uid, cid] = b.dataset.unenrol.split('|');
-      if (!confirm('remove this learner from the course? their lesson progress is kept, so re-enrolling restores it.')) return;
-      if (await run(sb.from('enrollments').delete().eq('user_id', uid).eq('course_id', cid), 'removed from the course')) learnersView();
+      if (!confirm('remove this learner from the entry\'s list? their lesson progress is kept. (this does not change a payment — use “take back” above for that.)')) return;
+      if (await run(sb.from('enrollments').delete().eq('user_id', uid).eq('course_id', cid), 'removed from the list')) learnersView();
     };
   }
 
@@ -897,7 +967,9 @@
     // one thing: website sign-ups are confirmed through an emailed link. If the
     // project stops requiring that link, or lets people in through another
     // provider, the two look the same — so the rule is switched off on the spot.
-    const others = auth && auth.external ? Object.keys(auth.external).filter((k) => auth.external[k] && k !== 'email') : [];
+    // (Google is how learners sign in, and the database already treats every Google account
+    // as a learner — it can never be given admin access — so it does not count here.)
+    const others = auth && auth.external ? Object.keys(auth.external).filter((k) => auth.external[k] && k !== 'email' && k !== 'google') : [];
     const unsafe = auth ? [auth.mailer_autoconfirm && '“confirm email” is turned off', others.length && `sign-in with ${others.join(', ')} is turned on`].filter(Boolean) : [];
     if (auto && unsafe.length) {
       const { error } = await sb.from('site_settings').update({ value: false }).eq('key', 'auto_admin');

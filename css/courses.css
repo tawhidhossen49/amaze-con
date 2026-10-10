@@ -696,3 +696,38 @@ button.btn-primary, button.btn-outline { font-family: var(--font-sans); }
 .btn-google:hover { background: #e9f9f1; border-color: var(--green); transform: translateY(-1px); }
 .btn-google:disabled { opacity: 0.6; cursor: default; transform: none; }
 .dialog-small { margin-top: 18px; font-size: 12px; line-height: 1.6; color: var(--faint); }
+
+/* payment page: bkash details, the two-box form, what was sent */
+.pay-bkash { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); margin-bottom: 26px; border: 1px solid rgba(46,242,162,0.45); background: rgba(46,242,162,0.06); }
+.pay-bkash > div { padding: clamp(18px, 2.2vw, 26px); min-width: 0; }
+.pay-bkash > div + div { border-left: 1px solid rgba(46,242,162,0.3); }
+.pay-bkash span { display: block; font: 400 10px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--faint); }
+.pay-bkash strong { display: block; margin: 12px 0 10px; font-size: clamp(26px, 3.2vw, 42px); font-weight: 700; line-height: 1; letter-spacing: -0.03em; color: var(--green); font-variant-numeric: tabular-nums; white-space: nowrap; user-select: all; }
+.pay-who--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin-bottom: 4px; }
+.form-2 .field { margin-top: 0; }
+#pay-form .field input { font-size: 17px; }
+#pay-form .btn-primary { margin-top: 20px; }
+#pay-form .btn-primary:disabled { opacity: 0.45; cursor: default; }
+#pay-form.is-off { opacity: 0.55; }
+#pay-form .hint { display: block; margin-top: 14px; }
+#pay-form .dialog-msg { margin-top: 16px; }
+.pay-status.is-bad { border-color: #f2b42e; background: rgba(242,180,46,0.07); }
+.pay-status a { color: var(--green); }
+.pay-sent { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 20px 0 16px; border: 1px solid var(--line); }
+.pay-sent > div { padding: 14px 16px; min-width: 0; }
+.pay-sent > div + div { border-left: 1px solid var(--line); }
+.pay-sent dt { margin-bottom: 8px; font: 400 10px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--faint); }
+.pay-sent dd { margin: 0; font-size: 14px; font-weight: 700; text-transform: lowercase; overflow-wrap: anywhere; }
+.pay-sent code { font: 700 14px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.06em; text-transform: none; color: var(--green); }
+@media (max-width: 720px) {
+  .pay-bkash, .form-2, .pay-who--2 { grid-template-columns: 1fr; }
+  /* long button labels wrap instead of pushing the page wider than the screen */
+  .pay .btn-primary { max-width: 100%; white-space: normal; text-align: left; }
+  .pay .btn-primary .btn-arrow { flex: none; }
+  .pay-bkash > div + div { border-left: 0; border-top: 1px solid rgba(46,242,162,0.3); }
+  .form-2 .field + .field { margin-top: 18px; }
+  .pay-sent { grid-template-columns: 1fr 1fr; }
+  .pay-sent > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .pay-sent > div:nth-child(odd) { border-left: 0; }
+}

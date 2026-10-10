@@ -45,7 +45,7 @@
     return day(d);
   };
 
-  const S = { user: null, name: '', admin: false, preview: false, sample: null, courses: [], modules: [], lessons: [], numbers: {}, enrolled: {}, done: {}, certs: {}, pay: { settings: {}, course: {}, ok: {} } };
+  const S = { user: null, name: '', admin: false, preview: false, sample: null, courses: [], modules: [], lessons: [], numbers: {}, enrolled: {}, done: {}, certs: {}, payments: {}, pay: { settings: {}, course: {} } };
 
   // ── data ───────────────────────────────────────────────────────────────────
   async function loadOutline() {
@@ -73,7 +73,6 @@
         let v; try { v = JSON.parse(r.value); } catch (e) { return; }
         if (r.key === 'pay.settings') S.pay.settings = v || {};
         else if (r.key.startsWith('pay.course.')) S.pay.course[r.key.slice(11)] = v || {};
-        else if (r.key.startsWith('pay.ok.')) S.pay.ok[r.key.slice(7)] = Array.isArray(v) ? v : [];
       });
     } catch (e) {
       S.preview = true;
@@ -109,11 +108,13 @@
       if (!error) local.set(LOCAL_PROGRESS, {});
     }
 
-    const [en, pr, ce] = await Promise.all([
+    const [en, pr, ce, pm] = await Promise.all([
       soft(sb.from('enrollments').select('course_id,enrolled_at,completed_at')),
       soft(sb.from('lesson_progress').select('lesson_id')),
       soft(sb.from('certificates').select('id,course_id').eq('user_id', S.user.id)),
+      soft(sb.from('payments').select('*').eq('user_id', S.user.id).order('created_at')),
     ]);
+    pm.forEach((r) => { S.payments[r.course_id] = r; });   // oldest first, so the newest wins
     S.done = {};   // a signed-in learner's record is the account's, not the device's
     en.forEach((r) => { S.enrolled[r.course_id] = r; });
     pr.forEach((r) => { S.done[r.lesson_id] = true; });
@@ -131,7 +132,8 @@
   // ── payment ────────────────────────────────────────────────────────────────
   // Every entry is paid unless the admin panel marks it free. The price is the
   // entry's own, or the general one from the payment settings. A learner has
-  // access to a paid entry once an admin has confirmed their payment.
+  // access to a paid entry once an admin has confirmed their bKash payment
+  // (the payments table; the database enforces the same rule).
   function fee(course) {
     if (S.preview) return { paid: false, label: 'free', amount: '', link: '', was: '', off: 0, saved: '' };
     const own = S.pay.course[course.id] || {}, all = S.pay.settings;
@@ -150,7 +152,9 @@
   }
   // the price as it is written on a card or a page: what you pay, with the earlier price crossed out after it
   const priceTag = (course) => { const f = fee(course); return `<strong>${esc(f.label)}</strong>${f.was ? `<s>${esc(f.was)}</s>` : ''}`; };
-  const paidUp = (course) => !fee(course).paid || S.admin || (!!S.user && (S.pay.ok[course.id] || []).includes(S.user.id));
+  // '' (nothing sent) | 'pending' (being checked) | 'rejected' | 'confirmed'
+  const payState = (course) => (S.payments[course.id] || {}).status || '';
+  const paidUp = (course) => !fee(course).paid || S.admin || payState(course) === 'confirmed';
   // has started for real — someone still waiting for their payment to be confirmed has not
   const started = (course) => paidUp(course) && (!!S.enrolled[course.id] || stats(course).done > 0);
   const length = (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${min % 60 ? (min % 60) + 'm' : ''}`.trim() : `${min} min`);
@@ -668,7 +672,7 @@
     const price = fee(course), mustPay = price.paid && !paidUp(course);
     if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
     // a paid entry: "enrol now" leads to the payment page; while a payment is being checked it says so
-    else if (mustPay) action = `<a class="btn-primary" href="pay.html?c=${enc(course.id)}">${S.enrolled[course.id] ? 'payment being checked' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !S.enrolled[course.id] ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
+    else if (mustPay) action = `<a class="btn-primary" href="pay.html?c=${enc(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
     else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the ' + noun : noun === 'webinar' ? 'open the webinar' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
     else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enrol — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enrol'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
@@ -747,9 +751,9 @@
             ${bullets('what you will be able to do', course.outcomes)}
             ${(course.tags || []).length ? `<div class="course-block rise"><h2>// skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
             <div class="course-block rise"><h2>// curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
-              ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${S.enrolled[course.id] ? 'your payment is being checked.' : `the lessons open once you have enrolled and paid.`}</strong>
-                <p>${S.enrolled[course.id] ? 'as soon as we confirm it, every lesson below unlocks for your account.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
-                <a class="btn-primary" href="pay.html?c=${enc(course.id)}">${S.enrolled[course.id] ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
+              ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${payState(course) === 'pending' ? 'your payment is being checked.' : payState(course) === 'rejected' ? 'we could not confirm your payment.' : `the lessons open once you have enrolled and paid.`}</strong>
+                <p>${payState(course) === 'pending' ? 'as soon as we confirm it, every lesson below unlocks for your account.' : payState(course) === 'rejected' ? 'open the payment page to see why, and enter your transaction id again.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
+                <a class="btn-primary" href="pay.html?c=${enc(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
               ${outline(course, null, false) || '<p class="lms-empty">lessons are being added.</p>'}</div>
             ${bullets('before you start', course.requirements, 'plain-list')}
             ${bullets(`who this ${noun} is for`, course.audience, 'plain-list')}
@@ -817,7 +821,7 @@
 
     let bodyHtml;
     if (payLocked) {
-      const waiting = !!S.enrolled[course.id];
+      const waiting = payState(course) === 'pending';
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
         <p>${waiting ? 'as soon as it is confirmed, every lesson here unlocks for your account by itself.' : `enrol to unlock every lesson, the live classes, your notes and the certificate. the fee is ${fee(course).label}.`}</p>
         <div class="hero-buttons"><a class="btn-primary" href="pay.html?c=${enc(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
@@ -1043,12 +1047,12 @@
   }
 
   // ── view: payment ──────────────────────────────────────────────────────────
-  // Where "enrol now" on a paid course, program or webinar leads. It shows what
-  // is being bought and what it costs, and its "pay now" button opens the
-  // payment form set in the admin panel (academy → payment settings) in a new
-  // tab. Pressing it also records the learner against the course, so the team
-  // can see who to expect; the lessons open once an admin confirms the payment
-  // (admin panel → learners).
+  // Where "enrol now" on a paid course, program or webinar leads. The learner
+  // sends the fee by bKash to the number set in the admin panel, then types the
+  // number they paid from and the bKash transaction id here. That is saved as a
+  // payment "being checked"; an admin confirms or rejects it (admin panel →
+  // learners) and the lessons open the moment it is confirmed. The database
+  // enforces all of it — see seed/website-backend-07-bkash-payments.sql.
   async function payPage() {
     const root = $('#pay-root');
     const course = S.courses.find((c) => c.id === params.get('c'));
@@ -1057,48 +1061,81 @@
     const back = `course.html?c=${enc(course.id)}`;
     if (!f.paid) { location.replace(back); return; }
     document.title = `enrol — ${course.title} — amaze consortium`;
-    const link = /^https?:\/\//i.test(f.link) ? f.link : '';
-    // a short code the learner quotes in the payment form, so a payment can be matched to an account
-    const ref = S.user ? ('AC-' + S.user.id.replace(/-/g, '').slice(0, 6) + '-' + course.id.replace(/[^a-z0-9]/gi, '').slice(0, 5)).toUpperCase() : '';
+    const set = S.pay.settings;
+    const number = String(set.bkash || '').replace(/[^0-9+]/g, '');
+    const merchant = set.bkash_type === 'merchant';
     const LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5"/><path d="M5.2 7V4.8a2.8 2.8 0 0 1 5.6 0V7"/></svg>';
     const cover = course.cover ? `<img src="${esc(imageUrl(course.cover))}" alt="">`
       : `<span class="feat-blank"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="${CREST}"/></svg><b>${esc(course.category)}</b></span>`;
+    // 017 0000 0000 reads more easily than 01700000000, and is what people check digit by digit
+    const spaced = (n) => (/^01\d{9}$/.test(n) ? `${n.slice(0, 5)} ${n.slice(5)}` : n);
+    const hide = (n) => (n && n.length > 6 ? n.slice(0, 3) + '•'.repeat(n.length - 6) + n.slice(-3) : n || '');
+    // what was typed, tidied the way the database will store it — or the reason it can't be right
+    const readSender = (v) => { let n = String(v).replace(/[^0-9]/g, ''); if (n.startsWith('880')) n = n.slice(2); if (n.length === 10 && n[0] === '1') n = '0' + n; return /^01[3-9]\d{8}$/.test(n) ? n : ''; };
+    const readTrx = (v) => { const t = String(v).replace(/\s/g, '').toUpperCase(); return /^[A-Z0-9]{8,12}$/.test(t) ? t : ''; };
+    let draft = { sender: '', trx: '' }, problem = '', busy = false;
 
     function draw() {
-      const state = !S.user ? 'guest' : S.admin ? 'admin' : paidUp(course) ? 'paid' : S.enrolled[course.id] ? 'pending' : 'new';
-      const step = { guest: 1, new: 2, admin: 2, pending: 3, paid: 4 }[state];
-      const steps = [['account', 'sign in or create one'], ['payment', 'pay through our form'], ['confirmation', 'we unlock your place']]
+      const mine = S.payments[course.id];
+      const state = !S.user ? 'guest' : S.admin ? 'admin' : paidUp(course) ? 'paid' : mine && mine.status === 'pending' ? 'pending' : mine && mine.status === 'rejected' ? 'rejected' : 'new';
+      const step = { guest: 1, new: 2, rejected: 2, admin: 2, pending: 3, paid: 4 }[state];
+      const steps = [['account', 'sign in with google'], ['payment', 'send the fee by bkash'], ['confirmation', 'we check it and unlock']]
         .map(([name, sub], i) => `<li class="${i + 1 < step ? 'is-done' : i + 1 === step ? 'is-on' : ''}"><b>${i + 1 < step ? '✓' : pad2(i + 1)}</b><div><strong>${name}</strong><span>${sub}</span></div></li>`).join('');
-
-      const account = state === 'guest'
-        ? `<p class="pay-lead">you need a learner account before you pay, so the ${type} can be unlocked for you and your progress and certificate have somewhere to live. it is free and takes a minute.</p>
-           <div class="hero-buttons" style="justify-content:flex-start;"><button class="btn-primary" type="button" data-auth="signup">create a free account <span class="btn-arrow" aria-hidden="true">→</span></button>
-           <button class="btn-outline" type="button" data-auth="signin">i already have one <span class="btn-arrow" aria-hidden="true">→</span></button></div>`
-        : `<dl class="pay-who"><div><dt>name</dt><dd>${esc(S.name || '—')}</dd></div><div><dt>email</dt><dd style="text-transform:none;">${esc(S.user.email)}</dd></div>
-           <div><dt>your reference</dt><dd><code id="pay-ref">${ref}</code><button class="linkish" type="button" id="pay-copy">copy</button></dd></div></dl>
-           <p class="hint">quote this reference in the payment form — it is how we match your payment to this account.</p>`;
+      const open = !!number;   // the admin has said where the money goes
 
       const status = state === 'paid'
         ? `<div class="pay-status is-ok"><strong>payment confirmed — you are in.</strong><p>everything in this ${type} is unlocked for your account.</p>
             <a class="btn-primary" href="${st.next ? `learn.html?c=${enc(course.id)}&l=${st.next.id}` : back}">start learning <span class="btn-arrow" aria-hidden="true">→</span></a></div>`
         : state === 'pending'
-          ? `<div class="pay-status"><strong>thank you — we are checking your payment.</strong><p>once it is confirmed, this ${type} unlocks by itself and appears under “my learning”. this usually takes less than a day. if you have not finished paying yet, the button on the right opens the form again.</p></div>`
-          : state === 'admin'
-            ? '<div class="pay-status"><strong>you are signed in with an admin login.</strong><p>this is the page learners see. admins can open every lesson without paying; nothing is recorded when you press the button.</p></div>'
-            : '';
+          ? `<div class="pay-status"><strong>thank you — we are checking your payment.</strong>
+              <p>we match it against our bkash account by hand, usually within a day. the moment it is confirmed, this ${type} unlocks by itself — you do not need to do anything else, and you can close this page.</p>
+              <dl class="pay-sent"><div><dt>transaction id</dt><dd><code>${esc(mine.trx_id)}</code></dd></div><div><dt>paid from</dt><dd>${esc(hide(mine.sender))}</dd></div><div><dt>amount</dt><dd>${esc(mine.amount || f.label)}</dd></div><div><dt>sent to us</dt><dd>${ago(mine.created_at)}</dd></div></dl>
+              <button class="linkish" type="button" id="pay-redo">i typed something wrong — let me correct it</button></div>`
+          : state === 'rejected'
+            ? `<div class="pay-status is-bad"><strong>we could not confirm that payment.</strong>
+                <p>${esc(mine.note || 'the transaction id did not match a payment in our bkash account.')}</p>
+                <p>check the transaction id in your bkash app or the confirmation sms and enter it again below. if you are sure it is right, write to <a href="mailto:learn@amazeconsortium.org">learn@amazeconsortium.org</a> with a screenshot.</p></div>`
+            : state === 'admin'
+              ? '<div class="pay-status"><strong>you are signed in with an admin login.</strong><p>this is the page learners see. admins can open every lesson without paying, so the form below is switched off for you.</p></div>'
+              : '';
 
-      const how = [
-        ['press “pay now”', 'our payment sheet opens in a new tab. this page stays open.'],
-        ['send the fee by bkash', `the sheet shows our bkash number. send ${f.amount ? esc(f.label) : 'the fee'}, then enter your name${ref ? ', your reference' : ''} and the bkash transaction id in the sheet.`],
-        ['we confirm, the lessons unlock', `once we have matched your payment, the full curriculum and every lesson of the ${type} open for your account — no code to enter.`],
-      ].map(([t, d], i) => `<li><b>${pad2(i + 1)}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('');
+      const account = state === 'guest'
+        ? `<p class="pay-lead">sign in first, so the ${type} can be unlocked for you and your progress and certificate have somewhere to live. it takes one click.</p>
+           <div class="hero-buttons" style="justify-content:flex-start;"><button class="btn-primary" type="button" data-auth="signin">continue with google <span class="btn-arrow" aria-hidden="true">→</span></button></div>`
+        : `<dl class="pay-who pay-who--2"><div><dt>name</dt><dd>${esc(S.name || '—')}</dd></div><div><dt>email</dt><dd style="text-transform:none;">${esc(S.user.email)}</dd></div></dl>
+           <p class="hint">the ${type} is unlocked for this account. not you? use the button at the top right to sign out.</p>`;
 
-      const canPay = !!link && state !== 'guest' && state !== 'paid';
-      const button = state === 'paid' ? ''
-        : canPay ? `<a class="btn-primary pay-now" id="pay-now" href="${esc(link)}" target="_blank" rel="noopener noreferrer">${state === 'pending' ? 'open the payment form again' : 'pay now'} <span class="btn-arrow" aria-hidden="true">↗</span></a>`
-          : `<span class="btn-primary pay-now is-off" aria-disabled="true">${state === 'guest' ? 'sign in to pay' : 'payment opens soon'} <span class="btn-arrow" aria-hidden="true">→</span></span>`;
-      const under = state === 'paid' ? '' : !link ? `<p class="pay-fine">payments for this ${type} are not open yet. write to <a href="mailto:learn@amazeconsortium.org">learn@amazeconsortium.org</a> and we will sort it out.</p>`
-        : `<p class="pay-fine">${LOCK}<span>you pay on our own payment form, not on this page. your place is confirmed once the payment has been checked.</span></p>`;
+      const how = !open
+        ? `<p class="pay-lead">payments for this ${type} are not open yet. write to <a href="mailto:learn@amazeconsortium.org" style="color:var(--green)">learn@amazeconsortium.org</a> and we will sort it out.</p>`
+        : `<div class="pay-bkash">
+             <div><span>bkash number${merchant ? ' (merchant)' : ' (personal)'}</span><strong id="pay-number">${esc(spaced(number))}</strong><button class="linkish" type="button" data-copy="${esc(number)}">copy number</button></div>
+             <div><span>amount to send</span><strong>${esc(f.label)}</strong>${f.amount ? `<button class="linkish" type="button" data-copy="${esc(f.amount)}">copy amount</button>` : ''}</div>
+           </div>
+           <ol class="pay-how">${[
+             ['open the bkash app', `or dial *247# on any phone.`],
+             [merchant ? 'choose “payment”' : 'choose “send money”', `enter the number above${merchant ? '' : ' — it is a personal number, so “send money”, not “payment”'}.`],
+             [`send ${f.amount ? esc(f.label) : 'the fee'}`, 'the exact amount, in one go. confirm with your pin.'],
+             ['keep the transaction id', 'bkash shows it on the confirmation screen and in the sms, as “TrxID” — ten letters and numbers, like 9FA5LK2B3C. you need it for the next step.'],
+           ].map(([t, d], i) => `<li><b>${pad2(i + 1)}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('')}</ol>
+           ${set.note ? `<div class="pay-note"><span class="lesson-kicker">from us</span><div class="prose">${markdown(set.note)}</div></div>` : ''}`;
+
+      const canSend = open && (state === 'new' || state === 'rejected');
+      const form = state === 'pending' || state === 'paid' ? '' : `
+        <form id="pay-form" novalidate${canSend ? '' : ' class="is-off"'}>
+          <div class="form-2">
+            <label class="field"><span>the bkash number you paid from</span><input name="sender" inputmode="numeric" autocomplete="tel" placeholder="017XXXXXXXX" maxlength="17" value="${esc(draft.sender)}"${canSend ? '' : ' disabled'}></label>
+            <label class="field"><span>transaction id (trxid)</span><input name="trx" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="9FA5LK2B3C" maxlength="14" style="text-transform:uppercase;font-family:ui-monospace,Consolas,monospace;letter-spacing:0.08em;" value="${esc(draft.trx)}"${canSend ? '' : ' disabled'}></label>
+          </div>
+          ${problem ? `<p class="dialog-msg is-error" role="alert">${esc(problem)}</p>` : ''}
+          <button class="btn-primary" type="submit"${canSend && !busy ? '' : ' disabled'}>${busy ? 'sending…' : 'submit for confirmation'} <span class="btn-arrow" aria-hidden="true">→</span></button>
+          <p class="hint">only submit after the money has left your bkash account. one transaction id works once.</p>
+        </form>`;
+
+      const sideButton = state === 'paid' ? ''
+        : state === 'guest' ? '<button class="btn-primary pay-now" type="button" data-auth="signin">sign in to continue <span class="btn-arrow" aria-hidden="true">→</span></button>'
+          : state === 'pending' ? '<span class="btn-primary pay-now is-off" aria-disabled="true">payment being checked <span class="btn-arrow" aria-hidden="true">✓</span></span>'
+            : canSend ? '<a class="btn-primary pay-now" href="#pay-form">enter my transaction id <span class="btn-arrow" aria-hidden="true">↓</span></a>'
+              : `<span class="btn-primary pay-now is-off" aria-disabled="true">${state === 'admin' ? 'admin preview' : 'payment opens soon'} <span class="btn-arrow" aria-hidden="true">→</span></span>`;
 
       root.innerHTML = `<section class="pay"><div class="pay-inner">
         ${notice()}
@@ -1110,15 +1147,9 @@
           <div class="pay-main rise rise-3">
             ${status}
             <div class="pay-panel"><h2><small>01</small>your account</h2>${account}</div>
-            <div class="pay-panel"><h2><small>02</small>how payment works</h2><ol class="pay-how">${how}</ol>
-              ${S.pay.settings.note ? `<div class="pay-note"><span class="lesson-kicker">payment instructions</span><div class="prose">${markdown(S.pay.settings.note)}</div></div>` : ''}</div>
-            <div class="pay-panel"><h2><small>03</small>what you get</h2>
-              <ul class="pay-gets">
-                <li>every lesson in the ${type}${st.count ? ` — ${st.count} in all` : ''}</li>
-                ${st.lessons.some((l) => l.kind === 'live') ? '<li>the live classes, with the link to join and the recording afterwards</li>' : ''}
-                <li>your own notes and the q&amp;a on every lesson</li>
-                <li>a certificate with your name on it when you finish</li>
-              </ul></div>
+            ${state === 'paid' ? '' : `<div class="pay-panel"><h2><small>02</small>send the fee by bkash</h2>${how}</div>`}
+            ${form ? `<div class="pay-panel" id="pay-tell"><h2><small>03</small>tell us you have paid</h2>
+              <p class="pay-lead">once the money is sent, enter these two things. we use them to find your payment — nothing else is needed.</p>${form}</div>` : ''}
           </div>
           <aside class="pay-side rise rise-4"><div class="pay-card">
             <div class="pay-cover">${cover}<span class="pay-type">${type}</span></div>
@@ -1132,21 +1163,67 @@
                 <li><span>level</span><b>${esc(course.level)}</b></li>
               </ul>
               <div class="pay-lines"><div><span>${type} fee</span><b>${esc(f.was || f.label)}</b></div>${f.was ? `<div class="pay-cut"><span>discount · ${f.off}% off</span><b>− ${esc(f.saved)}</b></div>` : ''}<div class="pay-total"><span>total to pay</span><b>${esc(f.label)}</b></div></div>
-              ${button}${under}
+              ${sideButton}
+              ${state === 'paid' ? '' : `<p class="pay-fine">${LOCK}<span>you pay in your own bkash app — we never ask for your pin or password. your place is confirmed once we have checked the payment.</span></p>`}
             </div>
           </div></aside>
         </div>
       </div></section>`;
 
       $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
-      const copy = $('#pay-copy', root);
-      if (copy) copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(ref); copy.textContent = 'copied'; } catch (e) { prompt('copy your reference', ref); } });
-      const now = $('#pay-now', root);
-      // the link itself opens the form (so no pop-up blocker gets in the way); alongside it the learner is put on the course list as awaiting payment
-      if (now) now.addEventListener('click', async () => {
-        if (S.admin || S.enrolled[course.id]) return;
-        const { error } = await sb.from('enrollments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name, learner_email: S.user.email });
-        if (!error || /duplicate/i.test(error.message)) { S.enrolled[course.id] = { course_id: course.id, completed_at: null }; draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      $$('[data-copy]', root).forEach((b) => b.addEventListener('click', async () => {
+        const was = b.textContent;
+        try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'copied'; } catch (e) { prompt('copy this', b.dataset.copy); }
+        setTimeout(() => { b.textContent = was; }, 1600);
+      }));
+      const jump = $('a.pay-now[href="#pay-form"]', root);
+      if (jump) jump.addEventListener('click', (e) => { e.preventDefault(); $('#pay-tell', root).scrollIntoView({ behavior: 'smooth', block: 'center' }); const i = $('#pay-form [name=sender]', root); if (i) setTimeout(() => i.focus({ preventScroll: true }), 500); });
+
+      const pf = $('#pay-form', root);
+      if (pf && canSend) pf.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        const v = new FormData(pf);
+        draft = { sender: String(v.get('sender')).trim(), trx: String(v.get('trx')).trim() };
+        const sender = readSender(draft.sender), trx = readTrx(draft.trx);
+        problem = !draft.sender || !draft.trx ? 'fill in both boxes: the number you paid from, and the transaction id.'
+          : !sender ? 'that does not look like a bkash number. enter the 11-digit number you paid from, for example 017XXXXXXXX.'
+            : sender === readSender(number) ? 'that is our number. enter the number you sent the money from.'
+              : !trx ? 'that does not look like a bkash transaction id. it is about ten letters and numbers with no spaces, for example 9FA5LK2B3C — you will find it in the bkash sms as “TrxID”.'
+                : '';
+        if (problem) { draw(); return; }
+        busy = true; draw();
+        const { data, error } = await sb.from('payments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name || null, learner_email: S.user.email, amount: f.label, sender, trx_id: trx }).select().single();
+        busy = false;
+        if (error) {
+          const m = error.message || '';
+          if (/payments_one_open/.test(m)) {   // already sent from another tab or device: show that one
+            const again = await soft(sb.from('payments').select('*').eq('course_id', course.id).order('created_at', { ascending: false }).limit(1));
+            if (again[0]) S.payments[course.id] = again[0];
+            problem = '';
+          } else {
+            problem = /payments_trx_once/.test(m) ? 'that transaction id has already been used for a payment. check it again — if it really is yours, write to learn@amazeconsortium.org.'
+              : /too many attempts/.test(m) ? m
+                : /row-level security/.test(m) ? 'this account cannot submit a payment. sign out and sign in again with your own google account.'
+                  : plain(m);
+          }
+          draw(); return;
+        }
+        S.payments[course.id] = data; problem = ''; draft = { sender: '', trx: '' };
+        draw(); window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // a typo spotted after sending: take the payment back and put what was typed back in the boxes
+      const redo = $('#pay-redo', root);
+      if (redo) redo.addEventListener('click', async () => {
+        redo.disabled = true;
+        const { error } = await sb.from('payments').delete().eq('id', mine.id).eq('status', 'pending');
+        const now = await soft(sb.from('payments').select('*').eq('course_id', course.id).order('created_at', { ascending: false }).limit(1));
+        // if it was confirmed or rejected in the meantime, that decision stands and is shown instead
+        if (now[0]) S.payments[course.id] = now[0]; else delete S.payments[course.id];
+        if (!error && (!now[0] || now[0].status === 'rejected')) draft = { sender: mine.sender, trx: mine.trx_id };
+        if (S.payments[course.id] && S.payments[course.id].status === 'confirmed') { location.reload(); return; }
+        draw();
       });
     }
     draw();

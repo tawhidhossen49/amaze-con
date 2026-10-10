@@ -115,3 +115,12 @@ body.admin { min-height: 100vh; overflow-x: hidden; }
   .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
   .tiles { grid-template-columns: 1fr; }
 }
+
+/* learners: a payment to check — the two things to look up in bkash, side by side */
+.pay-check { display: flex; gap: 28px; flex-wrap: wrap; }
+.pay-check > div { display: grid; gap: 6px; min-width: 0; }
+.pay-check small { font: 400 10px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; color: var(--faint); }
+.pay-check code { font: 700 16px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.06em; color: var(--green); text-transform: none; user-select: all; }
+.pay-check .linkish { justify-self: start; font-size: 12px; }
+.row--pay { grid-template-columns: minmax(0, 1fr) auto auto; gap: 14px 28px; }
+@media (max-width: 900px) { .row--pay { grid-template-columns: 1fr; } }
