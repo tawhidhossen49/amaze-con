@@ -1,4 +1,8 @@
 // ── ADMIN PANEL ─────────────────────────────────────────────────────────────
+// Written for people who have never run a website: plain words, one obvious thing to
+// press, and forms that show only the boxes that belong to what was chosen (a live class
+// asks for a date, not for a pdf). Keep every new screen and setting to that.
+//
 // Edits everything the public site shows:
 //   pages     every heading, paragraph, button, link and image on the static
 //             pages (the field list is js/site-fields.js; values → site_text)
@@ -58,6 +62,131 @@
   const imageField = (name, value) => `<div class="with-upload"><div class="thumb">${value ? `<img src="${esc(img(value))}" alt="">` : 'none'}</div>
     <input name="${name}" value="${esc(value || '')}" placeholder="image address, or upload →" data-image>
     <label class="btn btn--sm" style="align-self:stretch;">upload<input type="file" accept="image/*" hidden data-upload="${name}"></label></div>`;
+  // ── forms that only ask what is needed ─────────────────────────────────────
+  // A choice between a few things is shown as cards. The hidden <select> beside the cards
+  // holds the value the form saves, so the rest of the code reads it like any other field.
+  const choice = (name, options, value, cls = '') => `<div class="choice ${cls}" data-choice="${name}">${options.map(([v, title, text, icon]) => `<button type="button" data-value="${v}"${v === value ? ' class="is-on"' : ''} aria-pressed="${v === value}">${icon ? `<i aria-hidden="true">${icon}</i>` : ''}<b>${title}</b>${text ? `<small>${text}</small>` : ''}</button>`).join('')}</div><select name="${name}" hidden>${options.map(([v, title]) => `<option value="${v}"${v === value ? ' selected' : ''}>${title}</option>`).join('')}</select>`;
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.choice button'); if (!b) return;
+    const box = b.parentElement, sel = box.nextElementSibling, form = b.closest('form');
+    if (b.dataset.ui && form) form.dataset.ui = b.dataset.ui;
+    sel.value = b.dataset.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  document.addEventListener('change', (e) => {
+    const sel = e.target; if (!sel.matches || !sel.matches('select[hidden]')) return;
+    const box = sel.previousElementSibling; if (!box || !box.classList.contains('choice')) return;
+    const form = sel.closest('form');
+    if (form && form.matches('[data-lesson]') && sel.name === 'kind') return syncLesson(form);
+    $$('button', box).forEach((b) => { const on = b.dataset.value === sel.value; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+    if (form) syncShown(form);
+  });
+  // a row's “more ▾” list closes when anything else is pressed
+  document.addEventListener('click', (e) => { $$('details.menu[open]').forEach((m) => { if (!m.contains(e.target) || e.target.closest('.menu-in')) m.open = false; }); });
+  // parts of a form that belong to one answer only:  data-when="pay_paid=1"  or  data-when="kind=program,webinar"
+  function syncShown(form) {
+    $$('[data-when]', form).forEach((el) => {
+      const [name, list] = el.dataset.when.split('=');
+      const field = form.querySelector(`[name="${name}"]`);
+      el.hidden = !field || !list.split(',').includes(field.value);
+    });
+  }
+
+  // The kinds of lesson. "pdf" is a reading built around a document, so the database sees it as a reading.
+  const LESSON_TYPES = [
+    ['video', 'video', 'video', 'a youtube link, or a video you upload', '▶'],
+    ['article', 'article', 'reading', 'text you write here', '▤'],
+    ['pdf', 'article', 'pdf', 'a document learners read on the page', '▣'],
+    ['live', 'live', 'live class', 'a class on a date, inside the site', '◉'],
+    ['quiz', 'quiz', 'quiz', 'questions with one right answer', '☑'],
+    ['form', 'form', 'test or assignment', 'a google form', '✎'],
+  ];
+  const UI_KIND = Object.fromEntries(LESSON_TYPES.map(([ui, kind]) => [ui, kind]));
+  // what a few shared boxes are called, depending on the kind of lesson
+  const LESSON_WORDS = {
+    title: { video: 'lesson title — filled in from the youtube video by itself', article: 'lesson title', pdf: 'lesson title', live: 'name of the class', quiz: 'name of the quiz', form: 'name of the test or assignment' },
+    minutes: { video: 'how long is the video, in minutes', article: 'minutes it takes to read', pdf: 'minutes it takes to read', live: 'how long the class lasts, in minutes', quiz: 'minutes it takes', form: 'minutes it takes' },
+    body: { video: 'text shown under the video (optional)', article: 'the lesson — write or paste it here', pdf: 'a note shown with the document (optional)', live: 'what the class is about (optional)', quiz: 'a short introduction above the questions (optional)', form: 'instructions shown with the form (optional)' },
+    files: { video: 'files for learners to download (optional)', article: 'files for learners to download (optional)', pdf: 'the pdf learners will read', live: 'files for learners to download (optional)', quiz: 'files for learners to download (optional)', form: 'files for learners to download (optional)' },
+    save: { video: 'video', article: 'reading', pdf: 'pdf lesson', live: 'live class', quiz: 'quiz', form: 'test' },
+  };
+  // shows the boxes for the chosen kind of lesson and nothing else
+  function syncLesson(form) {
+    const kind = form.kind.value; let ui = form.dataset.ui || '';
+    if (ui && UI_KIND[ui] !== kind) ui = kind;          // the kind was changed some other way
+    form.dataset.ui = ui;
+    form.classList.toggle('is-picked', !!ui);
+    $$('[data-types] button', form).forEach((b) => { const on = b.dataset.ui === ui; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+    $$('[data-for]', form).forEach((el) => { el.hidden = !ui || !el.dataset.for.split(' ').includes(ui); });
+    $$('[data-word]', form).forEach((el) => { const w = (LESSON_WORDS[el.dataset.word] || {})[ui]; if (w) el.textContent = w; });
+    // the lesson text is the main thing in a reading, and an extra everywhere else
+    const body = $('[data-body]', form), slot = $(ui === 'article' ? '[data-slot=main]' : '[data-slot=more]', form);
+    if (body && slot && body.parentElement !== slot) slot.appendChild(body);
+    const submit = $('[data-save-lesson]', form);
+    if (submit && ui) submit.textContent = (form.dataset.lesson ? 'save ' : 'add ') + LESSON_WORDS.save[ui];
+  }
+  // files attached to a lesson: kept as "name | link" lines in a hidden box, shown as a list
+  const fileLines = (text) => text.split('\n').map((line) => line.split('|').map((x) => x.trim())).filter((x) => x.length >= 2 && x[1]).map(([label, ...rest]) => ({ label: label || rest.join('|'), url: rest.join('|') }));
+  function drawFiles(form) {
+    const box = $('[data-files]', form); if (!box) return;
+    const list = fileLines(form.resources.value);
+    box.innerHTML = list.map((f, i) => `<div class="file-row"><i aria-hidden="true">${/\.pdf($|[?#])/i.test(f.url) ? 'pdf' : 'file'}</i><span>${esc(f.label)}</span><a class="linkish" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">open ↗</a><button type="button" class="linkish" data-fdel="${i}">remove</button></div>`).join('') || '<p class="file-none">nothing attached yet.</p>';
+  }
+  document.addEventListener('input', (e) => { if (e.target.matches && e.target.matches('form[data-lesson] [name=resources]')) drawFiles(e.target.form); });
+  document.addEventListener('click', (e) => {
+    const t = e.target; if (!t.closest) return;
+    const form = t.closest('form[data-lesson]'); if (!form) return;
+    const del = t.closest('[data-fdel]');
+    if (del) { const list = fileLines(form.resources.value); list.splice(+del.dataset.fdel, 1); form.resources.value = list.map((f) => `${f.label} | ${f.url}`).join('\n'); return drawFiles(form); }
+    if (t.closest('[data-fadd]')) {
+      const name = $('[data-fname]', form), link = $('[data-furl]', form);
+      if (!/^https?:\/\/\S+$/.test(link.value.trim())) { toast('paste the full link — it starts with https://', true); return link.focus(); }
+      form.resources.value = (form.resources.value.trim() ? form.resources.value.trim() + '\n' : '') + `${name.value.trim().replace(/\|/g, ' ') || 'link'} | ${link.value.trim()}`;
+      name.value = ''; link.value = ''; return drawFiles(form);
+    }
+    // quiz builder
+    const quiz = t.closest('[data-quiz]'); if (!quiz) return;
+    const qs = quiz._qs, q = t.closest('[data-q]') ? qs[+t.closest('[data-q]').dataset.q] : null;
+    if (t.closest('[data-qadd]')) qs.push({ q: '', options: ['', ''], answer: 0 });
+    else if (t.closest('[data-qdel]')) qs.splice(qs.indexOf(q), 1);
+    else if (t.closest('[data-oadd]')) q.options.push('');
+    else if (t.closest('[data-odel]')) { const i = +t.closest('[data-odel]').dataset.odel; q.options.splice(i, 1); if (q.answer === i) q.answer = 0; else if (q.answer > i) q.answer -= 1; }
+    else return;
+    drawQuiz(form);
+    const fresh = t.closest('[data-qadd]') ? $$('[data-qtext]', quiz).pop() : null; if (fresh) fresh.focus();
+  });
+  document.addEventListener('input', (e) => {
+    const t = e.target; if (!t.closest) return;
+    const quiz = t.closest('[data-quiz]'); if (!quiz) return;
+    const q = quiz._qs[+t.closest('[data-q]').dataset.q];
+    if (t.matches('[data-qtext]')) q.q = t.value;
+    else if (t.matches('[data-otext]')) q.options[+t.dataset.otext] = t.value;
+    else if (t.matches('[data-why]')) q.why = t.value;
+    else if (t.matches('[data-right]')) { q.answer = +t.dataset.right; $$('.quiz-opt', t.closest('[data-q]')).forEach((el, i) => el.classList.toggle('is-right', i === q.answer)); }
+  });
+  function drawQuiz(form) {
+    const box = $('[data-quiz]', form); if (!box) return;
+    if (!box._qs) box._qs = [];
+    box.innerHTML = box._qs.map((q, qi) => `<div class="quiz-q" data-q="${qi}">
+        <div class="quiz-q-top"><b>question ${qi + 1}</b><button type="button" class="linkish" data-qdel>remove this question</button></div>
+        <input data-qtext placeholder="type the question" value="${esc(q.q)}">
+        <p class="quiz-tip">the answers — tick the one that is correct</p>
+        ${q.options.map((o, oi) => `<div class="quiz-opt${oi === q.answer ? ' is-right' : ''}"><input type="radio" name="right-${qi}" data-right="${oi}"${oi === q.answer ? ' checked' : ''} title="tick if this is the correct answer" aria-label="answer ${oi + 1} is the correct one"><input data-otext="${oi}" placeholder="answer ${oi + 1}" value="${esc(o)}">${q.options.length > 2 ? `<button type="button" data-odel="${oi}" aria-label="remove this answer" title="remove this answer">✕</button>` : ''}</div>`).join('')}
+        <button type="button" class="linkish" data-oadd>+ add another answer</button>
+        <input data-why placeholder="explanation shown after they answer (optional)" value="${esc(q.why || '')}">
+      </div>`).join('') + `<button type="button" class="btn btn--sm" data-qadd>+ add a question</button>`;
+  }
+  // the questions as they will be saved: empty answers dropped, the right one kept pointing at the same answer
+  function readQuiz(form) {
+    const box = $('[data-quiz]', form); if (!box || !box._qs) return [];
+    return box._qs.map((q) => {
+      const kept = q.options.map((o, i) => ({ o: o.trim(), i })).filter((x) => x.o);
+      const out = { q: q.q.trim(), options: kept.map((x) => x.o), answer: Math.max(0, kept.findIndex((x) => x.i === q.answer)) };
+      if ((q.why || '').trim()) out.why = q.why.trim();
+      return out;
+    }).filter((q) => q.q && q.options.length >= 2);
+  }
+
   // a thumbnail that fails to load is replaced by its initials (as plain text, never markup)
   document.addEventListener('error', (e) => {
     const t = e.target;
@@ -90,7 +219,7 @@
     const target = input.closest('.field').querySelector('[name=video_url]');
     target.value = url;
     const kind = input.closest('form').querySelector('[name=kind]');
-    if (kind.value === 'article') kind.value = 'video';
+    if (kind.value === 'article') { kind.value = 'video'; input.closest('form').dataset.ui = 'video'; syncLesson(input.closest('form')); }
     // an uploaded video has no title of its own: start from the file name, for the admin to rewrite
     const title = input.closest('form').querySelector('[name=title]');
     const named = !title.value.trim() || title.value === title.dataset.auto;
@@ -123,7 +252,7 @@
       const before = title.value.trim();
       title.value = got; title.dataset.auto = got;
       if (status) status.textContent = `lesson title set to the video's own: “${got}”${before && before !== got ? ` (it was “${before}”)` : ''}. change it above if you want something else, then save.`;
-      const kind = form.querySelector('[name=kind]'); if (kind && kind.value === 'article') kind.value = 'video';
+      const kind = form.querySelector('[name=kind]'); if (kind && kind.value === 'article') { kind.value = 'video'; form.dataset.ui = 'video'; syncLesson(form); }
     } catch (e) {
       if (status) status.textContent = 'could not read that video’s title (it may be private, or the link is not a video) — type the lesson title yourself.';
     }
@@ -148,13 +277,16 @@
     const box = (form || document).querySelector(`[name="${input.dataset.attach}"]`);
     const name = file.name.replace(/\.[^.]+$/, '').replace(/[_|]+/g, ' ').trim() || 'document';
     box.value = (box.value.trim() ? box.value.trim() + '\n' : '') + `${name} | ${url}`;
+    if (form && form.matches('[data-lesson]')) drawFiles(form);
     if (pdf && form) {
       const kind = form.querySelector('[name=kind]'), title = form.querySelector('[name=title]');
       const reading = kind && kind.value === 'article' && !form.querySelector('[name=video_url]').value.trim();
+      // a pdf dropped into a lesson with no kind chosen yet (or an empty reading) makes it a pdf lesson
+      if (reading && (!form.dataset.ui || (form.dataset.ui === 'article' && !form.body.value.trim()))) { form.dataset.ui = 'pdf'; syncLesson(form); }
       if (title && !title.value.trim()) title.value = name.toLowerCase();
       const note = form.querySelector('[data-pdf-status]');
       if (note) note.textContent = reading ? `uploaded “${name}”. learners will read it inside this lesson — with zoom, full screen and a download button. save the lesson to publish it.`
-        : `uploaded “${name}”. because this lesson is a ${kind ? kind.options[kind.selectedIndex].text : 'different type'}, the pdf appears under its “resources” tab for download. to have learners read it on the lesson page itself, set the type to “reading” and leave the video box empty.`;
+        : `uploaded “${name}”. because this lesson is a ${kind ? kind.options[kind.selectedIndex].text : 'different kind'}, learners get it as a download under the lesson’s “resources” tab. to have them read it on the lesson page itself, choose “pdf” as the kind of lesson.`;
     }
     toast(pdf ? 'pdf uploaded' : 'attached');
   });
@@ -220,29 +352,56 @@
   }
 
   // ── shell ──────────────────────────────────────────────────────────────────
-  const VIEWS = { pages: ['pages', pagesView], lists: ['lists', listsView], courses: ['academy', coursesView], learners: ['learners', learnersView], admins: ['admins', adminsView] };
+  // each screen: its name in the menu, what draws it, a small sign, and one line saying what it is for
+  const VIEWS = {
+    home: ['home', homeView, '⌂', ''],
+    pages: ['words & pictures', pagesView, '✎', 'change any text, button or picture on the website’s pages'],
+    lists: ['people & logos', listsView, '☺', 'executives, advisors, schools, subsidiaries and partners'],
+    courses: ['academy', coursesView, '▤', 'courses, programs and webinars — their lessons, prices and live classes'],
+    learners: ['learners & payments', learnersView, '৳', 'check bkash payments and see who is enrolled'],
+    admins: ['admins', adminsView, '⚿', 'who is allowed to use this panel'],
+  };
   let main, savebar, dirtyGuard = () => false;
 
   function shell() {
     app.innerHTML = `<div class="admin-shell">
       <aside class="admin-side">
-        <a class="admin-brand" href="${A.root}index.html" target="_blank" rel="noopener"><img src="${A.root}img/amazelogo.png" alt=""><span>site admin</span></a>
-        <nav class="admin-nav">${Object.entries(VIEWS).map(([k, [label]]) => `<button data-view="${k}">${label}</button>`).join('')}</nav>
-        <div class="admin-user">${esc(user.email)}<button class="linkish" id="signout">sign out</button></div>
+        <a class="admin-brand" href="${A.root}index.html" target="_blank" rel="noopener" title="open the website"><img src="${A.root}img/amazelogo.png" alt=""><span>site admin</span></a>
+        <nav class="admin-nav">${Object.entries(VIEWS).map(([k, [label, , icon]]) => `<button data-view="${k}"><i aria-hidden="true">${icon}</i><span>${label}</span></button>`).join('')}</nav>
+        <a class="admin-site" href="${A.root}index.html" target="_blank" rel="noopener">see the website ↗</a>
+        <div class="admin-user"><span>signed in as</span>${esc(user.email)}<button class="linkish" id="signout">sign out</button></div>
       </aside>
       <main class="admin-main"></main>
     </div>
-    <div class="savebar"><span></span><div class="admin-actions"><button class="btn" data-save="discard">discard</button><button class="btn btn--solid" data-save="save">save changes</button></div></div>`;
+    <div class="savebar"><span></span><div class="admin-actions"><button class="btn" data-save="discard">undo my changes</button><button class="btn btn--solid" data-save="save">save changes</button></div></div>`;
     main = $('.admin-main', app); savebar = $('.savebar', app);
     $('#signout', app).addEventListener('click', async () => { await sb.auth.signOut(); boot(); });
     $$('.admin-nav button', app).forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
     window.addEventListener('beforeunload', (e) => { if (dirtyGuard()) { e.preventDefault(); e.returnValue = ''; } });
-    // back / forward and typed #links switch screens too (go() itself uses replaceState, which doesn't fire this)
-    // back / forward and typed #links switch screens too
+    // back / forward and typed #links switch screens too (go() itself uses pushState, which doesn't fire this)
     window.onhashchange = () => { const [v, arg] = route(); if (v in VIEWS) go(v, arg); };
     const [v, arg] = route();
-    go(v in VIEWS ? v : 'pages', arg);
+    go(v in VIEWS ? v : 'home', arg);
     payBadge();
+  }
+
+  // ── home: what would you like to do? ───────────────────────────────────────
+  async function homeView() {
+    let waiting = 0;
+    try { const { data } = await sb.from('payments').select('id').eq('status', 'pending'); waiting = Array.isArray(data) ? data.length : 0; } catch (e) {}
+    const first = String((user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email.split('@')[0]).split(/[ .]/)[0];
+    main.innerHTML = head(`hello, ${esc(first)}`, 'what would you like to do? pick one — you can always come back here with “home” in the menu.')
+      + (waiting ? `<button class="notice" data-go="learners"><b>${waiting} payment${waiting === 1 ? ' is' : 's are'} waiting for you to check</b><span>open learners & payments →</span></button>` : '')
+      + `<div class="home-cards">${Object.entries(VIEWS).filter(([k]) => k !== 'home').map(([k, [label, , icon, text]]) => `<button class="home-card" data-go="${k}"><i aria-hidden="true">${icon}</i><b>${label}</b><span>${text}</span><em>open →</em></button>`).join('')}</div>
+        <div class="h2"><span>quick jobs</span></div>
+        <div class="quick">
+          <button class="btn" data-go="courses" data-arg="new:course">+ make a new course</button>
+          <button class="btn" data-go="courses" data-arg="new:webinar">+ make a new webinar</button>
+          <button class="btn" data-go="pages">change text on the home page</button>
+          <button class="btn" data-go="lists">add a person or a logo</button>
+        </div>
+        <p class="lede" style="margin-top:28px;">nothing here can break the website: every change can be changed back, and anything you delete asks you first.</p>`;
+    main.onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go, b.dataset.arg); };
   }
 
   // '#courses/web-development-fundamentals' → ['courses', 'web-development-fundamentals']
@@ -251,7 +410,7 @@
   function go(view, arg) {
     if (dirtyGuard() && !confirm('you have unsaved changes on this screen. leave without saving?')) return;
     dirtyGuard = () => false;
-    main.onclick = null; main.oninput = null; savebar.onclick = null;
+    main.onclick = null; main.oninput = null; main.onsubmit = null; savebar.onclick = null;
     savebar.classList.remove('is-on');
     $$('.admin-nav button', app).forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
     const hash = '#' + view + (arg ? '/' + encodeURIComponent(arg) : '');
@@ -279,15 +438,16 @@
       return { ...f, builtIn, value: f.key in stored ? stored[f.key] : builtIn };
     });
     const groups = [...new Set(fields.map((f) => f.group))];
-    const hints = { pre: 'paste your text here. it appears on the page exactly as it looks in this box — every line break, blank line and space is kept. a short text is shown in full; a long one is cut short on the page with a “read more” button that appears by itself.', html: 'you can use &lt;em&gt;word&lt;/em&gt; for the green accent, &lt;a href="…"&gt; for a link and &lt;br&gt; for a line break.', stat: 'a number, optionally followed by a symbol — e.g. 25+' };
+    const hints = { pre: 'paste your text here. it appears on the page exactly as it looks in this box — every new line and empty line is kept. a long text gets a “read more” button by itself.', html: 'to make a word green, write &lt;em&gt;word&lt;/em&gt;. to start a new line, write &lt;br&gt;.', stat: 'a number — you can add a sign after it, like 25+' };
 
-    main.innerHTML = head('pages', 'every piece of wording, every button link and every image on the static pages. a field outlined in green differs from what is saved.',
-      `<a class="btn" href="${A.root + page.file}" target="_blank" rel="noopener">view page ↗</a>`)
-      + `<div class="tabs">${window.AMAZE_PAGES.map((p) => `<button class="chip${p.id === page.id ? ' is-active' : ''}" data-page="${p.id}">${esc(p.title)}</button>`).join('')}</div>`
+    main.innerHTML = head('words & pictures', 'change any text, button or picture on a page. 1 — choose the page. 2 — open a part of it and type. 3 — press “save changes” at the bottom.',
+      `<a class="btn" href="${A.root + page.file}" target="_blank" rel="noopener">see this page ↗</a>`)
+      + `<p class="step-label"><b>1</b> which page?</p><div class="tabs">${window.AMAZE_PAGES.map((p) => `<button class="chip${p.id === page.id ? ' is-active' : ''}" data-page="${p.id}">${esc(p.title)}</button>`).join('')}</div>`
+      + `<p class="step-label"><b>2</b> which part of “${esc(page.title)}”?</p><label class="search"><input type="search" id="find" placeholder="type a few words you see on the page to find them…" autocomplete="off"><span id="find-n"></span></label>`
       + groups.map((g, gi) => {
         const fs = fields.filter((f) => f.group === g);
         const edited = fs.filter((f) => f.key in stored).length;
-        return `<details class="group"${gi === 0 ? ' open' : ''}><summary>${esc(g)}<small>${fs.length} fields${edited ? ` · <b>${edited} edited</b>` : ''}</small></summary><div class="group-body">${fs.map((f) => {
+        return `<details class="group"${gi === 0 ? ' open' : ''}><summary>${esc(g)}<small>${fs.length} thing${fs.length === 1 ? '' : 's'} to change${edited ? ` · <b>${edited} changed by you</b>` : ''}</small></summary><div class="group-body">${fs.map((f) => {
           const long = f.type === 'html' || f.type === 'pre' || f.value.length > 70 || f.builtIn.length > 70;
           const control = f.type === 'src' ? imageField(f.key, f.value)
             : f.type === 'visible' ? `<select name="${f.key}"><option value="1"${f.value === '1' ? ' selected' : ''}>shown</option><option value="0"${f.value === '0' ? ' selected' : ''}>hidden</option></select>`
@@ -296,7 +456,7 @@
               : `<input name="${f.key}" value="${esc(f.value)}">`;
           const tag = f.type === 'src' ? 'div' : 'label';   // the image control has its own <label>
           return `<${tag} class="field${long || f.type === 'src' ? ' field--wide' : ''}" data-key="${f.key}">
-            <div class="field-top"><span>${esc(f.label)}</span>${f.key in stored ? '<button type="button" class="linkish" data-reset>restore original</button>' : ''}</div>
+            <div class="field-top"><span>${esc(f.label)}</span>${f.key in stored ? '<button type="button" class="linkish" data-reset title="put back the wording the website came with">put the original back</button>' : ''}</div>
             ${control}${hints[f.type] ? `<small class="hint">${hints[f.type]}</small>` : ''}</${tag}>`;
         }).join('')}</div></details>`;
       }).join('');
@@ -308,10 +468,20 @@
       const list = changed();
       fields.forEach((f) => control(f.key).closest('.field').classList.toggle('is-changed', control(f.key).value !== f.value));
       savebar.classList.toggle('is-on', list.length > 0);
-      $('span', savebar).textContent = `${list.length} unsaved change${list.length === 1 ? '' : 's'} on “${page.title}”`;
+      $('span', savebar).textContent = `${list.length} unsaved change${list.length === 1 ? '' : 's'} on “${page.title}” — not on the website until you save`;
     }
     dirtyGuard = () => changed().length > 0;
-    main.oninput = refresh;
+    main.oninput = (e) => {
+      if (e.target.id !== 'find') return refresh();
+      // finding a text: show only the boxes whose label or wording contains what was typed
+      const want = e.target.value.trim().toLowerCase(); let n = 0;
+      $$('.group', main).forEach((g) => {
+        let any = false;
+        $$('.field[data-key]', g).forEach((el) => { const c = control(el.dataset.key); const hit = !want || (el.textContent + ' ' + c.value).toLowerCase().includes(want); el.hidden = !hit; if (hit) { any = true; n += 1; } });
+        g.hidden = !any; if (want && any) g.open = true;
+      });
+      $('#find-n', main).textContent = want ? (n ? `${n} found` : 'nothing found — try fewer words') : '';
+    };
     $$('[data-page]', main).forEach((b) => b.addEventListener('click', () => { currentPage = b.dataset.page; go('pages'); }));
     $$('[data-reset]', main).forEach((b) => b.addEventListener('click', () => {
       const key = b.closest('.field').dataset.key;
@@ -328,7 +498,7 @@
       const removes = list.filter((f) => control(f.key).value === f.builtIn).map((f) => f.key);
       if (upserts.length && !(await run(sb.from('site_text').upsert(upserts)))) return;
       if (removes.length && !(await run(sb.from('site_text').delete().in('key', removes)))) return;
-      toast(`saved — ${list.length} change${list.length === 1 ? '' : 's'} are live`);
+      toast(`saved — ${list.length} change${list.length === 1 ? ' is' : 's are'} on the website now`);
       dirtyGuard = () => false;
       go('pages');
     };
@@ -352,23 +522,23 @@
       <div class="form-grid">
         <label class="field"><span>name</span><input name="name" required value="${esc(r.name || '')}"></label>
         ${cfg.sub ? `<label class="field"><span>${cfg.sub}</span><input name="subtitle" value="${esc(r.subtitle || '')}"></label>` : ''}
-        ${cfg.url ? `<label class="field"><span>link (optional)</span><input name="url" type="url" value="${esc(r.url || '')}" placeholder="https://"></label>` : ''}
-        <label class="field"><span>initials (shown if there is no image)</span><input name="initials" maxlength="6" value="${esc(r.initials || '')}"></label>
+        ${cfg.url ? `<label class="field"><span>a link to open when it is clicked (optional)</span><input name="url" type="url" value="${esc(r.url || '')}" placeholder="https://"></label>` : ''}
+        <label class="field"><span>initials — shown when there is no picture</span><input name="initials" maxlength="6" value="${esc(r.initials || '')}" placeholder="e.g. FZ"></label>
         ${cfg.desc ? `<label class="field field--wide"><span>description</span><textarea name="description" rows="3">${esc(r.description || '')}</textarea></label>` : ''}
         <div class="field field--wide"><span>${currentList === 'executive' || currentList === 'advisor' ? 'photo' : 'logo'}</span>${imageField('img', r.img)}</div>
       </div>
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${r.id ? 'save' : 'add'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
     </form>`;
 
-    main.innerHTML = head('lists', 'the repeating sections of the home page. changes are live as soon as you save.',
-      '<button class="btn btn--solid" data-new>+ add</button>')
-      + `<div class="tabs">${Object.entries(LISTS).map(([k, v]) => `<button class="chip${k === currentList ? ' is-active' : ''}" data-list="${k}">${v.title}</button>`).join('')}</div>`
-      + `<p style="margin:-8px 0 20px;font-size:13px;color:var(--muted);">${cfg.note} ${rows.length} item${rows.length === 1 ? '' : 's'}, shown in this order.</p>`
+    main.innerHTML = head('people & logos', 'the rows of people and logos on the home page. choose a list, then add, change or reorder what is in it. everything here is on the website as soon as you save it.',
+      `<button class="btn btn--solid" data-new>+ add to ${cfg.title}</button>`)
+      + `<p class="step-label"><b>1</b> which list?</p><div class="tabs">${Object.entries(LISTS).map(([k, v]) => `<button class="chip${k === currentList ? ' is-active' : ''}" data-list="${k}">${v.title}</button>`).join('')}</div>`
+      + `<p class="step-label"><b>2</b> ${cfg.title} — on the site as ${cfg.note} ${rows.length} in this list, shown in this order.</p>`
       + (editId === 'new' ? form({}) : '')
       + `<div class="rows">${rows.map((r, i) => (r.id === editId ? form(r) : `<div class="row" data-id="${esc(r.id)}">
           <div class="thumb">${r.img ? `<img src="${esc(img(r.img))}" alt="" data-fallback="${esc(r.initials || '—')}">` : esc(r.initials || '—')}</div>
           <div><strong>${esc(r.name)}${r.hidden ? '<span class="badge">hidden</span>' : ''}</strong>${r.subtitle || r.url ? `<span class="sub">${esc(r.subtitle || r.url)}</span>` : ''}</div>
-          <div class="row-actions"><button class="btn btn--sm" data-hide>${r.hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-move="-1"${i === 0 ? ' disabled' : ''} aria-label="move up">↑</button><button class="btn btn--sm" data-move="1"${i === rows.length - 1 ? ' disabled' : ''} aria-label="move down">↓</button><button class="btn btn--sm" data-edit>edit</button><button class="btn btn--sm btn--danger" data-del>delete</button></div>
+          <div class="row-actions"><button class="btn btn--sm btn--solid" data-edit>edit</button><button class="btn btn--sm" data-move="-1"${i === 0 ? ' disabled' : ''} aria-label="move up" title="move up">↑</button><button class="btn btn--sm" data-move="1"${i === rows.length - 1 ? ' disabled' : ''} aria-label="move down" title="move down">↓</button><button class="btn btn--sm" data-hide>${r.hidden ? 'show' : 'hide'}</button><button class="btn btn--sm btn--danger" data-del>delete</button></div>
         </div>`)).join('') || '<p class="empty">nothing here yet.</p>'}</div>`;
 
     $$('[data-list]', main).forEach((b) => b.addEventListener('click', () => { currentList = b.dataset.list; go('lists'); }));
@@ -459,6 +629,7 @@
 
   async function coursesView(courseId) {
     await checkAcademy();
+    if (courseId && courseId.startsWith('new:')) return courseEditor(null, null, courseId.slice(4));
     if (courseId) return courseEditor(courseId);
     const [courses, lessons, pay] = await Promise.all([
       run(sb.from('courses').select('*').order('sort_order').order('created_at')),
@@ -469,23 +640,30 @@
     const ps = pay.settings;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
-    main.innerHTML = head('academy', 'everything listed on the academy page: courses, programs and webinars. drafts are only visible here — publish one to put it on the page. each row shows its price: press “make free” / “make paid” to switch, and “edit” to set the price and the previous price. press ☆ feature on any of them to give it the large featured card at the top of the page; with several featured, visitors can switch between them. the headings and text of the page itself are under pages → academy.',
+    const one = { course: 'course', program: 'program', webinar: 'webinar' };
+    main.innerHTML = head('academy', 'everything on the academy page. press “edit” on one to change it, set its price or add lessons and live classes. a draft is only seen here — publish it to put it on the website.',
       Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
       + setupNote()
-      + `<div class="h2"><span>// bkash — where learners send the fee</span>${ps.bkash ? '' : '<span class="badge" style="border-color:#f2b42e;color:#f2b42e;">not set — paid entries say “payment opens soon”</span>'}</div>
-      <form class="editor" id="bkash-form" style="margin-bottom:8px;"><div class="form-grid">
-        <label class="field"><span>bkash number</span><input name="bkash" inputmode="numeric" value="${esc(ps.bkash || '')}" placeholder="017XXXXXXXX" maxlength="17">
-          <small class="hint">shown on the payment page of every paid entry. learners send the fee here, then give you their transaction id — you confirm it on the learners screen.</small></label>
-        <label class="field"><span>what kind of bkash account is it</span><select name="bkash_type"><option value="personal"${ps.bkash_type === 'merchant' ? '' : ' selected'}>personal — learners use “send money”</option><option value="merchant"${ps.bkash_type === 'merchant' ? ' selected' : ''}>merchant — learners use “payment”</option></select>
-          <small class="hint">this decides which instruction learners are given. the wrong one makes payments fail in the bkash app.</small></label>
+      + `<details class="group pay-box"${ps.bkash ? '' : ' open'}><summary>where learners send the fee — bkash<small>${ps.bkash ? `<b>${esc(ps.bkash.slice(0, 5))} ${esc(ps.bkash.slice(5))}</b> · press to change` : '<b style="color:#f2b42e;">not set yet — paid entries say “payment opens soon”</b>'}</small></summary>
+      <form id="bkash-form" style="padding:4px 20px 22px;"><div class="form-grid">
+        <label class="field"><span>your bkash number</span><input name="bkash" inputmode="numeric" value="${esc(ps.bkash || '')}" placeholder="017XXXXXXXX" maxlength="17">
+          <small class="hint">learners are told to send the fee to this number. check every digit.</small></label>
+        <div class="field"><span>what kind of bkash account is it?</span>${choice('bkash_type', [['personal', 'personal', 'learners use “send money”'], ['merchant', 'merchant', 'learners use “payment”']], ps.bkash_type === 'merchant' ? 'merchant' : 'personal', 'choice--2')}
+          <small class="hint">the wrong one makes payments fail in the bkash app.</small></div>
         <label class="field field--wide"><span>anything else to tell learners on the payment page (optional)</span><textarea name="note" rows="2" placeholder="e.g. payments are checked every evening.">${esc(ps.note || '')}</textarea></label>
-      </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form>`
-      + Object.keys(TYPES).map((type) => `<div class="h2"><span>// ${TYPES[type]} — ${rowsOf(type).length}</span></div>
-      <div class="rows">${rowsOf(type).map((c) => `<div class="row row--plain" data-id="${esc(c.id)}">
-          <div><strong>${esc(c.title)}<span class="badge${c.status === 'published' ? ' badge--on' : ''}">${esc(c.status)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}<span class="badge${feeOf(pay, c.id).priced ? ' badge--on' : ''}"${feeOf(pay, c.id).priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(feeOf(pay, c.id).label)}</span></strong>
-            <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${esc(c.category)} · ${esc(c.level)} · ${count(c.id)} lessons · ${c.access === 'open' ? 'open to everyone' : 'free account'}</span></div>
-          <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm" data-fee title="${feeOf(pay, c.id).paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${feeOf(pay, c.id).paid ? 'make free' : 'make paid'}</button><button class="btn btn--sm" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button><button class="btn btn--sm" data-toggle>${c.status === 'published' ? 'unpublish' : 'publish'}</button><button class="btn btn--sm btn--solid" data-open>edit</button></div>
-        </div>`).join('') || `<p class="empty">no ${TYPES[type]} yet.</p>`}</div>`).join('');
+      </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form></details>`
+      + Object.keys(TYPES).map((type) => `<div class="h2"><span>${TYPES[type]} <small>${rowsOf(type).length}</small></span></div>
+      <div class="rows">${rowsOf(type).map((c) => { const f = feeOf(pay, c.id); return `<div class="row row--plain row--entry" data-id="${esc(c.id)}">
+          <div><strong>${esc(c.title)}</strong>
+            <span class="pills"><span class="badge${c.status === 'published' ? ' badge--on' : ''}">${c.status === 'published' ? 'on the website' : 'draft'}</span><span class="badge${f.priced ? ' badge--on' : ''}"${f.priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(f.label)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}</span>
+            <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${count(c.id)} lesson${count(c.id) === 1 ? '' : 's'} · ${esc(c.category)} · ${esc(c.level)}</span></div>
+          <div class="row-actions"><button class="btn btn--sm btn--solid" data-open>edit</button><button class="btn btn--sm" data-toggle title="${c.status === 'published' ? 'take it off the website (it stays here as a draft)' : 'put it on the academy page'}">${c.status === 'published' ? 'unpublish' : 'publish'}</button>
+            <details class="menu"><summary class="btn btn--sm" aria-label="more actions">more ▾</summary><div class="menu-in">
+              <a href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
+              <button type="button" data-fee title="${f.paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${f.paid ? 'make free' : 'make paid'}</button>
+              <button type="button" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button>
+            </div></details></div>
+        </div>`; }).join('') || `<p class="empty">no ${TYPES[type]} yet — press “+ new ${one[type]}” at the top to make the first one.</p>`}</div>`).join('');
     $$('[data-new]', main).forEach((b) => b.addEventListener('click', () => courseEditor(null, null, b.dataset.new)));
     $('#bkash-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -559,89 +737,153 @@
       content = got && got !== true ? got : {};
     }
 
-    const lessonForm = (l, moduleId) => `<form class="editor" data-lesson="${esc(l.id || '')}" data-module="${esc(moduleId)}" style="margin:12px 0;">
-      <div class="form-grid">
-        <label class="field field--wide"><span>lesson title — the one thing people can read before they pay</span><input name="title" value="${esc(l.title || '')}">
-          <small class="hint">for a youtube video you can leave this alone: put the link in the video box below and the lesson takes the video’s own title, every time you change the link. for a video you upload, write the title here. you can always edit it.</small></label>
-        <label class="field field--wide"><span>module</span><select name="module_id">${modules.map((m) => `<option value="${m.id}"${m.id === moduleId ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select></label>
-        <label class="field"><span>type</span><select name="kind">${[['article', 'reading'], ['video', 'video'], ['live', 'live class (on a date)'], ['quiz', 'quiz (built in)'], ['form', 'test / assignment (google form)']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-        <label class="field"><span>length in minutes</span><input name="duration_min" type="number" min="1" value="${l.duration_min || 5}"></label>
-        <label class="field"><span>live class — date and time${needs}</span><input name="live_at" type="datetime-local" value="${toLocalInput(l.live_at)}">
-          <small class="hint">for “live class” lessons. set it in your own time; each learner sees it converted to theirs. leave empty to show “date to be announced”.</small></label>
-        <label class="field"><span>live class — an outside link, only if you want one (optional)${needs}</span><input name="live_url" value="${esc((content && content.live_url) || '')}" placeholder="leave empty — the class runs inside the site">
-          <small class="hint">a live class runs inside the site: at the set time, learners open this lesson and press “enter the live class”; you open the same lesson while signed in as an admin and press “start teaching”. video, microphone, screen share, chat and raised hands are all there for everyone; you can also mute everyone. the built-in room holds about 12 people; connect daily (see supabase/functions/live-room) for bigger classes. a link here (google meet, zoom…) is only shown as a second way in. after the class, paste the recording in the video box below.</small></label>
-        <div class="field field--wide"><div class="field-top"><span>video — paste a youtube link, or upload your own video file (for a live class: the recording, afterwards)</span><label class="linkish" style="cursor:pointer;">upload a video file<input type="file" accept="video/mp4,video/webm,video/quicktime,video/*" hidden data-video-upload></label></div>
-          <input name="video_url" value="${esc((content && content.video_url) || '')}" placeholder="https://youtu.be/…  or  https://www.youtube.com/watch?v=…">
-          <small class="hint" data-video-status>any youtube link works (long videos included) and plays inside the lesson. vimeo and google drive links work too. uploaded files should be .mp4, up to 50 MB on supabase's free plan.</small></div>
-        <label class="field field--wide"><span>form link — for test / assignment lessons</span><input name="form_url" value="${esc((content && content.form_url) || '')}" placeholder="https://docs.google.com/forms/d/e/…/viewform">
-          <small class="hint">paste the google form's share link. it is shown inside the lesson; learners mark it as submitted themselves, so check the responses in google forms.</small></label>
-        <label class="field field--wide"><span>lesson text</span><textarea name="body" rows="12">${esc((content && content.body) || '')}</textarea>
-          <small class="hint">blank line = new paragraph · ## heading · - list item · **bold** · \`code\` · three backticks on their own line start and end a code block · [text](https://link)</small></label>
-        <label class="field field--wide"><span>quiz questions — for quiz lessons</span><textarea name="quiz" rows="8" placeholder="? what does html describe?&#10;- how a page looks&#10;* what is on a page&#10;- how a page behaves&#10;> html is content and structure.">${esc(quizToText(content && content.quiz))}</textarea>
-          <small class="hint">? starts a question · - is a wrong option · * is the correct option · > is the explanation shown after answering. learners pass at 70%.</small></label>
-      </div>
-      <div class="field"><div class="field-top"><span>files and links for this lesson — one per line, as: name | link</span><span style="display:flex;gap:16px;flex-wrap:wrap;"><label class="linkish" style="cursor:pointer;color:var(--green);">upload a pdf<input type="file" accept="application/pdf,.pdf" hidden data-attach="resources" data-pdf></label><label class="linkish" style="cursor:pointer;">attach another file<input type="file" hidden data-attach="resources"></label></span></div>
-        <textarea name="resources" rows="3" placeholder="lecture slides | https://…">${esc(((content && content.resources) || []).map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea>
-        <small class="hint" data-pdf-status>a pdf in a <b>reading</b> lesson opens on the lesson page itself, page by page — learners can zoom, go full screen, and download it. in any other type of lesson, and for every other kind of file, it is listed under the lesson’s “resources” tab to download. up to 50 MB each.</small></div>
-      <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> free preview — readable without an account (free entries only: in a paid entry every lesson stays locked until payment is confirmed)</label>
-      <label class="check"><input type="checkbox" name="is_hidden"${l.is_hidden ? ' checked' : ''}> hidden — keep this lesson out of the course for now</label>
-      <div class="editor-foot"><button class="btn btn--solid" type="submit">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
-    </form>`;
+    // A lesson is made in two steps: choose what kind it is, then fill in the few boxes that
+    // kind needs. Boxes for other kinds stay hidden (data-for lists the kinds a box belongs to).
+    const lessonForm = (l, moduleId) => {
+      const c = content || {};
+      const files = c.resources || [];
+      const isPdf = (l.kind || 'article') === 'article' && !c.video_url && !(c.body || '').trim() && files.some((r) => /\.pdf($|[?#])/i.test(String(r.url || '')));
+      const ui = !l.id ? '' : isPdf ? 'pdf' : (UI_KIND[l.kind] ? l.kind : 'article');
+      return `<form class="editor lesson-form" data-lesson="${esc(l.id || '')}" data-module="${esc(moduleId)}" data-ui="${ui}" data-was="${esc(l.kind || '')}">
+      <div class="step"><span class="step-n">1</span><div class="step-in">
+        <h3>${l.id ? 'what kind of lesson this is' : 'what kind of lesson do you want to add?'}</h3>
+        <div class="choice choice--cards" data-choice="kind" data-types>${LESSON_TYPES.map(([u, k, title, text, icon]) => `<button type="button" data-ui="${u}" data-value="${k}" aria-pressed="false"><i aria-hidden="true">${icon}</i><b>${title}</b><small>${text}</small></button>`).join('')}</div>
+        <select name="kind" hidden>${[['article', 'reading'], ['video', 'video'], ['live', 'live class'], ['quiz', 'quiz'], ['form', 'test or assignment']].map(([k, t]) => `<option value="${k}"${(l.kind || 'article') === k ? ' selected' : ''}>${t}</option>`).join('')}</select>
+      </div></div>
 
-    main.innerHTML = head(id ? esc(course.title) : 'new ' + noun, id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${esc(course.status)}</span>` : 'fill in the details, save, then add modules and lessons.',
-      `<button class="btn" data-back>← academy</button>${id ? `<a class="btn" href="${A.root}academy/course.html?c=${encodeURIComponent(id)}" target="_blank" rel="noopener">view ↗</a>` : ''}`)
+      <div class="step" data-for="video article pdf live quiz form"><span class="step-n">2</span><div class="step-in">
+        <h3>fill it in</h3>
+
+        <div class="field" data-for="video"><div class="field-top"><span>the video — paste a youtube link</span><label class="linkish" style="cursor:pointer;">or upload a video file<input type="file" accept="video/mp4,video/webm,video/quicktime,video/*" hidden data-video-upload></label></div>
+          <input name="video_url" value="${esc(c.video_url || '')}" placeholder="https://youtu.be/…">
+          <small class="hint" data-video-status>any youtube link works and plays inside the lesson. for long videos, upload to youtube as “unlisted” and paste the link here. an uploaded file must be .mp4 and under 50 MB.</small></div>
+
+        <label class="field"><span data-word="title">lesson title</span><input name="title" value="${esc(l.title || '')}">
+          <small class="hint" data-for="video">you can leave this empty — it is filled in from the youtube video. change it if you want different wording.</small>
+          <small class="hint" data-for="article pdf live quiz form">people can read this before they enrol or pay, so say clearly what it is.</small></label>
+
+        <label class="field" data-for="live"><span>date and time of the class${needs}</span><input name="live_at" type="datetime-local" value="${toLocalInput(l.live_at)}">
+          <small class="hint">use your own clock — each learner sees it in their own time. at that time, open this lesson while signed in here and press “start teaching”; learners press “enter the live class”. no date yet? leave it empty and it says “date to be announced”.</small></label>
+
+        <label class="field" data-for="form"><span>the google form link</span><input name="form_url" value="${esc(c.form_url || '')}" placeholder="https://docs.google.com/forms/…">
+          <small class="hint">in google forms press “send”, choose the link, and paste it here. the form shows inside the lesson; answers arrive in google forms.</small></label>
+
+        <div class="field" data-for="quiz"><span>the questions</span>
+          <div class="quiz-build" data-quiz></div>
+          <small class="hint">learners pass when they get 70% right.</small></div>
+
+        <div data-slot="main"></div>
+
+        <div class="field" data-for="video article pdf live quiz form"><span data-word="files">files for learners to download (optional)</span>
+          <div class="files" data-files></div>
+          <div class="file-add">
+            <label class="btn btn--sm btn--solid" data-for="pdf">upload a pdf<input type="file" accept="application/pdf,.pdf" hidden data-attach="resources" data-pdf></label>
+            <label class="btn btn--sm" data-for="video article live quiz form">upload a pdf<input type="file" accept="application/pdf,.pdf" hidden data-attach="resources" data-pdf></label>
+            <label class="btn btn--sm">upload another file<input type="file" hidden data-attach="resources"></label>
+            <span class="file-link"><input data-fname placeholder="or add a link: its name"><input data-furl placeholder="https://…"><button type="button" class="btn btn--sm" data-fadd>add link</button></span>
+          </div>
+          <textarea name="resources" hidden>${esc(files.map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea>
+          <small class="hint" data-pdf-status data-for="pdf">learners read the pdf on the lesson page itself, page by page — they can zoom, go full screen and download it. up to 50 MB.</small>
+          <small class="hint" data-for="video article live quiz form">these appear under the lesson’s “resources” tab. up to 50 MB each.</small></div>
+
+        <label class="field field--short"><span data-word="minutes">length in minutes</span><input name="duration_min" type="number" min="1" value="${l.duration_min || 5}"></label>
+
+        <details class="more"><summary>more options</summary><div class="more-in">
+          <div data-slot="more"></div>
+          <label class="field" data-for="live"><span>recording of the class — paste a youtube link after it has happened (optional)</span><input data-recording placeholder="https://youtu.be/…" value="${esc(l.kind === 'live' ? (c.video_url || '') : '')}">
+            <small class="hint">shown under the room once the class is over, so people who missed it can watch.</small></label>
+          <label class="field" data-for="live"><span>a link to another meeting app, only if you want one (optional)${needs}</span><input name="live_url" value="${esc(c.live_url || '')}" placeholder="leave empty — the class runs inside the site">
+            <small class="hint">the class already runs on this lesson page with video, sound, screen share and chat. a google meet or zoom link here is only shown as a second way in.</small></label>
+          <label class="field"${modules.length > 1 ? '' : ' hidden'}><span>which section this lesson is in</span><select name="module_id">${modules.map((m) => `<option value="${m.id}"${m.id === moduleId ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select></label>
+          <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> let people open this lesson without an account, as a free sample <small>(only works when the ${noun} is free)</small></label>
+          <label class="check"><input type="checkbox" name="is_hidden"${l.is_hidden ? ' checked' : ''}> hide this lesson for now — learners will not see it</label>
+        </div></details>
+
+        <label class="field" data-body><span data-word="body">lesson text</span><textarea name="body" rows="${ui === 'article' ? 12 : 4}">${esc(c.body || '')}</textarea>
+          <small class="hint">leave an empty line to start a new paragraph. for a heading, start the line with ## · for a list, start each line with - · for bold, put **two stars** around the words.</small></label>
+      </div></div>
+
+      <div class="editor-foot"><button class="btn btn--solid" type="submit" data-save-lesson data-for="video article pdf live quiz form">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
+    </form>`;
+    };
+
+    main.innerHTML = head(id ? esc(course.title) : 'new ' + noun, id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${course.status === 'published' ? 'on the website' : 'draft — not on the website yet'}</span>` : 'three short steps: fill in the basics, press create, then add lessons.',
+      `<button class="btn" data-back>← back to academy</button>${id ? `<a class="btn" href="${A.root}academy/course.html?c=${encodeURIComponent(id)}" target="_blank" rel="noopener">see it on the site ↗</a>` : ''}`)
       + setupNote()
-      + `<form id="course-form"><div class="form-grid">
-        <label class="field"><span>what this is — the section it appears in${needs}</span><select name="kind">${Object.keys(TYPES).map((t) => `<option value="${t}"${t === noun ? ' selected' : ''}>${t}</option>`).join('')}</select>
-          <small class="hint">course = self-paced lessons · program = a longer guided track · webinar = a single live session.</small></label>
-        <label class="field"><span>start date and time (optional)${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
-          <small class="hint">a webinar's date or a program's first day — shown on its card and page, in each visitor's own time. leave empty for something people can start any time.</small></label>
-        <label class="field field--wide"><span>title</span><input name="title" required value="${esc(course.title)}"></label>
-        <label class="field"><span>free or paid</span><select name="pay_paid"><option value="1"${own.paid !== false ? ' selected' : ''}>paid — learners pay by bkash, you confirm it</option><option value="0"${own.paid === false ? ' selected' : ''}>free — anyone with an account can enrol</option></select></label>
-        <label class="field"><span>price learners pay now (the discounted price)</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
-          <small class="hint">just the number — the currency (${esc(pay.settings.currency || '৳')}) is added for you. ${pay.settings.price ? `leave empty and it stays at ${esc(pay.settings.currency || '৳')}${esc(pay.settings.price)}, the price saved earlier for everything.` : 'a paid entry without a price just says “paid”.'}</small></label>
-        <label class="field"><span>previous price — shown crossed out beside it (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
-          <small class="hint">fill this in to show a discount, the way course sites do: the price above in bold, this one struck through, and the saving as “% off”. it has to be higher than the price above; leave it empty for no discount.</small></label>
-        <div class="field"></div>
-        <label class="field field--wide"><span>one-line summary</span><input name="tagline" value="${esc(course.tagline || '')}"></label>
-        <label class="field field--wide"><span>description</span><textarea name="description" rows="4">${esc(course.description || '')}</textarea></label>
-        <label class="field"><span>category</span><input name="category" required value="${esc(course.category)}"></label>
-        <label class="field"><span>level</span><select name="level">${opt(course.level, ['beginner', 'intermediate', 'advanced', 'all levels'])}</select></label>
-        <label class="field"><span>duration (as shown, e.g. 6 weeks)</span><input name="duration" value="${esc(course.duration || '')}"></label>
-        <label class="field"><span>position in its section (lower = earlier)</span><input name="sort_order" type="number" value="${course.sort_order || 0}"></label>
-        <label class="field"><span>who can read the lessons</span><select name="access"><option value="account"${course.access === 'account' ? ' selected' : ''}>anyone with a free account</option><option value="open"${course.access === 'open' ? ' selected' : ''}>everyone, no account needed</option></select></label>
-        <label class="field"><span>status</span><select name="status">${opt(course.status, ['draft', 'published'])}</select></label>
-        <label class="field field--wide"><span>what learners will be able to do — one per line</span><textarea name="outcomes" rows="4">${esc((course.outcomes || []).join('\n'))}</textarea></label>
-        <label class="field field--wide"><span>skills learners gain — one per line</span><textarea name="tags" rows="3">${esc((course.tags || []).join('\n'))}</textarea></label>
-        <label class="field"><span>before you start (requirements) — one per line</span><textarea name="requirements" rows="4">${esc((course.requirements || []).join('\n'))}</textarea></label>
-        <label class="field"><span>who this course is for — one per line</span><textarea name="audience" rows="4">${esc((course.audience || []).join('\n'))}</textarea></label>
-        <label class="field"><span>introduction video link (optional)</span><input name="trailer_url" value="${esc(course.trailer_url || '')}" placeholder="https://"></label>
-        <label class="field"><span>language</span><input name="language" value="${esc(course.language || 'english')}"></label>
-        <div class="field field--wide"><div class="field-top"><span>“this course includes” box — one line each, as: label | value</span><button type="button" class="linkish" data-fill-includes>start from the automatic list</button></div>
-          <textarea name="includes" rows="6" placeholder="video lessons | 12&#10;downloadable files | 5&#10;pace | your own&#10;certificate | verifiable">${esc((course.includes || []).map((r) => `${r.label} | ${r.value}`).join('\n'))}</textarea>
-          <small class="hint">leave this empty and the box fills itself in from the lessons (how many videos, readings, quizzes and tests) plus pace, access and certificate. write your own lines to replace it completely.</small></div>
-        <label class="field"><span>“taught by” — instructor name</span><input name="instructor_name" value="${esc(course.instructor_name || '')}"></label>
-        <label class="field"><span>“taught by” — role or organisation</span><input name="instructor_role" value="${esc(course.instructor_role || '')}"></label>
-        <div class="field"><span>“taught by” — photo (the first letter of the name is shown without one)</span>${imageField('instructor_img', course.instructor_img)}</div>
-        <div class="field"><span>course image — the picture at the top of its card (wide, 16:9 works best)</span>${imageField('cover', course.cover)}</div>
-      </div>
-      <label class="check"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> ★ featured — show this in the large featured card at the very top of the academy page (and first in its own section)</label>
-      <label class="check"><input type="checkbox" name="sequential"${course.sequential ? ' checked' : ''}> lock the order — a lesson opens only after the ones before it are complete</label>
-      <div class="editor-foot"><button class="btn btn--solid" type="submit">${id ? 'save details' : 'create ' + noun}</button>${id ? `<button class="btn btn--danger" type="button" data-delete-course>delete ${noun}</button>` : ''}</div></form>`
-      + (id ? `<div class="h2"><span>// curriculum — ${modules.length} modules, ${lessons.length} lessons</span><button class="btn btn--sm btn--solid" data-add-module>+ add module</button></div>
+      + `<form id="course-form" class="course-form">
+        <section class="card">
+          <h2 class="card-title">the basics</h2>
+          <div class="field"><span>what is it?${needs}</span>${choice('kind', [['course', 'course', 'lessons people take at their own pace', '▤'], ['program', 'program', 'a longer guided track with a start date', '◈'], ['webinar', 'webinar', 'one live session on a date', '◉']], noun, 'choice--cards choice--3')}</div>
+          <label class="field"><span>its name</span><input name="title" required value="${esc(course.title)}" placeholder="e.g. canva for beginners"></label>
+          <label class="field"><span>one sentence about it — shown on its card</span><input name="tagline" value="${esc(course.tagline || '')}" placeholder="e.g. design posts, posters and slides from zero"></label>
+          <label class="field" data-when="kind=program,webinar"><span>when does it start?${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
+            <small class="hint">use your own clock — each visitor sees it in their own time. leave it empty if there is no date yet.</small></label>
+          <div class="field"><span>the picture on its card (a wide picture works best)</span>${imageField('cover', course.cover)}</div>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">the price</h2>
+          <div class="field"><span>is it free or paid?</span>${choice('pay_paid', [['1', 'paid', 'learners pay by bkash and you confirm it', '৳'], ['0', 'free', 'anyone with an account can enrol', '✓']], own.paid === false ? '0' : '1', 'choice--2')}</div>
+          <div class="form-grid" data-when="pay_paid=1">
+            <label class="field"><span>the price learners pay</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
+              <small class="hint">type the number only — “${esc(pay.settings.currency || '৳')}” is added for you.${pay.settings.price ? ` empty means ${esc(pay.settings.currency || '৳')}${esc(pay.settings.price)}.` : ''}</small></label>
+            <label class="field"><span>the old price, to show a discount (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
+              <small class="hint">shown crossed out beside the price, with “% off”. it must be higher than the price. leave it empty for no discount.</small></label>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2 class="card-title">is it on the website?</h2>
+          <div class="field">${choice('status', [['draft', 'not yet — draft', 'only you can see it, here', '○'], ['published', 'yes — published', 'visitors can see it on the academy page', '●']], course.status === 'published' ? 'published' : 'draft', 'choice--2')}</div>
+        </section>
+
+        <details class="group"${id ? '' : ''}><summary>what people read on its page<small>description, what they will learn, who it is for</small></summary><div class="group-body">
+          <label class="field field--wide"><span>description</span><textarea name="description" rows="4" placeholder="a few sentences about what this is and why someone should take it">${esc(course.description || '')}</textarea></label>
+          <label class="field field--wide"><span>what learners will be able to do — one per line</span><textarea name="outcomes" rows="4">${esc((course.outcomes || []).join('\n'))}</textarea></label>
+          <label class="field field--wide"><span>skills they gain — one per line</span><textarea name="tags" rows="3">${esc((course.tags || []).join('\n'))}</textarea></label>
+          <label class="field"><span>what they need before starting — one per line</span><textarea name="requirements" rows="4">${esc((course.requirements || []).join('\n'))}</textarea></label>
+          <label class="field"><span>who it is for — one per line</span><textarea name="audience" rows="4">${esc((course.audience || []).join('\n'))}</textarea></label>
+          <label class="field"><span>subject (used by the filter on the academy page)</span><input name="category" required value="${esc(course.category)}"></label>
+          <label class="field"><span>level</span><select name="level">${opt(course.level, ['beginner', 'intermediate', 'advanced', 'all levels'])}</select></label>
+          <label class="field"><span>how long it takes, in your words — e.g. 6 weeks</span><input name="duration" value="${esc(course.duration || '')}"></label>
+          <label class="field"><span>language</span><input name="language" value="${esc(course.language || 'english')}"></label>
+          <label class="field field--wide"><span>a short introduction video — youtube link (optional)</span><input name="trailer_url" value="${esc(course.trailer_url || '')}" placeholder="https://youtu.be/…"></label>
+          <div class="field field--wide"><div class="field-top"><span>the “this ${noun} includes” box — one per line, as: name | value</span><button type="button" class="linkish" data-fill-includes>fill it in for me</button></div>
+            <textarea name="includes" rows="5" placeholder="video lessons | 12&#10;certificate | yes">${esc((course.includes || []).map((r) => `${r.label} | ${r.value}`).join('\n'))}</textarea>
+            <small class="hint">you can leave this empty: the box then counts the lessons by itself.</small></div>
+        </div></details>
+
+        <details class="group"><summary>who teaches it<small>name, role and photo</small></summary><div class="group-body">
+          <label class="field"><span>teacher’s name</span><input name="instructor_name" value="${esc(course.instructor_name || '')}"></label>
+          <label class="field"><span>their role or organisation</span><input name="instructor_role" value="${esc(course.instructor_role || '')}"></label>
+          <div class="field field--wide"><span>their photo (optional)</span>${imageField('instructor_img', course.instructor_img)}</div>
+        </div></details>
+
+        <details class="group"><summary>more options<small>featured card, lesson order, who can read</small></summary><div class="group-body">
+          <label class="check field--wide"><input type="checkbox" name="featured"${course.featured ? ' checked' : ''}> ★ feature it — give it the large card at the top of the academy page</label>
+          <label class="check field--wide"><input type="checkbox" name="sequential"${course.sequential ? ' checked' : ''}> lessons must be done in order — the next one opens when the one before is finished</label>
+          <label class="field"><span>who can read the lessons of a free ${noun}</span><select name="access"><option value="account"${course.access === 'account' ? ' selected' : ''}>people who made a free account</option><option value="open"${course.access === 'open' ? ' selected' : ''}>everyone, no account needed</option></select></label>
+          <label class="field"><span>its place in the list — a smaller number comes first</span><input name="sort_order" type="number" value="${course.sort_order || 0}"></label>
+        </div></details>
+
+        <div class="editor-foot editor-foot--stick"><button class="btn btn--solid btn--lg" type="submit">${id ? 'save' : 'create this ' + noun}</button>${id ? `<button class="btn btn--danger" type="button" data-delete-course>delete this ${noun}</button>` : '<span class="foot-note">you can fill in the rest and add lessons after it is created.</span>'}</div></form>`
+      + (id ? `<div class="h2"><span>lessons <small>${lessons.length} in ${modules.length} section${modules.length === 1 ? '' : 's'}</small></span><button class="btn btn--sm btn--solid" data-add-module>+ add a section</button></div>
+        <p class="lede">lessons are grouped into sections, like chapters in a book. add a section first, then put lessons inside it.</p>
+        <div id="module-new"></div>
         ${modules.map((m, mi) => {
           const ls = lessons.filter((l) => l.module_id === m.id);
           return `<div class="module-box" data-module="${m.id}">
-            <header><div><strong>${String(mi + 1).padStart(2, '0')} — ${esc(m.title)}${m.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong>${m.summary ? `<span class="sub" style="display:block;margin-top:4px;font-size:13px;color:var(--muted);">${esc(m.summary)}</span>` : ''}</div>
-              <div class="row-actions"><button class="btn btn--sm" data-mmove="-1"${mi === 0 ? ' disabled' : ''}>↑</button><button class="btn btn--sm" data-mmove="1"${mi === modules.length - 1 ? ' disabled' : ''}>↓</button><button class="btn btn--sm" data-mhide>${m.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-medit>rename</button><button class="btn btn--sm btn--danger" data-mdel>delete</button></div></header>
-            <div class="rows">${ls.map((l, li) => (l.id === openLesson ? lessonForm(l, m.id) : `<div class="row row--plain" data-lesson="${l.id}">
-              <div><strong>${esc(l.title)}${l.is_preview ? '<span class="badge badge--on">preview</span>' : ''}${l.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub">${{ video: '▶ video', article: '▤ reading', quiz: '☑ quiz', form: '✎ test', live: '◉ live class' }[l.kind] || esc(l.kind)} · ${l.kind === 'live' ? (l.live_at ? whenText(l.live_at) + ' · ' : 'no date yet · ') : ''}${l.duration_min} min</span></div>
-              <div class="row-actions"><button class="btn btn--sm" data-lmove="-1"${li === 0 ? ' disabled' : ''}>↑</button><button class="btn btn--sm" data-lmove="1"${li === ls.length - 1 ? ' disabled' : ''}>↓</button><button class="btn btn--sm" data-lhide>${l.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm" data-ledit>edit</button><button class="btn btn--sm btn--danger" data-ldel>delete</button></div>
-            </div>`)).join('') || '<p class="empty" style="border:0;padding:20px 0;">no lessons in this module yet.</p>'}
+            <header><div><strong><small>section ${mi + 1}</small>${esc(m.title)}${m.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong>${m.summary ? `<span class="sub" style="display:block;margin-top:4px;font-size:13px;color:var(--muted);">${esc(m.summary)}</span>` : ''}</div>
+              <div class="row-actions"><button class="btn btn--sm" data-medit>rename</button><button class="btn btn--sm" data-mmove="-1"${mi === 0 ? ' disabled' : ''} title="move this section up" aria-label="move this section up">↑</button><button class="btn btn--sm" data-mmove="1"${mi === modules.length - 1 ? ' disabled' : ''} title="move this section down" aria-label="move this section down">↓</button><button class="btn btn--sm" data-mhide>${m.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm btn--danger" data-mdel>delete</button></div></header>
+            <div class="rows">${ls.map((l, li) => (l.id === openLesson ? lessonForm(l, m.id) : `<div class="row row--lesson" data-lesson="${l.id}">
+              <i class="kind kind--${esc(l.kind)}" aria-hidden="true">${{ video: '▶', article: '▤', quiz: '☑', form: '✎', live: '◉' }[l.kind] || '•'}</i>
+              <div><strong>${esc(l.title)}${l.is_preview ? '<span class="badge badge--on">free sample</span>' : ''}${l.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub">${{ video: 'video', article: 'reading', quiz: 'quiz', form: 'test', live: 'live class' }[l.kind] || esc(l.kind)} · ${l.kind === 'live' ? (l.live_at ? whenText(l.live_at) + ' · ' : 'no date yet · ') : ''}${l.duration_min} min</span></div>
+              <div class="row-actions"><button class="btn btn--sm btn--solid" data-ledit>edit</button><button class="btn btn--sm" data-lmove="-1"${li === 0 ? ' disabled' : ''} title="move up" aria-label="move this lesson up">↑</button><button class="btn btn--sm" data-lmove="1"${li === ls.length - 1 ? ' disabled' : ''} title="move down" aria-label="move this lesson down">↓</button><button class="btn btn--sm" data-lhide>${l.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm btn--danger" data-ldel>delete</button></div>
+            </div>`)).join('') || '<p class="empty" style="border:0;padding:20px 0;">no lessons in this section yet — press “add a lesson”.</p>'}
             ${openLesson === 'new:' + m.id ? lessonForm({}, m.id) : ''}</div>
-            <footer><button class="btn btn--sm" data-add-lesson>+ add lesson</button></footer>
+            <footer><button class="btn btn--solid" data-add-lesson>+ add a lesson</button></footer>
           </div>`;
-        }).join('') || '<p class="empty">no modules yet. a module is a chapter — add one, then put lessons inside it.</p>'}
+        }).join('') || '<p class="empty">no sections yet. press “add a section” above, give it a name (for example “week 1”), then add lessons to it.</p>'}
         <div id="course-extras"><p class="empty">loading announcements, reviews and questions…</p></div>` : '');
 
     const reload = (lesson) => courseEditor(id, lesson);
@@ -661,6 +903,7 @@
     }
 
     $('[data-back]', main).addEventListener('click', () => go('courses'));
+    syncShown($('#course-form', main));
     // fills the "includes" box with what the page would show on its own, ready to edit
     $('[data-fill-includes]', main).addEventListener('click', () => {
       const shown = lessons.filter((l) => !l.is_hidden && !(modules.find((m) => m.id === l.module_id) || {}).is_hidden);
@@ -699,6 +942,15 @@
     if (!id) return;
     courseExtras($('#course-extras', main), id, lessons);
 
+    main.onsubmit = async (e) => {
+      const f = e.target; if (!f.matches('[data-mform]')) return;
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(f)), title = v.title.trim(); if (!title) return;
+      const ok = f.dataset.mform === 'new'
+        ? await run(sb.from('course_modules').insert({ course_id: id, title, sort_order: modules.length + 1 }), 'section added — now add a lesson to it')
+        : await run(sb.from('course_modules').update({ title, summary: (v.summary || '').trim() || null }).eq('id', f.dataset.mform), 'section saved');
+      if (ok) reload();
+    };
     main.onclick = async (e) => {
       const t = e.target;
       if (t.closest('[data-cancel]')) return reload();
@@ -708,27 +960,31 @@
         return;
       }
       if (t.closest('[data-add-module]')) {
-        const title = prompt('module title'); if (!title) return;
-        if (await run(sb.from('course_modules').insert({ course_id: id, title: title.trim(), sort_order: modules.length + 1 }), 'module added')) reload();
+        const slot = $('#module-new', main);
+        slot.innerHTML = `<form class="editor mini" data-mform="new"><label class="field"><span>name of the new section</span><input name="title" required placeholder="e.g. week 1 — getting started"></label>
+          <div class="editor-foot"><button class="btn btn--solid" type="submit">add section</button><button class="btn" type="button" data-mcancel>cancel</button></div></form>`;
+        $('input', slot).focus();
         return;
       }
+      if (t.closest('[data-mcancel]')) return reload();
       const box = t.closest('.module-box'); if (!box) return;
       const m = modules.find((x) => x.id === box.dataset.module), mi = modules.indexOf(m);
       const inModule = (mid) => lessons.filter((l) => l.module_id === mid);
       if (t.closest('[data-add-lesson]')) return reload('new:' + m.id);
       if (t.closest('[data-mhide]')) {
-        if (await run(sb.from('course_modules').update({ is_hidden: !m.is_hidden }).eq('id', m.id), m.is_hidden ? 'module shown' : 'module hidden — its lessons are hidden with it')) reload();
+        if (await run(sb.from('course_modules').update({ is_hidden: !m.is_hidden }).eq('id', m.id), m.is_hidden ? 'section shown' : 'section hidden — its lessons are hidden with it')) reload();
         return;
       }
       if (t.closest('[data-medit]')) {
-        const title = prompt('module title', m.title); if (title === null) return;
-        const summary = prompt('one-line summary (optional)', m.summary || ''); if (summary === null) return;
-        if (await run(sb.from('course_modules').update({ title: title.trim() || m.title, summary: summary.trim() || null }).eq('id', m.id), 'module saved')) reload();
+        $('header', box).outerHTML = `<form class="editor mini" data-mform="${m.id}"><div class="form-grid"><label class="field"><span>name of the section</span><input name="title" required value="${esc(m.title)}"></label>
+          <label class="field"><span>one line about it (optional)</span><input name="summary" value="${esc(m.summary || '')}"></label></div>
+          <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button><button class="btn" type="button" data-mcancel>cancel</button></div></form>`;
+        $('form.mini input', box).focus();
         return;
       }
       if (t.closest('[data-mdel]')) {
-        if (!confirm(`delete the module “${m.title}” and its ${inModule(m.id).length} lessons?`)) return;
-        if (await run(sb.from('course_modules').delete().eq('id', m.id), 'module deleted')) reload();
+        if (!confirm(`delete the section “${m.title}” and the ${inModule(m.id).length} lessons inside it? this cannot be undone.`)) return;
+        if (await run(sb.from('course_modules').delete().eq('id', m.id), 'section deleted')) reload();
         return;
       }
       const mmove = t.closest('[data-mmove]');
@@ -761,18 +1017,33 @@
 
     const lf = $('form[data-lesson]', main);
     if (lf) {
-      lf.scrollIntoView({ block: 'center' });
+      $('[data-quiz]', lf)._qs = ((content && content.quiz) || []).map((q) => ({ q: q.q || '', options: (q.options || []).slice(), answer: q.answer || 0, why: q.why || '' }));
+      if (!$('[data-quiz]', lf)._qs.length) $('[data-quiz]', lf)._qs.push({ q: '', options: ['', ''], answer: 0 });
+      drawQuiz(lf); drawFiles(lf); syncLesson(lf);
+      lf.scrollIntoView({ block: lf.dataset.lesson ? 'center' : 'start' });
       lf.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const ui = lf.dataset.ui;
+        if (!ui) return toast('first choose what kind of lesson this is', true);
+        // a live class keeps its recording in the video box
+        const rec = $('[data-recording]', lf);
+        if (ui === 'live' && rec && rec.value.trim() !== (lf.video_url.defaultValue || '').trim() && lf.video_url.value.trim() === (lf.video_url.defaultValue || '').trim()) lf.video_url.value = rec.value.trim();
         // saving straight after pasting a link: wait for the video's title to arrive first
-        await titleFromVideo(lf.querySelector('[name=video_url]'));
+        if (ui === 'video') await titleFromVideo(lf.querySelector('[name=video_url]'));
         const v = Object.fromEntries(new FormData(lf));
-        if (!v.title.trim()) return toast('give the lesson a title — or put a youtube link in the video box and it is filled in for you', true);
-        const quiz = textToQuiz(v.quiz);
-        const resources = v.resources.split('\n').map((line) => line.split('|').map((x) => x.trim())).filter((x) => x.length >= 2 && x[1]).map(([label, ...rest]) => ({ label: label || rest.join('|'), url: rest.join('|') }));
-        if (v.kind === 'form' && !v.form_url.trim()) return toast('paste the form link for this test', true);
-        if (v.kind === 'live' && !academyReady) toast('the live class is saved, but its date and link need seed/website-backend-05-academy.sql to be run in supabase first', true);
-        if (v.kind === 'quiz' && !quiz.length) return toast('a quiz needs at least one question with two options — see the format note under the box', true);
+        const resources = fileLines(v.resources);
+        const quiz = readQuiz(lf);
+        if (ui === 'video' && !v.video_url.trim()) return toast('paste the youtube link of the video — or upload a video file', true);
+        if (!v.title.trim()) return toast(ui === 'video' ? 'give the lesson a title — or wait a moment for it to be filled in from the video' : 'give it a title', true);
+        if (ui === 'article' && !v.body.trim()) return toast('write the lesson in the big box — or choose “pdf” if you want to upload a document instead', true);
+        if (ui === 'pdf' && !resources.some((r) => /\.pdf($|[?#])/i.test(r.url))) return toast('upload the pdf first — press “upload a pdf”', true);
+        if (ui === 'form' && !v.form_url.trim()) return toast('paste the google form link for this test', true);
+        if (ui === 'quiz' && !quiz.length) return toast('a quiz needs at least one question with two answers', true);
+        if (ui === 'live' && !academyReady) toast('the live class is saved, but its date and link need seed/website-backend-05-academy.sql to be run in supabase first', true);
+        // what belongs to another kind of lesson is not carried along when the kind changes
+        const changed = (lf.dataset.was || '') !== v.kind || !lf.dataset.lesson;
+        const keep = (name, kinds) => (!changed || kinds.includes(ui) ? (v[name] || '').trim() || null : null);
+        const video_url = ui === 'pdf' || ui === 'article' ? (changed ? null : (v.video_url || '').trim() || null) : keep('video_url', ['video', 'live']);
         const row = { course_id: id, module_id: v.module_id || lf.dataset.module, title: v.title.trim(), kind: v.kind, duration_min: Math.max(1, +v.duration_min || 5), is_preview: !!v.is_preview, is_hidden: !!v.is_hidden };
         if (academyReady) row.live_at = v.kind === 'live' ? fromLocalInput(v.live_at) : null;
         let lessonId = lf.dataset.lesson;
@@ -782,8 +1053,9 @@
           if (!made) return;
           lessonId = made.id;
         }
-        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url: v.video_url.trim() || null, form_url: v.form_url.trim() || null, body: v.body || null, quiz: quiz.length ? quiz : null, resources, ...(academyReady ? { live_url: v.live_url.trim() || null } : {}) }), 'lesson saved')) {
-          // keep numbering contiguous module by module, including the new lesson
+        const keptQuiz = ui === 'quiz' ? quiz : (!changed && content && content.quiz ? content.quiz : []);
+        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url, form_url: keep('form_url', ['form']), body: v.body || null, quiz: keptQuiz.length ? keptQuiz : null, resources, ...(academyReady ? { live_url: keep('live_url', ['live']) } : {}) }), LESSON_WORDS.save[ui] + ' saved')) {
+          // keep numbering contiguous section by section, including the new lesson
           const fresh = await run(sb.from('course_lessons').select('*').eq('course_id', id).order('sort_order'));
           if (fresh && fresh !== true) { lessons = fresh; await renumberLessons(modules, (mid) => fresh.filter((x) => x.module_id === mid)); }
           reload();
@@ -811,7 +1083,8 @@
     const avg = reviews.length ? (reviews.reduce((t, r) => t + r.rating, 0) / reviews.length).toFixed(1) : '—';
 
     el.innerHTML = `
-      <div class="h2"><span>// announcements — ${news.length}</span></div>
+      <div class="h2"><span>announcements <small>${news.length}</small></span></div>
+      <p class="lede">a message every learner of this one sees on their lesson pages.</p>
       <form class="editor" data-form="news" style="border-color:var(--line);">
         <div class="form-grid"><label class="field field--wide"><span>new announcement — title</span><input name="title" required></label>
         <label class="field field--wide"><span>message (optional)</span><textarea name="body" rows="3"></textarea></label></div>
@@ -819,21 +1092,21 @@
       </form>
       <div class="rows">${news.map((n) => `<div class="row row--plain" data-kind="news" data-id="${n.id}"><div><strong>${esc(n.title)}</strong><span class="sub">${when(n.created_at)}${n.body ? ' · ' + esc(n.body.slice(0, 90)) : ''}</span></div><div class="row-actions"><button class="btn btn--sm btn--danger" data-x="del">delete</button></div></div>`).join('') || '<p class="empty">nothing posted yet.</p>'}</div>
 
-      <div class="h2"><span>// reviews — ${reviews.length}, average ${avg}</span></div>
+      <div class="h2"><span>reviews <small>${reviews.length} · average ${avg}</small></span></div>
       <div class="rows">${reviews.map((r) => `<div class="row row--plain" data-kind="review" data-id="${r.user_id}"><div><strong>${'★'.repeat(r.rating)} ${esc(r.author_name)}${r.is_hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub" style="white-space:normal;">${when(r.created_at)}${r.body ? ' · ' + esc(r.body) : ''}</span></div>
         <div class="row-actions"><button class="btn btn--sm" data-x="hide">${r.is_hidden ? 'show' : 'hide'}</button><button class="btn btn--sm btn--danger" data-x="del">delete</button></div></div>`).join('') || '<p class="empty">no reviews yet.</p>'}</div>
 
-      <div class="h2"><span>// questions from learners — ${questions.length}</span></div>
+      <div class="h2"><span>questions from learners <small>${questions.length}</small></span></div>
       <div class="rows">${questions.map((q) => {
         const replies = posts.filter((c) => c.parent_id === q.id).reverse();
         return `<div class="row row--plain" data-kind="post" data-id="${q.id}" data-lesson="${q.lesson_id}" style="align-items:start;"><div>
             <strong style="white-space:normal;">${esc(q.body)}</strong><span class="sub">${esc(q.author_name)} · ${when(q.created_at)} · ${esc(lessonTitle[q.lesson_id] || 'lesson')}${replies.some((r) => r.is_staff) ? '' : ' · <b style="color:var(--green);font-weight:400;">unanswered</b>'}</span>
             ${replies.map((r) => `<span class="sub" style="white-space:normal;margin-top:8px;padding-left:14px;border-left:1px solid var(--line);" data-reply="${r.id}">${r.is_staff ? '<b style="color:var(--green);font-weight:400;">instructor</b> · ' : ''}${esc(r.author_name)}: ${esc(r.body)} <button class="linkish" data-x="del-reply" data-rid="${r.id}">delete</button></span>`).join('')}
-            <form data-form="reply" style="display:flex;gap:8px;margin-top:12px;"><input name="body" required placeholder="answer as instructor…" style="flex:1;min-width:0;padding:9px 12px;background:var(--bg);color:var(--fg);border:1px solid var(--line);font:400 14px/1.4 var(--font-sans);"><button class="btn btn--sm" type="submit">reply</button></form>
+            <form data-form="reply" style="display:flex;gap:8px;margin-top:12px;"><input name="body" required placeholder="type your answer…" style="flex:1;min-width:0;padding:9px 12px;background:var(--bg);color:var(--fg);border:1px solid var(--line);font:400 14px/1.4 var(--font-sans);"><button class="btn btn--sm" type="submit">reply</button></form>
           </div><div class="row-actions"><button class="btn btn--sm btn--danger" data-x="del">delete</button></div></div>`;
       }).join('') || '<p class="empty">no questions yet.</p>'}</div>
 
-      <div class="h2"><span>// certificates issued — ${certs.length}</span></div>
+      <div class="h2"><span>certificates given <small>${certs.length}</small></span></div>
       <div class="rows">${certs.map((c) => `<div class="row row--plain" data-kind="cert" data-id="${esc(c.id)}"><div><strong style="text-transform:none;">${esc(c.learner_name)}</strong><span class="sub" style="text-transform:none;">${esc(c.id)} · ${when(c.issued_at)}</span></div>
         <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/certificate.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm btn--danger" data-x="del">revoke</button></div></div>`).join('') || '<p class="empty">none yet.</p>'}</div>`;
 
@@ -875,7 +1148,7 @@
     const btn = $('.admin-nav [data-view=learners]', app); if (!btn) return;
     let n = 0;
     try { const { data } = await sb.from('payments').select('id').eq('status', 'pending'); n = Array.isArray(data) ? data.length : 0; } catch (e) {}
-    btn.innerHTML = n ? `learners<span class="badge badge--on" style="margin-left:10px;">${n} to check</span>` : 'learners';
+    $('span', btn).innerHTML = n ? `learners & payments<b class="count" title="${n} payment${n === 1 ? '' : 's'} to check">${n} to check</b>` : 'learners & payments';
   }
 
   async function learnersView() {
@@ -908,24 +1181,24 @@
     const what = (p) => `${esc(title[p.course_id] || p.course_id)}${p.amount ? ` · <b style="color:var(--fg)">${esc(p.amount)}</b>` : ''}`;
     const paidOpts = list(courses).filter((c) => isPaid(c.id)).map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
 
-    main.innerHTML = head('learners', 'payments to check come first: a learner pays by bkash, then sends the number they paid from and the transaction id. find that transaction in your bkash app or statement, then confirm it here — their lessons unlock straight away.')
+    main.innerHTML = head('learners & payments', 'when a learner pays by bkash they send you two things: the number they paid from and the transaction id. find that payment in your bkash app, then press “confirm” here — their lessons open straight away.')
       + `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));"><div><b>${waiting.length}</b><span>payments to check</span></div><div><b>${new Set(rows.map((r) => r.user_id)).size}</b><span>learners</span></div><div><b>${rows.length}</b><span>enrolments</span></div><div><b>${rows.filter((r) => r.completed_at).length}</b><span>completed</span></div></div>`
 
-      + `<div class="h2"><span>// payments to check — ${waiting.length}</span></div>
+      + `<div class="h2"><span>payments to check <small>${waiting.length}</small></span></div>
       <div class="rows">${waiting.map((p) => `<div class="row row--plain row--pay" data-pid="${p.id}" style="align-items:center;">
           <div>${who(p)}<span class="sub">${what(p)} · sent ${at(p.created_at)}</span></div>
           <div class="pay-check"><div><small>transaction id</small><code>${esc(p.trx_id)}</code><button class="linkish" data-copy="${esc(p.trx_id)}">copy</button></div><div><small>paid from</small><code>${esc(p.sender)}</code></div></div>
           <div class="row-actions"><button class="btn btn--sm btn--solid" data-review="confirmed">confirm</button><button class="btn btn--sm btn--danger" data-review="rejected">reject</button></div>
         </div>`).join('') || '<p class="empty">nothing waiting. when a learner submits a bkash transaction id, it appears here.</p>'}</div>
-      <p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--muted);">confirm only when the transaction id, the amount and the sending number all match what you see in bkash. if something does not match, reject it — the learner is told and can enter it again.</p>`
+      <p class="lede" style="margin-top:14px;">confirm only when all three match what you see in bkash: the transaction id, the amount and the number it came from. if something does not match, press “reject” — the learner is told why and can try again.</p>`
 
-      + `<div class="h2"><span>// give access without a bkash payment</span></div>
-      <form class="editor" id="grant-form"><div class="form-grid">
+      + `<details class="group" style="margin-top:28px;"><summary>let someone in without a bkash payment<small>cash, a scholarship, or a team member</small></summary>
+      <form id="grant-form" style="padding:4px 20px 22px;"><div class="form-grid">
         <label class="field"><span>the learner's email (they must have signed in on the site once)</span><input name="email" type="email" required placeholder="name@gmail.com"></label>
-        <label class="field"><span>which entry</span><select name="course" required>${paidOpts || '<option value="">no paid entries</option>'}</select></label>
-      </div><div class="editor-foot"><button class="btn" type="submit"${paidOpts ? '' : ' disabled'}>give access</button><span style="font-size:13px;color:var(--muted);">for someone who paid in cash, a scholarship, or a team member.</span></div></form>`
+        <label class="field"><span>to which course, program or webinar</span><select name="course" required>${paidOpts || '<option value="">no paid entries</option>'}</select></label>
+      </div><div class="editor-foot"><button class="btn btn--solid" type="submit"${paidOpts ? '' : ' disabled'}>give access</button></div></form></details>`
 
-      + (decided.length ? `<div class="h2"><span>// decided — the last ${decided.length}</span></div>
+      + (decided.length ? `<div class="h2"><span>already decided <small>the last ${decided.length}</small></span></div>
       <div class="rows">${decided.map((p) => `<div class="row row--plain row--pay" data-pid="${p.id}" style="align-items:center;">
           <div>${who(p)}<span class="sub">${what(p)}</span></div>
           <div class="pay-check"><div><small>${p.method === 'manual' ? 'given by hand' : 'transaction id'}</small><code>${p.method === 'manual' ? '—' : esc(p.trx_id)}</code></div>
@@ -933,8 +1206,8 @@
           <div class="row-actions"><span class="badge${p.status === 'confirmed' ? ' badge--on' : ''}" style="margin:0 6px 0 0;">${p.status}</span>${p.status === 'confirmed' ? '<button class="btn btn--sm" data-review="rejected">take back</button>' : '<button class="btn btn--sm" data-review="confirmed">confirm after all</button>'}</div>
         </div>`).join('')}</div>` : '')
 
-      + `<div class="h2"><span>// everyone enrolled — ${rows.length}</span></div>`
-      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>entry</th><th>enrolled</th><th>payment</th><th>progress</th><th>completed</th><th></th></tr></thead><tbody>${rows.map((r) => {
+      + `<div class="h2"><span>everyone enrolled <small>${rows.length}</small></span></div>`
+      + (rows.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>learner</th><th>enrolled in</th><th>since</th><th>payment</th><th>progress</th><th>finished</th><th></th></tr></thead><tbody>${rows.map((r) => {
         const t = total(r.course_id), d = Math.min(done(r.user_id, r.course_id), t), pct = t ? Math.round((d / t) * 100) : 0;
         const p = payOf(r.user_id, r.course_id);
         const state = !isPaid(r.course_id) ? '<span class="badge">free</span>' : !p ? '<span class="badge">no payment</span>' : `<span class="badge${p.status === 'confirmed' ? ' badge--on' : ''}">${p.status === 'confirmed' ? (p.method === 'manual' ? 'given by hand' : 'paid') : p.status === 'pending' ? 'to check' : 'rejected'}</span>`;
@@ -998,19 +1271,20 @@
       if (!error) auto = false;
     }
 
-    main.innerHTML = head('admins', 'people who can sign in here and change the site.')
-      + (hasSwitch ? `<div class="editor" style="border-color:${unsafe.length ? '#ff6b5e' : 'var(--line)'};padding-top:20px;">
+    main.innerHTML = head('admins', 'the people who can sign in to this panel and change the website. add someone with the form below; remove someone with the button beside their email.')
+      + (hasSwitch ? `<details class="group"${unsafe.length ? ' open' : ''}><summary>advanced: accounts added in supabase<small>${unsafe.length ? '<b style="color:#ff6b5e;">switched off for safety</b>' : auto ? 'on' : 'off'}</small></summary><div style="padding:18px 20px 22px;">
           <label class="check" style="margin-top:0;"><input type="checkbox" id="auto-admin"${auto ? ' checked' : ''}${unsafe.length ? ' disabled' : ''}> anyone i add in supabase becomes an admin automatically</label>
           <p style="margin-top:12px;font-size:13px;line-height:1.6;color:var(--muted);">${unsafe.length
             ? `<b style="color:#ff6b5e;">switched off for safety:</b> ${unsafe.join(' and ')} in this supabase project, so a website sign-up can no longer be told apart from an account you added. turn that setting back, or add admins by email below.`
             : 'add a person under <b>authentication → users → add user</b> (or send them an invitation) and they can sign in here straight away — nothing else to do. people who sign up on the website stay learners. removing someone below takes their access away for good; it is only granted at the moment they are added.'}</p>
-        </div>` : '')
-      + `<form class="editor" id="add-admin" style="border-color:var(--line);">
-          <p style="padding-top:18px;font-size:13px;line-height:1.6;color:var(--muted);">or create an admin login here. it is a new, separate account: an email that already has a learner account can't be used, and admin logins don't enrol in courses.</p>
-          <div class="form-grid"><label class="field"><span>email for the new admin</span><input name="email" type="email" required autocomplete="off" placeholder="name@example.com"></label>
-          <label class="field"><span>password (at least 8 characters)</span><input name="password" type="text" required minlength="8" autocomplete="off"></label></div>
+        </div></details>` : '')
+      + `<div class="h2"><span>add an admin</span></div>
+        <form class="editor" id="add-admin" style="border-color:var(--line);">
+          <p class="lede" style="padding-top:18px;">make a login for them here, then tell them the email and password. use an email that has not signed in on the website as a learner.</p>
+          <div class="form-grid"><label class="field"><span>their email</span><input name="email" type="email" required autocomplete="off" placeholder="name@example.com"></label>
+          <label class="field"><span>a password for them — at least 8 letters or numbers</span><input name="password" type="text" required minlength="8" autocomplete="off"></label></div>
           <div class="editor-foot"><button class="btn btn--solid" type="submit">create admin login</button></div></form>`
-      + `<div class="rows">${list.map((r) => `<div class="row row--plain" data-email="${esc(r.email)}"><div><strong style="text-transform:none;">${esc(r.email)}${r.email.toLowerCase() === user.email.toLowerCase() ? '<span class="badge badge--on">you</span>' : ''}</strong></div>
+      + `<div class="h2"><span>admins now <small>${list.length}</small></span></div><div class="rows">${list.map((r) => `<div class="row row--plain" data-email="${esc(r.email)}"><div><strong style="text-transform:none;">${esc(r.email)}${r.email.toLowerCase() === user.email.toLowerCase() ? '<span class="badge badge--on">you</span>' : ''}</strong></div>
         <div class="row-actions">${r.email.toLowerCase() === user.email.toLowerCase() ? '' : '<button class="btn btn--sm btn--danger" data-remove>remove</button>'}</div></div>`).join('')}</div>`;
     const sw = $('#auto-admin', main);
     if (sw) sw.addEventListener('change', async () => {
