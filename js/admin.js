@@ -10,6 +10,8 @@
 //   courses   courses, modules, lessons (video / reading / quiz / form), files,
 //             announcements, reviews, questions and certificates
 //   learners  who is enrolled and how far along they are (read-only)
+//   reports   how the academy is doing — money, enrolments, visits, where learners stop —
+//             and a log of everything that happened (seed/website-backend-11-reports.sql)
 //   admins    who may use this panel, and which parts of it each person may open
 //             (a main admin has everything; a limited admin only what was ticked for them)
 //
@@ -37,7 +39,7 @@
   // what the signed-in admin may open: a main admin everything, a limited admin the parts ticked for them
   let me = { role: 'main', access: [] };
   const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled']];
-  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view));
+  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view === 'reports' ? 'learners' : view));
 
   // ── feedback ───────────────────────────────────────────────────────────────
   let toastEl, toastTimer;
@@ -369,6 +371,7 @@
     lists: ['people & logos', listsView, '☺', 'executives, advisors, schools, subsidiaries and partners'],
     courses: ['academy', coursesView, '▤', 'courses, programs and webinars — their lessons, prices and live classes'],
     learners: ['learners & payments', learnersView, '৳', 'check bkash payments and see who is enrolled'],
+    reports: ['reports', reportsView, '▥', 'how the academy is doing: money, enrolments, visits — and a log of everything that happened'],
     admins: ['admins', adminsView, '⚿', 'who is allowed to use this panel'],
   };
   let main, savebar, dirtyGuard = () => false;
@@ -420,7 +423,7 @@
     teacherEdit = null; teacherOpen = false;
     if (dirtyGuard() && !confirm('you have unsaved changes on this screen. leave without saving?')) return;
     dirtyGuard = () => false;
-    main.onclick = null; main.oninput = null; main.onsubmit = null; savebar.onclick = null;
+    main.onclick = null; main.oninput = null; main.onsubmit = null; main.onchange = null; savebar.onclick = null;
     savebar.classList.remove('is-on');
     $$('.admin-nav button', app).forEach((b) => b.classList.toggle('is-active', b.dataset.view === view));
     const hash = '#' + view + (arg ? '/' + encodeURIComponent(arg) : '');
@@ -1464,6 +1467,202 @@
       const [uid, cid] = b.dataset.unenrol.split('|');
       if (!confirm('remove this learner from the entry\'s list? their lesson progress is kept. (this does not change a payment — use “take back” above for that.)')) return;
       if (await run(sb.from('enrollments').delete().eq('user_id', uid).eq('course_id', cid), 'removed from the list')) learnersView();
+    };
+  }
+
+  // ── reports ────────────────────────────────────────────────────────────────
+  // One screen that answers "how is the academy doing?": the headline numbers for a period
+  // (each compared with the period before), money and enrolments over time, the path from a
+  // visit to a confirmed payment, every course side by side, where learners stop inside a
+  // course, coupons, and a log of everything that happened. All of it is worked out by the
+  // database (academy_report); this only draws it.
+  const PERIODS = [['7', 'last 7 days'], ['30', 'last 30 days'], ['month', 'this month'], ['90', 'last 90 days'], ['year', 'this year'], ['all', 'all time']];
+  let reportPeriod = '30', reportCourse = '', logKind = '', logShown = 30;
+  function periodRange(key) {
+    const now = new Date(), start = new Date(now); start.setHours(0, 0, 0, 0);
+    if (key === 'all') return [null, null];
+    if (key === 'month') start.setDate(1);
+    else if (key === 'year') start.setMonth(0, 1);
+    else start.setDate(start.getDate() - (+key - 1));
+    return [start.toISOString(), now.toISOString()];
+  }
+  const NUM = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+  const num = (v) => NUM.format(+v || 0);
+  // a round number at or above the largest value, so the scale ends on something readable
+  function niceTop(max) {
+    if (!(max > 0)) return 4;
+    const p = Math.pow(10, Math.floor(Math.log10(max))), f = max / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 4 ? 4 : f <= 5 ? 5 : 10) * p;
+  }
+  // one measure over time, as thin columns. every column can be pointed at or tabbed to for its value,
+  // and the same numbers are in a table underneath.
+  function columnChart(points, o) {
+    const top = niceTop(Math.max(...points.map((p) => p.value), 0)), any = points.some((p) => p.value > 0);
+    const every = Math.max(1, Math.ceil(points.length / 7));
+    return `<figure class="chart"><figcaption><strong>${o.title}</strong><span>${o.sub || ''}</span></figcaption>
+      <div class="chart-plot${any ? '' : ' is-empty'}" style="--n:${points.length}">
+        <div class="chart-y" aria-hidden="true"><span>${o.fmt(top)}</span><span>${o.fmt(top / 2)}</span><span>${o.fmt(0)}</span></div>
+        <div class="chart-bars" role="img" aria-label="${esc(o.title)} — the numbers are in the table below">
+          ${points.map((p, i) => `<div class="chart-col" tabindex="0"><i style="height:${top ? Math.max(p.value > 0 ? 1.5 : 0, (p.value / top) * 100) : 0}%"></i><b class="chart-tip"><strong>${o.fmt(p.value)}</strong><span>${esc(p.full)}</span></b>${i % every === 0 ? `<small>${esc(p.label)}</small>` : ''}</div>`).join('')}
+        </div>
+        ${any ? '' : `<p class="chart-none">${o.none || 'nothing in this period yet.'}</p>`}
+      </div>
+      <details class="chart-table"><summary>show the numbers</summary><div class="table-wrap"><table class="table"><thead><tr><th>${o.stepName}</th><th>${o.title}</th></tr></thead><tbody>${points.map((p) => `<tr><td>${esc(p.full)}</td><td>${o.fmt(p.value)}</td></tr>`).join('')}</tbody></table></div></details>
+    </figure>`;
+  }
+  // a small line of the same measure, for a headline number
+  function spark(values) {
+    if (values.length < 2 || !values.some((v) => v > 0)) return '';
+    const max = Math.max(...values), w = 96, h = 26, x = (i) => (i / (values.length - 1)) * (w - 4) + 2, y = (v) => h - 3 - (v / max) * (h - 6);
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"/><circle cx="${x(values.length - 1).toFixed(1)}" cy="${y(values[values.length - 1]).toFixed(1)}" r="3"/></svg>`;
+  }
+  function downloadCsv(name, rows) {
+    const cell = (v) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const blob = new Blob(['\ufeff' + rows.map((r) => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  async function reportsView() {
+    const [from, to] = periodRange(reportPeriod);
+    let tz = 'Asia/Dhaka'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (e) {}
+    // while a new period loads, what is on screen stays (dimmed) instead of jumping
+    const old = $('.reports', main); if (old) old.classList.add('is-loading');
+    const [rep, logRes] = await Promise.all([
+      sb.rpc('academy_report', { p_from: from, p_to: to, p_tz: tz }),
+      (logKind ? sb.from('activity_log').select('*').eq('kind', logKind) : sb.from('activity_log').select('*')).order('at', { ascending: false }).limit(logShown + 1),
+    ]);
+    if (rep.error || !rep.data || !rep.data.now) {
+      main.innerHTML = head('reports', 'how the academy is doing.') + `<p class="empty">${/does not exist|schema cache|404/i.test((rep.error && rep.error.message) || '') ? 'one step left to switch reports on: open supabase → sql editor, paste the file <b>seed/website-backend-11-reports.sql</b> and press run (once).' : esc(plain((rep.error && rep.error.message) || 'the report could not be loaded — try again.'))}</p>`;
+      return;
+    }
+    const R = rep.data, now = R.now, was = R.before, cur = R.currency || '৳';
+    const log = Array.isArray(logRes.data) ? logRes.data : [];
+    const money = (v) => (/^[a-z]/i.test(cur) ? `${cur} ${num(v)}` : cur + num(v));
+    const periodName = (PERIODS.find(([k]) => k === reportPeriod) || [])[1];
+    const beforeName = { 7: 'the 7 days before', 30: 'the 30 days before', 90: 'the 90 days before', month: 'the same stretch before', year: 'the same stretch before' }[reportPeriod];
+    // points along the time axis
+    const byMonth = R.step === 'month';
+    const label = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', byMonth ? { month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' }).toLowerCase();
+    const full = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', byMonth ? { month: 'long', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+    const pts = (key) => R.series.map((x) => ({ label: label(x.d), full: full(x.d), value: +x[key] || 0 }));
+    // "▲ 12% more than the 30 days before"
+    const delta = (key, goodUp = true) => {
+      if (!was) return '<em class="delta">since the academy opened</em>';
+      const a = +now[key] || 0, b = +was[key] || 0;
+      if (a === b) return `<em class="delta">the same as ${beforeName}</em>`;
+      if (!b) return `<em class="delta is-up"><i aria-hidden="true">▲</i> up from none in ${beforeName}</em>`;
+      const pct = Math.round(((a - b) / b) * 100), up = a > b;
+      return `<em class="delta ${up === goodUp ? 'is-up' : 'is-down'}"><i aria-hidden="true">${up ? '▲' : '▼'}</i> ${Math.abs(pct)}% ${up ? 'more' : 'less'} than ${beforeName}</em>`;
+    };
+    const tile = (label, value, key, series, hint) => `<div class="kpi"><span>${label}</span><strong>${value}</strong>${key ? delta(key) : ''}${series ? spark(R.series.map((x) => +x[series] || 0)) : ''}${hint ? `<small>${hint}</small>` : ''}</div>`;
+
+    const courses = R.courses || [];
+    const live = courses.filter((c) => c.status === 'published');
+    if (!courses.some((c) => c.id === reportCourse)) reportCourse = (courses.find((c) => c.enrolled > 0) || live[0] || courses[0] || {}).id || '';
+    const pick = courses.find((c) => c.id === reportCourse);
+    const steps = (pick && R.steps[pick.id]) || [];
+    // where the biggest share of learners stops between one lesson and the next
+    let worst = -1, worstDrop = 0;
+    steps.forEach((st, i) => { const before = i ? steps[i - 1].done : (pick ? pick.enrolled : 0); const drop = before - st.done; if (before > 0 && drop > worstDrop && drop / before >= 0.2) { worstDrop = drop; worst = i; } });
+    const F = R.funnel, fmax = Math.max(F.course_views, F.pay_views, F.sent, F.confirmed, 1);
+    const frow = (name, n, prev, note) => `<li><span>${name}</span><div class="meter"><i style="width:${(n / fmax) * 100}%"></i></div><b>${num(n)}</b><small>${prev > 0 ? `${Math.round((n / prev) * 100)}% of the step before` : note || ''}</small></li>`;
+    const T = R.todo;
+    const todo = [
+      T.payments_waiting ? [`${num(T.payments_waiting)} payment${T.payments_waiting === 1 ? ' is' : 's are'} waiting to be checked${T.payments_late ? ` — ${num(T.payments_late)} for more than a day` : ''}`, 'learners', 'check them'] : null,
+      T.unanswered ? [`${num(T.unanswered)} question${T.unanswered === 1 ? '' : 's'} from learners ${T.unanswered === 1 ? 'has' : 'have'} no answer yet`, 'courses', 'open the academy'] : null,
+      T.not_started ? [`${num(T.not_started)} learner${T.not_started === 1 ? '' : 's'} enrolled more than 3 days ago and ${T.not_started === 1 ? 'has' : 'have'} not done a single lesson`, 'learners', 'see who'] : null,
+    ].filter(Boolean);
+    const LOG = [['', 'everything'], ['money', 'money'], ['learner', 'learners'], ['content', 'courses & lessons'], ['admin', 'admins']];
+    const LOG_ICON = { money: '৳', learner: '☺', content: '▤', admin: '⚿' };
+    const when = (d) => { const t = new Date(d), s = (Date.now() - t) / 1000; return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toLowerCase(); };
+    const exact = (d) => new Date(d).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    const quiet = !(+now.enrolments || +now.revenue || +now.lessons_done || +now.visits || +now.signups);
+
+    main.innerHTML = head('reports', 'how the academy is doing. choose a period — every number, chart and table below follows it.',
+      '<button class="btn" data-csv="courses">download as a spreadsheet</button>')
+      + `<div class="reports">
+        <div class="period" role="group" aria-label="period">${PERIODS.map(([k, t]) => `<button type="button" class="chip${k === reportPeriod ? ' is-active' : ''}" data-period="${k}" aria-pressed="${k === reportPeriod}">${t}</button>`).join('')}</div>
+        ${quiet ? `<p class="notice-soft"><b>nothing has happened in ${periodName} yet.</b> once learners visit, enrol and pay, this screen fills in by itself — there is nothing to set up.</p>` : ''}
+
+        ${todo.length ? `<div class="todo"><strong>waiting for you</strong><ul>${todo.map(([text, view, go]) => `<li><span>${text}</span><button type="button" class="btn btn--sm" data-go="${view}">${go} →</button></li>`).join('')}</ul></div>` : ''}
+
+        <div class="kpis">
+          ${tile('money received', money(now.revenue), 'revenue', 'revenue', `${num(now.paid)} payment${+now.paid === 1 ? '' : 's'} confirmed${+now.paid ? ` · ${money(now.revenue / now.paid)} each on average` : ''}`)}
+          ${tile('enrolments', num(now.enrolments), 'enrolments', 'enrolments', `${num(now.new_learners)} of them from people enrolling for the first time`)}
+          ${tile('visits to course pages', num(now.visits), 'visits', 'visits', +now.visits ? `${Math.round((now.enrolments / now.visits) * 100)} of every 100 visits ended in an enrolment` : (F.tracking_since ? 'one count per visitor, each time they come back' : 'counting starts with the next visitor'))}
+          ${tile('learners who studied', num(now.active), 'active', 'lessons', `${num(now.lessons_done)} lesson${+now.lessons_done === 1 ? '' : 's'} finished between them`)}
+          ${tile('finished a course', num(now.finished), 'finished', '', `${num(now.certificates)} certificate${+now.certificates === 1 ? '' : 's'} given`)}
+          ${tile('new accounts', num(now.signups), 'signups', '', 'people who signed in with google for the first time')}
+        </div>
+        <ul class="facts">
+          <li><span>given away through coupons</span><b>${money(now.discounts)}</b></li>
+          <li><span>questions asked</span><b>${num(now.questions)}</b></li>
+          <li><span>reviews</span><b>${num(now.reviews)}${now.rating ? ` · ${now.rating} out of 5` : ''}</b></li>
+          <li><span>time to check a payment (typical)</span><b>${T.hours_to_confirm == null ? '—' : T.hours_to_confirm < 1 ? 'under an hour' : num(T.hours_to_confirm) + ' h'}</b></li>
+        </ul>
+
+        <div class="charts">
+          ${columnChart(pts('revenue'), { title: 'money received', sub: `confirmed bkash payments, per ${byMonth ? 'month' : 'day'}`, fmt: money, stepName: byMonth ? 'month' : 'day', none: 'no payment was confirmed in this period.' })}
+          ${columnChart(pts('enrolments'), { title: 'enrolments', sub: `people joining a course, program or webinar, per ${byMonth ? 'month' : 'day'}`, fmt: num, stepName: byMonth ? 'month' : 'day', none: 'nobody enrolled in this period.' })}
+          ${columnChart(pts('visits'), { title: 'visits to course pages', sub: F.tracking_since ? `counted since ${new Date(F.tracking_since + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase()}` : 'counting starts with the next visitor', fmt: num, stepName: byMonth ? 'month' : 'day', none: 'no visits counted in this period.' })}
+          ${columnChart(pts('lessons'), { title: 'lessons finished', sub: `how much studying happened, per ${byMonth ? 'month' : 'day'}`, fmt: num, stepName: byMonth ? 'month' : 'day', none: 'no lesson was finished in this period.' })}
+        </div>
+
+        <div class="h2"><span>from a visit to a paid place</span></div>
+        <p class="lede">how many people reach each step on the way to paying. a big fall between two steps shows where people give up.</p>
+        <ol class="funnel">
+          ${frow('opened a course page', F.course_views, 0, 'the start')}
+          ${frow('opened the payment page', F.pay_views, F.course_views)}
+          ${frow('sent a payment', F.sent, F.pay_views)}
+          ${frow('payment confirmed', F.confirmed, F.sent)}
+        </ol>
+
+        <div class="h2"><span>every course, side by side <small>${courses.length}</small></span></div>
+        <div class="table-wrap"><table class="table table--courses"><thead><tr><th>name</th><th>visits</th><th>joined in this period</th><th>enrolled in all</th><th>payments</th><th>money</th><th>how far learners get</th><th>finished</th><th>rating</th></tr></thead>
+          <tbody>${courses.map((c) => `<tr><td><strong>${esc(c.title)}</strong><span class="sub">${esc(c.kind)}${c.status === 'published' ? '' : ' · draft'}${c.price ? ' · ' + money(c.price) : ' · free'}</span></td>
+            <td>${num(c.views)}</td><td>${num(c.joined)}</td><td>${num(c.enrolled)}</td><td>${num(c.paid)}${c.waiting ? `<span class="sub">${num(c.waiting)} waiting</span>` : ''}</td><td>${money(c.revenue)}</td>
+            <td>${c.progress == null ? '<span class="sub" style="margin:0;">nobody enrolled</span>' : `<div class="meter" title="on average, learners have done ${c.progress}% of the lessons"><i style="width:${c.progress}%"></i></div><span class="sub">${c.progress}% of the lessons</span>`}</td>
+            <td>${c.enrolled ? `${num(c.finished)}<span class="sub">${Math.round((c.finished / c.enrolled) * 100)}% of those enrolled</span>` : '—'}</td>
+            <td>${c.rating ? `${c.rating}<span class="sub">${num(c.reviews)} review${c.reviews === 1 ? '' : 's'}</span>` : '—'}</td></tr>`).join('') || '<tr><td colspan="9">no courses yet.</td></tr>'}</tbody></table></div>
+
+        <div class="h2"><span>where learners stop</span>${courses.length > 1 ? `<label class="pick"><span>course</span><select id="rep-course">${courses.map((c) => `<option value="${esc(c.id)}"${c.id === reportCourse ? ' selected' : ''}>${esc(c.title)}</option>`).join('')}</select></label>` : ''}</div>
+        <p class="lede">${pick ? `the lessons of <b style="color:var(--fg)">${esc(pick.title)}</b> in order, and how many of its ${num(pick.enrolled)} enrolled learner${pick.enrolled === 1 ? '' : 's'} finished each one (all time). a sudden drop means that lesson, or the one before it, is losing people.` : 'no course to show yet.'}</p>
+        ${pick && steps.length ? `<ol class="dropoff">${steps.map((st, i) => { const base = Math.max(pick.enrolled, st.done, 1); return `<li class="${i === worst ? 'is-worst' : ''}"><span><small>${i + 1}</small>${esc(st.title)}</span><div class="meter"><i style="width:${(st.done / base) * 100}%"></i></div><b>${num(st.done)}</b><small>${pick.enrolled ? Math.round((st.done / pick.enrolled) * 100) + '% of enrolled' : ''}${i === worst ? ' · <em>most learners stop before this one</em>' : ''}</small></li>`; }).join('')}</ol>` : pick ? '<p class="empty">this one has no lessons yet.</p>' : ''}
+
+        <div class="h2"><span>coupons <small>${(R.coupons || []).length}</small></span></div>
+        ${(R.coupons || []).length ? `<div class="table-wrap"><table class="table"><thead><tr><th>code</th><th>worth</th><th>used in this period</th><th>money it brought in</th><th>discount given</th></tr></thead><tbody>${R.coupons.map((k) => `<tr><td><code class="coupon-code" style="font-size:14px;">${esc(k.code)}</code></td><td>${esc(k.worth)} off</td><td>${num(k.used)}</td><td>${money(k.revenue)}</td><td>${money(k.given)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">no coupons have been made. you make them on the academy screen, under “coupons”.</p>'}
+
+        <div class="h2"><span>what happened</span><button class="btn btn--sm" data-csv="log">download this list</button></div>
+        <p class="lede">a line for everything that happens in the academy — written by the database itself, so it cannot be edited. this list is not cut by the period above.</p>
+        <div class="period" role="group" aria-label="what to show">${LOG.map(([k, t]) => `<button type="button" class="chip${k === logKind ? ' is-active' : ''}" data-log="${k}" aria-pressed="${k === logKind}">${t}</button>`).join('')}</div>
+        <ul class="log">${log.slice(0, logShown).map((x) => `<li class="log--${esc(x.kind)}"><i aria-hidden="true">${LOG_ICON[x.kind] || '•'}</i><div><b></b> <span></span></div><time datetime="${esc(x.at)}" title="${esc(exact(x.at))}">${when(x.at)}</time></li>`).join('') || `<li class="log-none">${logKind ? 'nothing of this kind has happened yet.' : 'nothing has happened yet. from now on, every enrolment, payment and change is written here.'}</li>`}</ul>
+        ${log.length > logShown ? '<button class="btn" data-log-more>show earlier ones</button>' : ''}
+      </div>`;
+    // names and descriptions come from learners and admins: they are put in as plain text
+    $$('.log li:not(.log-none)', main).forEach((li, i) => { $('b', li).textContent = log[i].actor; $('span', li).textContent = log[i].what; });
+
+    main.onchange = (e) => { if (e.target.id === 'rep-course') { reportCourse = e.target.value; reportsView(); } };
+    main.onclick = (e) => {
+      const t = e.target.closest('[data-period], [data-log], [data-log-more], [data-csv], [data-go]'); if (!t) return;
+      if (t.dataset.go) return go(t.dataset.go);
+      if (t.dataset.period) { reportPeriod = t.dataset.period; return reportsView(); }
+      if (t.dataset.log !== undefined && !t.dataset.csv && !t.hasAttribute('data-log-more')) { logKind = t.dataset.log; logShown = 30; return reportsView(); }
+      if (t.hasAttribute('data-log-more')) { logShown += 50; return reportsView(); }
+      if (t.dataset.csv === 'courses') {
+        downloadCsv(`academy-report-${reportPeriod === 'all' ? 'all-time' : reportPeriod}-${new Date().toISOString().slice(0, 10)}.csv`, [
+          ['amaze consortium academy — ' + periodName], [],
+          ['money received', now.revenue], ['payments confirmed', now.paid], ['enrolments', now.enrolments], ['first-time learners', now.new_learners], ['visits to course pages', now.visits], ['learners who studied', now.active], ['lessons finished', now.lessons_done], ['finished a course', now.finished], ['certificates', now.certificates], ['new accounts', now.signups], ['given away through coupons', now.discounts], [],
+          ['course', 'kind', 'on the website', 'price', 'visits', 'joined in this period', 'enrolled in all', 'payments confirmed', 'money', 'average progress %', 'finished', 'rating', 'reviews'],
+          ...courses.map((c) => [c.title, c.kind, c.status === 'published' ? 'yes' : 'no', c.price ?? 'free', c.views, c.joined, c.enrolled, c.paid, c.revenue, c.progress ?? '', c.finished, c.rating ?? '', c.reviews]), [],
+          [byMonth ? 'month' : 'day', 'money received', 'enrolments', 'visits', 'lessons finished'], ...R.series.map((x) => [x.d, x.revenue, x.enrolments, x.visits, x.lessons]),
+        ]);
+        return toast('the spreadsheet was saved to your downloads');
+      }
+      if (t.dataset.csv === 'log') {
+        downloadCsv(`academy-activity-${new Date().toISOString().slice(0, 10)}.csv`, [['when', 'who', 'what', 'kind'], ...log.slice(0, logShown).map((x) => [new Date(x.at).toLocaleString('en-GB'), x.actor, x.what, x.kind])]);
+        return toast('the list was saved to your downloads');
+      }
     };
   }
 

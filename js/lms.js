@@ -2357,6 +2357,14 @@
       const clean = view === 'course' && Q.c ? U.course(Q.c) : view === 'learn' && Q.c ? U.learn(Q.c, Q.l) : view === 'pay' && Q.c ? U.pay(Q.c) : view === 'my' ? U.my() : view === 'certificate' && Q.id ? U.cert({ id: Q.id }) : view === 'certificate' && Q.c ? U.cert({ c: Q.c }) : '';
       if (clean && clean !== location.pathname + location.search) history.replaceState(null, '', clean + location.hash);
     }
+    // the reports screen in the admin panel counts how often these pages are opened: one count per
+    // page per visitor per browser session, and nothing about the visitor is sent or stored
+    if (sb && !S.preview && !S.admin) {
+      const kind = { catalog: 'catalog_view', course: 'course_view', pay: 'pay_view', learn: 'lesson_view' }[view];
+      const key = 'amaze.seen.' + kind + '.' + (Q.c || '');
+      let counted = false; try { counted = !!sessionStorage.getItem(key); if (!counted) sessionStorage.setItem(key, '1'); } catch (e) {}
+      if (kind && !counted && (kind === 'catalog_view' || Q.c)) sb.rpc('academy_seen', { p_kind: kind, p_course: Q.c || '' }).then(() => {}, () => {});
+    }
     if (view === 'catalog') catalog();
     else if (view === 'course') await coursePage();
     else if (view === 'learn') await player();
