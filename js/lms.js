@@ -1213,7 +1213,7 @@
           <div class="mr-controls" role="toolbar" aria-label="class controls">
             <button type="button" data-do="mic" aria-pressed="false" title="microphone">${MIC}<span>unmute</span></button>
             <button type="button" data-do="cam" aria-pressed="false" title="camera">${CAM}<span>start video</span></button>
-            ${host && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? `<button type="button" data-do="screen" aria-pressed="false" title="share your screen">${SCR}<span>share screen</span></button>` : ''}
+            ${navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? `<button type="button" data-do="screen" aria-pressed="false" title="share your screen">${SCR}<span>share screen</span></button>` : ''}
             <button type="button" data-do="hand" aria-pressed="false" title="raise your hand">${HAND}<span>raise hand</span></button>
             <button type="button" data-do="people" title="people in the class">${PPL}<span>people</span></button>
             <button type="button" data-do="chat" title="chat">${CHAT}<span>chat</span><i class="mr-dot" hidden></i></button>

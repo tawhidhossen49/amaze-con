@@ -9,7 +9,7 @@
 // the only place that knows the Daily key, so the key never reaches a browser.
 //
 // Who gets in:
-//   an admin        — any time, as the host (can mute or remove people, share the screen)
+//   an admin        — any time, as the host (can mute or remove people)
 //   a learner       — only if the entry is open to them (it is free, or their payment was
 //                     confirmed), and only from 15 minutes before the class until it is over
 //   anyone else     — refused
@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
           is_owner: host,
           exp: Math.floor(until / 1000),
           eject_at_token_exp: true,
-          enable_screenshare: host,          // the teacher shares their screen; learners talk, show video, chat and raise a hand
+          enable_screenshare: true,          // everyone may share their screen, as in an ordinary meeting
           start_audio_off: true,
           start_video_off: !host,
           enable_prejoin_ui: true,
