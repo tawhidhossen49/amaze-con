@@ -20,6 +20,29 @@ window.AMAZE.get = async function (path) {
   return res.json();
 };
 
+// ── back from google, to the page you were on ───────────────────────────────
+// Signing in sends the learner to Google and back. Google is asked to return them to the
+// page they left — but if that address is not on the project's list of allowed return
+// addresses, Supabase sends them to the home page instead. So the page they left is also
+// remembered here, and whichever page they arrive on passes them along to it, together
+// with the sign-in details in the address (the academy page then completes the sign-in).
+(function () {
+  try {
+    var kept = JSON.parse(localStorage.getItem('amaze.return') || 'null');
+    if (!kept) return;
+    var arriving = /[#&]access_token=/.test(location.hash) || /[?&]code=/.test(location.search) || /[#?&]error_description=/.test(location.hash + location.search);
+    var stale = !(Date.now() - kept.at < 15 * 60000);
+    if (stale || !arriving) { if (stale) localStorage.removeItem('amaze.return'); return; }
+    localStorage.removeItem('amaze.return');
+    var want = new URL(kept.u, location.href);
+    if (want.origin !== location.origin || want.pathname === location.pathname) return;
+    var q = new URLSearchParams(want.search);
+    new URLSearchParams(location.search).forEach(function (v, k) { q.set(k, v); });
+    var qs = q.toString();
+    location.replace(want.pathname + (qs ? '?' + qs : '') + location.hash);
+  } catch (e) {}
+})();
+
 // ── "sign in" in the nav remembers you ──────────────────────────────────────
 // Signing in happens on the academy pages, and the browser keeps that session.
 // The other pages (home, structure, the legal pages…) don't load the account

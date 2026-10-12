@@ -310,6 +310,7 @@
   // any YouTube address (watch, youtu.be, shorts, live, embed — with or without
   // extra ?si= / &t= parts), Vimeo, a Google Drive file, or a video file of our
   // own (uploaded from the admin panel, or any direct .mp4 / .webm link).
+  const VIDEOS = new Map();
   function videoEmbed(raw, opts = {}) {
     const url = String(raw || '').trim();
     const frame = (src, extra = '') => `<iframe src="${esc(src)}" title="lesson video" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen ${extra}></iframe>`;
@@ -332,8 +333,12 @@
         // drawn by YouTube inside its frame, so a sheet is laid over the whole frame: nothing in it can
         // be pressed, and the buttons learners use (play, seek, sound, speed, full screen) are ours and
         // talk to the video from outside. See guard() for the other half.
-        const src = `https://www.youtube-nocookie.com/embed/${yt}?controls=0&disablekb=1&fs=0&iv_load_policy=3&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${enc(location.origin)}${start ? '&start=' + Math.floor(start) : ''}`;
-        return `<div class="vp is-new" data-vp>
+        // Which video it is, is not written into the page either: the frame is opened empty and told
+        // the video afterwards (guard() collects it from VIDEOS with this ticket, once).
+        const ticket = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        VIDEOS.set(ticket, { id: yt, start: Math.floor(start) || 0 });
+        const src = `https://www.youtube-nocookie.com/embed/?controls=0&disablekb=1&fs=0&iv_load_policy=3&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${enc(location.origin)}`;
+        return `<div class="vp is-new" data-vp="${ticket}">
             <iframe src="${esc(src)}" title="lesson video" tabindex="-1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" data-yt></iframe>
             <div class="vp-band vp-band--top"></div><div class="vp-band vp-band--bottom"></div>
             <div class="vp-dim"></div>
@@ -366,6 +371,8 @@
     const frame = $('iframe', el), shield = $('.vp-shield', el), seek = $('.vp-seek', el), hint = $('.vp-hint', el);
     const YT = 'https://www.youtube-nocookie.com';
     const st = { state: -1, now: 0, total: 0, muted: false, rate: 1, heard: false, dragging: false, started: false };
+    const video = VIDEOS.get(el.dataset.vp); VIDEOS.delete(el.dataset.vp); el.dataset.vp = '';
+    let cued = false;
     const tell = (func, args = []) => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), YT); } catch (e) {} };
     const listen = () => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT); } catch (e) {} };
     let knocks = 0; const knock = setInterval(() => { knocks += 1; if (st.heard || knocks > 60) return clearInterval(knock); listen(); }, 600);
@@ -383,7 +390,10 @@
     window.addEventListener('message', (e) => {
       if (e.source !== frame.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
       let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
-      if (!d || !d.info) return;
+      if (!d) return;
+      // the player has answered: now it is told which video to show (and where to carry on from)
+      if (!cued && video) { cued = true; st.heard = true; tell('cueVideoById', [{ videoId: video.id, startSeconds: video.start }]); if (video.start) { st.now = video.start; } }
+      if (!d.info) return;
       st.heard = true;
       const i = d.info;
       if (typeof i.duration === 'number' && i.duration > 0) { st.total = i.duration; frame.dataset.total = i.duration; }
@@ -407,8 +417,15 @@
     const toggle = () => (st.state === 1 || st.state === 3 ? tell('pauseVideo') : st.state === 0 ? (tell('seekTo', [0, true]), tell('playVideo')) : play());
     const jump = (sec) => { const to = Math.max(0, Math.min(st.total || 1e9, sec)); st.now = to; tell('seekTo', [to, true]); draw(); };
     const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
-    const full = () => { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
-    if (!(el.requestFullscreen || el.webkitRequestFullscreen)) $('[data-vp=full]', el).hidden = true;
+    // full screen — or, on a phone that has none for anything but its own video player (an iphone),
+    // the player fills the whole browser window instead
+    const canFull = !!(el.requestFullscreen || el.webkitRequestFullscreen);
+    const fill = (on) => { el.classList.toggle('is-full', on); document.documentElement.classList.toggle('vp-open', on); };
+    const full = () => {
+      if (!canFull) return fill(!el.classList.contains('is-full'));
+      if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    };
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el.classList.contains('is-full')) fill(false); });
     shield.addEventListener('click', toggle);
     $('.vp-big', el).addEventListener('click', toggle);
     shield.addEventListener('dblclick', full);
@@ -498,7 +515,9 @@
     $('#google-go', body).addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
       say(body, 'taking you to google…');
-      // google sends the learner straight back to the page they were on
+      // google sends the learner straight back to the page they were on (it is remembered too, in
+      // case they are returned to the home page instead — see "back from google" in site-config.js)
+      local.set('amaze.return', { u: location.pathname + location.search, at: Date.now() });
       const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0], queryParams: { prompt: 'select_account' } } });
       if (error) { e.currentTarget.disabled = false; say(body, /not enabled|unsupported provider/i.test(error.message) ? 'google sign-in is not switched on yet — please try again later.' : error.message, true); }
     });
@@ -1757,6 +1776,12 @@
     const current = $('.lp-item.is-current', root);
     if (current) { const list = $('.lp-side', root); list.scrollTop = Math.max(0, current.offsetTop - list.clientHeight / 2); }
 
+    // On a lesson, the keys that open the browser's "inspect" and "view source" tools do nothing for
+    // learners. (A determined person has other ways in — this only stops the casual look.)
+    if (!S.admin) window.addEventListener('keydown', (e) => {
+      const k = (e.key || '').toLowerCase(), mod = e.ctrlKey || e.metaKey;
+      if (k === 'f12' || (mod && e.shiftKey && ['i', 'j', 'c', 'k'].includes(k)) || (mod && e.altKey && ['i', 'j', 'u', 'c'].includes(k)) || (mod && ['u', 's'].includes(k) && !e.shiftKey && !e.altKey)) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
     // on a paid entry the learner's own name and email drift across the video
     const viewerMark = fee(course).paid && S.user && !S.admin ? [S.name, S.user.email].filter(Boolean).join(' · ') : '';
     // ── the video: remember how far it got, and when it ends say what comes next ──
@@ -1796,11 +1821,11 @@
         own.addEventListener('ended', onEnded);
       } else if (yt) {
         // youtube, inside our own player: it tells us the time as it plays, and when it ends
-        guard(yt.closest('[data-vp]'), { time: savePos, ended: onEnded }, viewerMark);
+        guard(yt.closest('.vp'), { time: savePos, ended: onEnded }, viewerMark);
       }
     }
     // the recording of a live class is guarded the same way
-    $$('.live-rec [data-vp]', root).forEach((el) => guard(el, {}, viewerMark));
+    $$('.live-rec .vp', root).forEach((el) => guard(el, {}, viewerMark));
 
     const complete = $('#complete');
     if (complete) complete.addEventListener('click', async () => {

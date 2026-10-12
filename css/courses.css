@@ -1232,3 +1232,7 @@ button.lp-tick:hover { border-color: var(--green); }
 .vp-speed { min-width: 46px; }
 .vp:fullscreen, .vp:-webkit-full-screen { width: 100vw; height: 100vh; }
 @media (max-width: 560px) { .vp-time span, .vp-time { font-size: 12px; } .vp-bar { gap: 0; padding-left: 4px; padding-right: 4px; } .vp-bar button { min-width: 36px; padding: 0 5px; } }
+
+/* a phone with no full screen for web pages: the player fills the browser window */
+.vp.is-full, .lesson-video .vp.is-full { position: fixed; inset: 0; z-index: 99999; width: 100vw; height: 100vh; height: 100dvh; }
+html.vp-open, html.vp-open body { overflow: hidden; }
