@@ -4,9 +4,15 @@
 // pressed on a live-class lesson; it answers with the room's address and a
 // one-person pass for it.
 //
-// The rooms themselves are provided by Daily (daily.co): video, audio, screen
-// share, chat and raised hands, shown inside the lesson page. This function is
-// the only place that knows the Daily key, so the key never reaches a browser.
+// Where the class is held depends on what is saved in Supabase → Edge Functions → Secrets:
+//   LiveKit keys saved   the website's own room, with sound and pictures passed on by a
+//                        LiveKit server (livekit.io) so that big classes work. Free plan,
+//                        no card.  LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+//   Daily key saved      Daily's room (daily.co) inside the lesson page. Daily refuses every
+//                        call until a payment method is on its account, so the key alone is
+//                        not enough.  DAILY_API_KEY, and DAILY_READY = yes
+//   nothing saved        the website's own room with direct connections (small classes)
+// This function is the only place that knows those keys, so they never reach a browser.
 //
 // Who gets in:
 //   an admin        — any time, as the host (can mute or remove people)
@@ -14,10 +20,6 @@
 //                     confirmed), and only from 15 minutes before the class until it is over
 //   anyone else     — refused
 //
-// Needs two secrets in Supabase → Edge Functions → Secrets:
-//   DAILY_API_KEY   the key from the Daily dashboard
-//   DAILY_READY     yes — only once a payment method is on the Daily account
-// Without both, the website uses its own built-in room instead (see js/lms.js).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const cors = {
@@ -32,13 +34,22 @@ const OPENS_BEFORE_MIN = 15;   // learners can come in this long before the star
 const STAYS_AFTER_MIN = 30;    // …and the room stays open this long after the planned end
 const DAILY = "https://api.daily.co/v1";
 
+// A LiveKit pass is a signed note (a JWT) saying who this is and which room they may join.
+const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const text = (v: unknown) => b64(new TextEncoder().encode(JSON.stringify(v)));
+async function livekitPass(key: string, secret: string, claims: Record<string, unknown>) {
+  const body = `${text({ alg: "HS256", typ: "JWT" })}.${text({ iss: key, ...claims })}`;
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return `${body}.${b64(new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(body))))}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return answer({ error: "method", message: "use POST" }, 405);
 
   try {
     const auth = req.headers.get("Authorization") ?? "";
-    const { lesson_id } = await req.json().catch(() => ({}));
+    const { lesson_id, session } = await req.json().catch(() => ({}));
     if (!lesson_id || typeof lesson_id !== "string") return answer({ error: "bad_request", message: "which lesson?" }, 400);
 
     // everything below is asked of the database AS THE PERSON CALLING, so its own rules decide
@@ -66,6 +77,26 @@ Deno.serve(async (req: Request) => {
       const now = Date.now();
       if (now < start - OPENS_BEFORE_MIN * 60_000) return answer({ error: "too_early", message: `the room opens ${OPENS_BEFORE_MIN} minutes before the class starts.`, opens_at: new Date(start - OPENS_BEFORE_MIN * 60_000).toISOString() }, 409);
       if (now > end + STAYS_AFTER_MIN * 60_000) return answer({ error: "ended", message: "this class has ended." }, 409);
+    }
+
+    // a pass is good for this room and this person only, and it runs out
+    const meta = (user.user_metadata ?? {}) as Record<string, string>;
+    const display = String(meta.full_name || meta.name || (user.email ?? "").split("@")[0] || "learner").slice(0, 60);
+    const until = lesson.live_at
+      ? Math.max(Date.now() + 60 * 60_000, new Date(lesson.live_at).getTime() + (Math.max(15, lesson.duration_min || 60) + STAYS_AFTER_MIN) * 60_000)
+      : Date.now() + 3 * 60 * 60_000;
+
+    // LiveKit: the website's own room, with the server passing sound and pictures on
+    const lkUrl = (Deno.env.get("LIVEKIT_URL") ?? "").trim(), lkKey = (Deno.env.get("LIVEKIT_API_KEY") ?? "").trim(), lkSecret = (Deno.env.get("LIVEKIT_API_SECRET") ?? "").trim();
+    if (lkUrl && lkKey && lkSecret) {
+      // one person can have the class open twice (phone and laptop), so each opening has its own id
+      const sid = typeof session === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session) ? session : crypto.randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      const token = await livekitPass(lkKey, lkSecret, {
+        sub: `${user.id}_${sid}`, name: host ? `${display} (teacher)` : display, nbf: now - 10, exp: Math.floor(until / 1000),
+        video: { room: "class-" + lesson.id, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: host },
+      });
+      return answer({ provider: "livekit", url: lkUrl.replace(/^http/, "ws"), token, host, name: display, session: sid });
     }
 
     // Daily refuses every call ("missing payment method") until a card is on its account, so
@@ -96,12 +127,6 @@ Deno.serve(async (req: Request) => {
       if (!room) return answer({ error: "room", message: "the room could not be opened. try again in a moment." }, 502);
     }
 
-    // the pass: good for this room and this person only, and it runs out
-    const meta = (user.user_metadata ?? {}) as Record<string, string>;
-    const display = String(meta.full_name || meta.name || (user.email ?? "").split("@")[0] || "learner").slice(0, 60);
-    const until = lesson.live_at
-      ? Math.max(Date.now() + 60 * 60_000, new Date(lesson.live_at).getTime() + (Math.max(15, lesson.duration_min || 60) + STAYS_AFTER_MIN) * 60_000)
-      : Date.now() + 3 * 60 * 60_000;
     const pass = await daily("/meeting-tokens", {
       method: "POST",
       body: JSON.stringify({

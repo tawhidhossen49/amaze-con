@@ -1133,13 +1133,15 @@
         if (!S.user) { authDialog('signin'); return; }
         busy = true; problem = ''; door();
         let got = null, why = '', own = false;
+        const sid = newId();
         try {
-          const { data, error } = await sb.functions.invoke('live-room', { body: { lesson_id: lesson.id } });
+          const { data, error } = await sb.functions.invoke('live-room', { body: { lesson_id: lesson.id, session: sid } });
           got = data;
           if (error) { got = null; try { const said = await error.context.json(); why = said.message || said.error || ''; if (said.error === 'not_configured') own = true; } catch (e) { why = ''; } }
         } catch (e) { got = null; }
         busy = false;
-        if (own) { if (!window.RTCPeerConnection) { problem = 'this browser cannot do video calls. open the class in chrome, safari, edge or firefox.'; door(); return; } return openBuiltIn(); }
+        const big = !!(got && got.provider === 'livekit' && got.url && got.token);
+        if (own || big) { if (!window.RTCPeerConnection) { problem = 'this browser cannot do video calls. open the class in chrome, safari, edge or firefox.'; door(); return; } return openBuiltIn(big ? { sfu: got, id: got.session || sid } : {}); }
         if (!got || !got.url || !got.token) { problem = why || 'the room could not be opened. check your connection and try again.'; door(); return; }
         inRoom = true;
         // the room itself: a page from the video service, given the camera, microphone and screen for as long as it is open
@@ -1159,9 +1161,12 @@
       // Supabase project (a private Realtime channel that only admins and learners the entry
       // is open to may use — see can_join_live in the database). Good for small classes:
       // with direct connections everyone sends their video to everyone, so it is capped.
-      // When a Daily key is saved (see supabase/functions/live-room) classes use Daily's
-      // rooms instead, which hold far more people.
-      const ROOM_CAP = 12;
+      // For big classes the same room sends its sound and pictures through a LiveKit server
+      // instead (one connection each, however many people): that happens by itself when the
+      // LiveKit keys are saved — see supabase/functions/live-room. Names, chat, raised hands
+      // and "mute everyone" travel over the Supabase channel either way.
+      const ROOM_CAP = 12, BIG_ROOM_CAP = 90;
+      const newId = () => (crypto.randomUUID ? crypto.randomUUID() : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)));
       const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
       const MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>';
       const CAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="12" height="11"/><path d="M15 10.5l6-3.5v10l-6-3.5z"/></svg>';
@@ -1195,10 +1200,11 @@
         };
       }
 
-      async function openBuiltIn() {
+      async function openBuiltIn(opt = {}) {
         inRoom = true;   // from this moment the stage belongs to the room: the door must not redraw itself over it
-        const me = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
-        const host = !!S.admin;
+        const me = opt.id || newId();
+        const sfu = opt.sfu || null, cap = sfu ? BIG_ROOM_CAP : ROOM_CAP;
+        const host = sfu ? !!sfu.host : !!S.admin;
         const my = { name: (S.name || (S.user && S.user.email ? S.user.email.split('@')[0] : '') || 'learner').slice(0, 40), host, cam: false, mic: false, screen: false, hand: false, at: Date.now() };
         const peers = new Map();    // id → { pc, a, v, stream, queue, out, timer, info }
         const net = (window.__liveTransport || supabaseTransport)('live:' + lesson.id, me);
@@ -1241,10 +1247,11 @@
         }
         function layout() {
           const n = grid.children.length, sharing = $('.mr-tile.is-screen', grid);
-          grid.dataset.n = String(Math.min(n, 12)); grid.classList.toggle('has-screen', !!sharing);
+          grid.dataset.n = String(Math.min(n, 12)); grid.classList.toggle('is-big', n > 12); grid.classList.toggle('has-screen', !!sharing);
           $('#mr-count', stage).textContent = `${n} in the class`;
-          // whoever is sharing a screen goes first and large; then the teacher; then everyone else
-          [...grid.children].sort((a, b) => (b.classList.contains('is-screen') - a.classList.contains('is-screen')) || ((b.dataset.host === '1') - (a.dataset.host === '1'))).forEach((el) => grid.appendChild(el));
+          // whoever is sharing a screen goes first and large; then the teacher; then cameras that are on; then everyone else
+          const order = [...grid.children], sorted = order.slice().sort((a, b) => (b.classList.contains('is-screen') - a.classList.contains('is-screen')) || ((b.dataset.host === '1') - (a.dataset.host === '1')) || (b.classList.contains('has-video') - a.classList.contains('has-video')));
+          if (sorted.some((el, i) => el !== order[i])) sorted.forEach((el) => grid.appendChild(el));
           if (panel === 'people') drawSide();
         }
 
@@ -1288,17 +1295,58 @@
             const mine = info.id === me, el = tile(info.id, mine ? my : info, mine);
             el.dataset.host = info.host ? '1' : '0';
             if (mine) return;
+            if (sfu) { const f = far.get(info.id), v = $('video', el); if (f && f.v && f.v.attachedElements.indexOf(v) < 0) f.v.attach(v); return; }
             if (!peers.has(info.id)) { if (me < info.id) call(info.id); else connect(info.id); }
             peers.get(info.id).info = info;
             const v = $('video', el), p = peers.get(info.id); if (v.srcObject !== p.stream) v.srcObject = p.stream;
           });
-          [...peers.keys()].filter((id) => !here.has(id)).forEach((id) => { peers.get(id).pc.close(); peers.delete(id); const el = $(`[data-peer="${id}"]`, grid); if (el) el.remove(); });
+          [...peers.keys()].filter((id) => !here.has(id)).forEach((id) => { peers.get(id).pc.close(); peers.delete(id); });
+          [...grid.children].filter((el) => el.dataset.peer !== me && !here.has(el.dataset.peer)).forEach((el) => el.remove());
           layout();
         }
         const publish = () => { tile(me, my, true); layout(); net.update(my); };
         // a shared screen is mostly text: keep it sharp and let it go slower, where a camera does the opposite
         const tune = (p) => { if (!p.v) return; try { const s = p.v.sender, q = s.getParameters(); if (!q.encodings || !q.encodings.length) return; q.degradationPreference = my.screen ? 'maintain-resolution' : 'balanced'; if (my.screen) q.encodings[0].maxBitrate = 2500000; else delete q.encodings[0].maxBitrate; s.setParameters(q).catch(() => {}); } catch (e) {} };
-        const sendAll = () => peers.forEach((p) => { if (p.a) p.a.sender.replaceTrack(micTrack); if (p.v) { p.v.sender.replaceTrack(videoOut()); tune(p); } });
+        const sendMesh = () => peers.forEach((p) => { if (p.a) p.a.sender.replaceTrack(micTrack); if (p.v) { p.v.sender.replaceTrack(videoOut()); tune(p); } });
+
+        // ── the big room: one connection to a LiveKit server, which passes sound and pictures on ──
+        let lk = null, room = null, line = Promise.resolve();
+        const far = new Map();              // id → { v: their picture }
+        const sent = { a: null, v: null };  // what of mine is going out now
+        const whose = (person) => String(person.identity).split('_').pop();
+        async function startBig() {
+          if (!window.LivekitClient) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = A.root + 'js/vendor/livekit-client.umd.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+          lk = window.LivekitClient;
+          // pictures nobody is looking at are not fetched, and small tiles get a small picture
+          room = new lk.Room({ adaptiveStream: true, dynacast: true });
+          room.on(lk.RoomEvent.TrackSubscribed, (track, pub, person) => {
+            const id = whose(person);
+            if (track.kind === 'video') { const f = far.get(id) || {}; far.set(id, f); f.v = track; const el = $(`[data-peer="${id}"] video`, grid); if (el) track.attach(el); }
+            else { const a = track.attach(); a.className = 'mr-sound'; a.hidden = true; stage.appendChild(a); }
+          });
+          room.on(lk.RoomEvent.TrackUnsubscribed, (track, pub, person) => {
+            if (track.kind === 'video') { const f = far.get(whose(person)); if (f && f.v === track) f.v = null; track.detach(); }
+            else track.detach().forEach((el) => el.remove());
+          });
+          room.on(lk.RoomEvent.Disconnected, () => { if (!closed) say('the connection to the class was lost. press leave, then enter again.', true); });
+          await room.connect(sfu.url, sfu.token);
+          sendBig();
+        }
+        // one change at a time, in the order they were asked for
+        const sendBig = () => { line = line.then(async () => {
+          if (!room || closed) return;
+          const mine = room.localParticipant, v = videoOut();
+          try {
+            if (micTrack && sent.a !== micTrack) { if (sent.a) await mine.unpublishTrack(sent.a, false); sent.a = micTrack; await mine.publishTrack(micTrack, { source: lk.Track.Source.Microphone }); }
+            if (sent.v !== v) {
+              if (sent.v) await mine.unpublishTrack(sent.v, false);
+              sent.v = v;
+              // a shared screen is mostly text: one sharp picture; a camera goes out in sizes, so small tiles cost little
+              if (v) await mine.publishTrack(v, v === screenTrack ? { source: lk.Track.Source.ScreenShare, simulcast: false, screenShareEncoding: { maxBitrate: 2500000, maxFramerate: 15 }, degradationPreference: 'maintain-resolution' } : { source: lk.Track.Source.Camera, simulcast: true });
+            }
+          } catch (e) { say('that could not be sent to the class. try again.', true); }
+        }); };
+        const sendAll = () => (sfu ? sendBig() : sendMesh());
         const showMine = () => { const v = $(`[data-peer="${me}"] video`, grid); const t = videoOut(); if (v) v.srcObject = t ? new MediaStream([t]) : null; };
         const why = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'your browser blocked it — allow the camera and microphone for this site (the padlock beside the address), then try again.' : e && e.name === 'NotFoundError' ? 'no camera or microphone was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and try again.' : 'that could not be started.');
 
@@ -1362,6 +1410,7 @@
           if (closed) return; closed = true; inRoom = false;
           [micTrack, camTrack, screenTrack].forEach((t) => t && t.stop());
           peers.forEach((p) => p.pc.close()); peers.clear(); net.leave();
+          if (room) { try { room.disconnect(); } catch (e) {} }
           window.removeEventListener('pagehide', leave);
           door();
         };
@@ -1371,7 +1420,8 @@
         tile(me, my, true); layout();
         try { await net.join(my, { people: onPeople, signal: onSignal, chat: onChat, cmd: onCmd }); }
         catch (e) { closed = true; inRoom = false; problem = 'you could not be connected to the class. check your connection, make sure you are signed in, and try again.'; net.leave(); door(); return; }
-        if (people.length > ROOM_CAP) { say(''); const full = people.findIndex((x) => x.id === me) >= ROOM_CAP; if (full && !host) { leave(); problem = `this class is full — the built-in room holds ${ROOM_CAP} people. please tell the academy team.`; door(); return; } }
+        if (people.length > cap) { say(''); const full = people.findIndex((x) => x.id === me) >= cap; if (full && !host) { leave(); problem = `this class is full — the room holds ${cap} people. please tell the academy team.`; door(); return; } }
+        if (sfu) { try { await startBig(); } catch (e) { leave(); problem = 'you could not be connected to the class. check your connection and try again.'; door(); return; } if (closed) return; }
         inRoom = true;
         say(host ? 'you are in. turn on your microphone and camera when you are ready.' : 'you are in. your microphone and camera are off until you turn them on.');
         stage.scrollIntoView({ block: 'start', behavior: 'smooth' });

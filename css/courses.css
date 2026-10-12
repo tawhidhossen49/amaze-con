@@ -903,10 +903,14 @@ button.lp-tick:hover { border-color: var(--green); }
 .mr-grid[data-n="5"], .mr-grid[data-n="6"] { --cols: 3; }
 .mr-grid[data-n="7"], .mr-grid[data-n="8"], .mr-grid[data-n="9"] { --cols: 3; }
 .mr-grid[data-n="10"], .mr-grid[data-n="11"], .mr-grid[data-n="12"] { --cols: 4; }
+/* a big class: the tiles keep a readable size and the grid scrolls */
+.mr-grid.is-big:not(.has-screen) { --cols: 5; grid-auto-rows: minmax(118px, 20vh); align-content: start; overflow-y: auto; scrollbar-width: thin; }
 /* someone is sharing a screen: that tile takes the room, the rest line up down the side */
 .mr-grid.has-screen { grid-template-columns: minmax(0, 1fr) clamp(120px, 16vw, 220px); grid-auto-rows: minmax(84px, 1fr); }
 .mr-grid.has-screen .mr-tile.is-screen { grid-column: 1; grid-row: 1 / span 12; }
 .mr-grid.has-screen .mr-tile:not(.is-screen) { grid-column: 2; }
+/* …and beside a shared screen a big class shows its first few people; the people list has everyone */
+.mr-grid.is-big.has-screen .mr-tile:nth-child(n+8) { display: none; }
 .mr-tile { position: relative; min-height: 0; overflow: hidden; background: #111514; border: 1px solid var(--line); }
 .mr-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; opacity: 0; }
 .mr-tile.has-video video { opacity: 1; }
@@ -949,6 +953,8 @@ button.lp-tick:hover { border-color: var(--green); }
   .mr-grid, .mr-grid[data-n] { --cols: 2; }
   .mr-grid[data-n="1"] { --cols: 1; }
   .mr-grid[data-n="2"] { --cols: 1; }
+  .mr-grid.is-big:not(.has-screen) { --cols: 3; grid-auto-rows: minmax(96px, 16vh); }
+  .mr-grid.is-big.has-screen .mr-tile:nth-child(n+5) { display: none; }
   .mr-grid.has-screen { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 2.2fr); grid-auto-rows: minmax(64px, 0.5fr); }
   .mr-grid.has-screen .mr-tile.is-screen { grid-row: 1; }
   .mr-grid.has-screen .mr-tile:not(.is-screen) { grid-column: 1; }
