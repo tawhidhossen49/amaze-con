@@ -1177,26 +1177,48 @@
 
       // How the people in a room reach each other. The site uses its Supabase project; a test
       // can put its own in window.__liveTransport to stand in for it.
+      // Who is in the room comes from the channel's presence, which each person sets ONCE:
+      // Supabase allows a person only a handful of presence changes per half minute and closes
+      // the channel beyond that. So what changes all the time — microphone, camera, screen,
+      // raised hand — is sent as ordinary messages instead, and told again to anyone who arrives.
       function supabaseTransport(topic, id) {
-        let ch = null;
+        let ch = null, on = null, card = null, mine = null, gone = false, joined = false, again = null, tell = null;
+        const states = new Map(), known = new Set();
+        const flags = (x) => ({ cam: !!x.cam, mic: !!x.mic, screen: !!x.screen, hand: !!x.hand });
+        const sendState = () => { if (ch && mine) ch.send({ type: 'broadcast', event: 'st', payload: { id, ...flags(mine) } }); };
+        const emit = () => {
+          if (!ch || !on) return;
+          const st = ch.presenceState(), ids = Object.keys(st);
+          const fresh = ids.some((k) => k !== id && !known.has(k));
+          [...known].filter((k) => !st[k]).forEach((k) => { known.delete(k); states.delete(k); });
+          ids.forEach((k) => known.add(k));
+          on.people(ids.map((k) => ({ id: k, ...st[k][st[k].length - 1], ...(states.get(k) || {}) })));
+          // someone new cannot know what they missed: say it again, not all at the same instant
+          if (fresh && mine && Object.values(flags(mine)).some(Boolean)) { clearTimeout(tell); tell = setTimeout(sendState, 300 + Math.random() * 1200); }
+        };
+        function open(done, fail) {
+          ch = sb.channel(topic, { config: { private: true, broadcast: { self: false }, presence: { key: id } } });
+          const mineCh = ch;
+          ch.on('presence', { event: 'sync' }, emit);
+          ch.on('broadcast', { event: 'st' }, ({ payload }) => { if (!payload || payload.id === id) return; states.set(payload.id, flags(payload)); emit(); });
+          ch.on('broadcast', { event: 'sig' }, ({ payload }) => { if (payload.to === id) on.signal(payload); });
+          ch.on('broadcast', { event: 'chat' }, ({ payload }) => on.chat(payload));
+          ch.on('broadcast', { event: 'cmd' }, ({ payload }) => on.cmd(payload));
+          ch.subscribe(async (status) => {
+            if (gone || ch !== mineCh) return;
+            if (status === 'SUBSCRIBED') { await ch.track(card); joined = true; sendState(); if (done) { done(); done = null; } }
+            else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              if (!joined) { if (fail) { fail(new Error(status)); fail = null; } return; }
+              // the line dropped in the middle of a class: come back by ourselves
+              clearTimeout(again); again = setTimeout(() => { if (gone) return; try { sb.removeChannel(mineCh); } catch (e) {} open(); }, 2500);
+            }
+          });
+        }
         return {
-          join(info, on) {
-            return new Promise((resolve, reject) => {
-              ch = sb.channel(topic, { config: { private: true, broadcast: { self: false }, presence: { key: id } } });
-              ch.on('presence', { event: 'sync' }, () => { const st = ch.presenceState(); on.people(Object.keys(st).map((k) => ({ id: k, ...st[k][st[k].length - 1] }))); });
-              ch.on('broadcast', { event: 'sig' }, ({ payload }) => { if (payload.to === id) on.signal(payload); });
-              ch.on('broadcast', { event: 'chat' }, ({ payload }) => on.chat(payload));
-              ch.on('broadcast', { event: 'cmd' }, ({ payload }) => on.cmd(payload));
-              let settled = false;
-              ch.subscribe(async (status) => {
-                if (status === 'SUBSCRIBED') { await ch.track(info); if (!settled) { settled = true; resolve(); } }
-                else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !settled) { settled = true; reject(new Error(status)); }
-              });
-            });
-          },
+          join(info, handlers) { on = handlers; mine = info; card = { name: info.name, host: !!info.host, at: info.at }; return new Promise((resolve, reject) => open(resolve, reject)); },
           send: (event, payload) => ch && ch.send({ type: 'broadcast', event, payload }),
-          update: (info) => ch && ch.track(info),
-          leave() { if (ch) { try { ch.untrack(); } catch (e) {} sb.removeChannel(ch); ch = null; } },
+          update: (info) => { mine = info; sendState(); },
+          leave() { gone = true; clearTimeout(again); clearTimeout(tell); if (ch) { try { ch.untrack(); } catch (e) {} sb.removeChannel(ch); ch = null; } },
         };
       }
 
