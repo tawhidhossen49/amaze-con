@@ -1,71 +1,6 @@
 {
   "redirects": [
     {
-      "source": "/academy/learn.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "c",
-          "value": "(?<course>[^/]+)"
-        },
-        {
-          "type": "query",
-          "key": "l",
-          "value": "(?<lesson>[^/]+)"
-        }
-      ],
-      "destination": "/academy/:course/learn/:lesson",
-      "permanent": true
-    },
-    {
-      "source": "/academy/learn.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "c",
-          "value": "(?<course>[^/]+)"
-        }
-      ],
-      "destination": "/academy/:course/learn",
-      "permanent": true
-    },
-    {
-      "source": "/academy/course.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "c",
-          "value": "(?<course>[^/]+)"
-        }
-      ],
-      "destination": "/academy/:course",
-      "permanent": true
-    },
-    {
-      "source": "/academy/pay.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "c",
-          "value": "(?<course>[^/]+)"
-        }
-      ],
-      "destination": "/academy/:course/pay",
-      "permanent": true
-    },
-    {
-      "source": "/academy/certificate.html",
-      "has": [
-        {
-          "type": "query",
-          "key": "id",
-          "value": "(?<cert>[^/]+)"
-        }
-      ],
-      "destination": "/academy/certificate/:cert",
-      "permanent": true
-    },
-    {
       "source": "/academy/certificate.html",
       "destination": "/academy/certificate",
       "permanent": true
@@ -73,21 +8,6 @@
     {
       "source": "/academy/my.html",
       "destination": "/academy/my-learning",
-      "permanent": true
-    },
-    {
-      "source": "/academy/course.html",
-      "destination": "/academy/",
-      "permanent": true
-    },
-    {
-      "source": "/academy/learn.html",
-      "destination": "/academy/",
-      "permanent": true
-    },
-    {
-      "source": "/academy/pay.html",
-      "destination": "/academy/",
       "permanent": true
     },
     {

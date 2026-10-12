@@ -10,7 +10,7 @@
 //   pay          /academy/<course>/pay              enrolment and payment for a paid entry
 // Those addresses are folders, not files: vercel.json maps each onto the page that draws it
 // (course.html, learn.html, my.html, certificate.html, pay.html). Older links that end in
-// .html?c=… still open, and are tidied into the new form in the address bar.
+// .html?c=… still open their page directly, and the page then shows the new form in the address bar.
 //
 // Data lives in the site's Supabase project (seed/website-backend*.sql).
 // Course outlines, reviews and announcements are public; lesson content,
