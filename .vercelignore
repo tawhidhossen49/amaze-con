@@ -6,3 +6,4 @@ BLUEPRINT.md
 *.md
 .gitignore
 sequences/*/_qa/
+supabase/

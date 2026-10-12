@@ -854,27 +854,14 @@
         <div class="lesson-foot" style="border-top:0;margin-top:28px;padding-top:0;"><span></span><button class="btn-primary" type="submit">check my answers <span class="btn-arrow" aria-hidden="true">→</span></button></div>
       </form>`;
     } else if (lesson.kind === 'live') {
-      // date and countdown state, the link to join, an "add to calendar" link and — afterwards — the recording
-      const state = liveState(lesson.live_at, lesson.duration_min);
-      const join = content.live_url ? safeUrl(content.live_url) : '';
-      const stamp = (d) => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
-      const cal = lesson.live_at ? 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-        + `&text=${enc(lesson.title + ' — ' + course.title)}`
-        + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + Math.max(15, lesson.duration_min || 60) * 60000)}`
-        + `&details=${enc('live class — amaze consortium academy\n' + location.href)}` : '';
-      const flag = { upcoming: 'upcoming live class', live: 'live now', ended: 'this class has ended', tba: 'live class — date to be announced' }[state];
-      bodyHtml = `<div class="live live--${state}">
-          <span class="live-flag">${flag}</span>
-          ${lesson.live_at ? `<strong class="live-when">${when(lesson.live_at)}</strong><small>shown in your own time zone · about ${length(lesson.duration_min || 60)}</small>` : '<small>the date will be shown here as soon as it is set.</small>'}
-          <div class="hero-buttons">
-            ${join && state !== 'ended' ? `<a class="btn-primary" href="${esc(join)}" target="_blank" rel="noopener noreferrer">${state === 'live' ? 'join now' : 'join link'} <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''}
-            ${cal && state === 'upcoming' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
-          </div>
-          ${!join && state !== 'ended' ? '<small>the link to join will appear here before the class starts.</small>' : ''}
-        </div>`
-        + (content.video_url ? `<span class="lesson-kicker" style="display:block;margin:36px 0 14px;">// recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div>` : state === 'ended' ? '<p class="form-alt">if a recording is published, it will appear here.</p>' : '')
-;
+      // The class happens here, on the lesson page: a video room (camera, microphone, screen
+      // share, chat, raised hands) opens on the stage when "enter the live class" is pressed.
+      // Who may go in, and when, is decided by the live-room function on the server — this
+      // page only shows the door. See supabase/functions/live-room.
+      stageKind = 'live';
       about = content.body || '';
+      bodyHtml = '<div class="live-stage" id="live-stage"></div>'
+        + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">// recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div></div>` : '');
     } else if (lesson.kind === 'form') {
       about = content.body || '';
       bodyHtml = (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
@@ -1097,6 +1084,80 @@
       } catch (e) { window.open(link, '_blank', 'noopener'); btn.textContent = was; }
       setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 1800);
     }
+    // ── a live class ─────────────────────────────────────────────────────────
+    if (stageKind === 'live') {
+      const stage = $('#live-stage', root), OPENS = 15, STAYS = 30;   // minutes: the same as the server's
+      const mins = Math.max(15, lesson.duration_min || 60);
+      const outside = content.live_url ? safeUrl(content.live_url) : '';   // an optional link to somewhere else, kept as a way in if the room is not set up
+      const stamp = (d) => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
+      const cal = lesson.live_at ? 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+        + `&text=${enc(lesson.title + ' — ' + course.title)}`
+        + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + mins * 60000)}`
+        + `&details=${enc('live class — amaze consortium academy\n' + location.href)}` : '';
+      // tba | early (more than 15 minutes to go) | open (the door is open) | live | over
+      const phase = () => {
+        if (!lesson.live_at) return 'tba';
+        const start = +new Date(lesson.live_at), now = Date.now();
+        return now < start - OPENS * 60000 ? 'early' : now < start ? 'open' : now < start + mins * 60000 ? 'live' : now < start + (mins + STAYS) * 60000 ? 'late' : 'over';
+      };
+      const wait = () => { const s = Math.max(0, (+new Date(lesson.live_at) - OPENS * 60000 - Date.now()) / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.ceil((s % 3600) / 60); return d ? `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}` : h ? `${h} h ${m} min` : `${Math.max(1, m)} min`; };
+      let inRoom = false, problem = '', busy = false, shown = '';
+
+      function door() {
+        const ph = phase();
+        const canEnter = S.admin || ph === 'open' || ph === 'live' || ph === 'late';
+        const flag = { tba: 'live class — date to be announced', early: 'upcoming live class', open: 'the room is open', live: 'live now', late: 'live now — running over', over: 'this class has ended' }[ph];
+        shown = ph + '|' + problem + '|' + busy;
+        stage.className = 'live-stage';
+        stage.innerHTML = `<div class="live live--${ph === 'early' ? 'upcoming' : ph === 'over' ? 'ended' : ph === 'tba' ? 'tba' : 'live'}">
+            <span class="live-flag">${flag}</span>
+            ${lesson.live_at ? `<strong class="live-when">${when(lesson.live_at)}</strong><small>shown in your own time zone · about ${length(mins)}</small>` : '<small>the date will be shown here as soon as it is set.</small>'}
+            ${ph === 'early' ? `<p class="live-note">the room opens ${OPENS} minutes before the start — in <b>${wait()}</b>. come back to this page then; the class happens right here.</p>` : ''}
+            ${ph === 'open' || ph === 'live' || ph === 'late' ? '<p class="live-note">the class happens right here on this page. your camera and microphone start switched off — you choose when to turn them on.</p>' : ''}
+            ${ph === 'over' ? `<p class="live-note">${content.video_url ? 'the recording is below.' : 'if a recording is published, it will appear on this page.'}</p>` : ''}
+            ${S.admin && ph !== 'open' && ph !== 'live' && ph !== 'late' ? '<p class="live-note">you are an admin, so you can open the room at any time — to test it, or to start early. learners can only come in around the class time.</p>' : ''}
+            ${problem ? `<p class="dialog-msg is-error" role="alert">${esc(problem)}</p>` : ''}
+            <div class="hero-buttons">
+              ${canEnter ? `<button class="btn-primary" id="live-enter" type="button"${busy ? ' disabled' : ''}>${busy ? 'opening the room…' : S.admin ? (ph === 'live' || ph === 'open' || ph === 'late' ? 'start teaching' : 'open the room') : 'enter the live class'} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
+              ${cal && ph === 'early' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
+              ${outside && ph !== 'over' && ph !== 'tba' ? `<a class="btn-outline" href="${esc(outside)}" target="_blank" rel="noopener noreferrer">join by link instead <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''}
+            </div>
+          </div>`;
+        const enter = $('#live-enter', stage);
+        if (enter) enter.addEventListener('click', goIn);
+      }
+
+      async function goIn() {
+        if (busy) return;
+        if (!S.user) { authDialog('signin'); return; }
+        busy = true; problem = ''; door();
+        let got = null, why = '';
+        try {
+          const { data, error } = await sb.functions.invoke('live-room', { body: { lesson_id: lesson.id } });
+          got = data;
+          if (error) { got = null; try { const said = await error.context.json(); why = said.message || said.error || ''; if (said.error === 'not_configured') why = outside ? 'the built-in room is not switched on yet — use “join by link instead” below.' : 'the live room is not switched on yet. please tell the academy team.'; } catch (e) { why = ''; } }
+        } catch (e) { got = null; }
+        busy = false;
+        if (!got || !got.url || !got.token) { problem = why || 'the room could not be opened. check your connection and try again.'; door(); return; }
+        inRoom = true;
+        // the room itself: a page from the video service, given the camera, microphone and screen for as long as it is open
+        stage.className = 'live-stage is-room';
+        stage.innerHTML = `<div class="live-bar"><span class="live-flag">${got.host ? 'you are teaching' : 'live class'}</span><strong>${esc(lesson.title)}</strong>
+            <a class="linkish" href="${esc(got.url + '?t=' + got.token)}" target="_blank" rel="noopener noreferrer" id="live-tab" title="if your camera or microphone will not turn on here">open in its own tab ↗</a>
+            <button class="btn btn--leave" type="button" id="live-leave">leave</button></div>
+          <iframe class="live-frame" title="live class: ${esc(lesson.title)}" src="${esc(got.url + '?t=' + got.token)}" allow="camera; microphone; fullscreen; display-capture; autoplay; speaker-selection" allowfullscreen></iframe>`;
+        $('#live-leave', stage).addEventListener('click', () => { inRoom = false; door(); });
+        // going to the separate tab means leaving this one, or there would be two of you in the room
+        $('#live-tab', stage).addEventListener('click', () => { inRoom = false; door(); });
+        stage.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+      door();
+      // the door changes by itself as the time comes: "opens in 12 min" → "the room is open" → "live now" → "ended"
+      setInterval(() => { if (!inRoom && shown !== phase() + '|' + problem + '|' + busy) door(); else if (!inRoom && phase() === 'early') { const b = $('.live-note b', stage); if (b) b.textContent = wait(); } }, 20000);
+      // closing the page in the middle of a class by accident is easy to do
+      window.addEventListener('beforeunload', (e) => { if (inRoom) { e.preventDefault(); e.returnValue = ''; } });
+    }
+
     let docNow = docs[0];
     if (stageKind === 'doc') {
       const frame = $('.lp-doc', root), box = $('#doc-pages', root);
@@ -1121,7 +1182,7 @@
     }
     // ← and → move between lessons, the way they do in a video course (not while typing)
     document.addEventListener('keydown', (e) => {
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (/^(INPUT|TEXTAREA|SELECT|IFRAME)$/.test(document.activeElement.tagName) || e.altKey || e.ctrlKey || e.metaKey || $('.live-stage.is-room', root)) return;
       if (e.key === 'ArrowLeft' && prev) location.href = url(prev);
       if (e.key === 'ArrowRight' && next && !locked(course, next, all)) location.href = url(next);
     });

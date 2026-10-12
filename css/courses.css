@@ -862,3 +862,33 @@ button.lp-tick:hover { border-color: var(--green); }
   .lp-head .lesson-foot { flex: 1 1 100%; }
   .player-bar .side-toggle { padding: 0 10px; }
 }
+
+/* --------------------------------------------------------------------------
+   a live class on the lesson page: first the door, then the room itself
+   -------------------------------------------------------------------------- */
+.lp-stage--live { display: block; background: var(--bg-2); }
+.live-stage { width: 100%; }
+.live-stage > .live { width: min(100% - 2 * clamp(20px, 5vw, 72px), 820px); margin: clamp(32px, 5vw, 64px) auto; }
+.live-note { max-width: 600px; margin-top: 4px; font-size: 15px; line-height: 1.6; color: var(--muted); }
+.live-note b { color: var(--fg); }
+.live .dialog-msg { margin-top: 6px; }
+.live-rec { width: min(100% - 2 * clamp(20px, 5vw, 72px), 820px); margin: 0 auto clamp(32px, 5vw, 64px); }
+.live-rec .lesson-kicker { display: block; margin-bottom: 14px; }
+.live-rec .lesson-video { margin-bottom: 0; }
+/* inside the room */
+.live-stage.is-room { background: #000; }
+.live-bar { display: flex; align-items: center; gap: 16px; padding: 10px 46px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
+.live-bar .live-flag { flex: none; color: var(--green); }
+.live-bar .live-flag::before { animation: live-pulse 1.4s ease-in-out infinite; }
+.live-bar strong { flex: 1; min-width: 0; font-size: 14px; text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-bar .linkish { flex: none; white-space: nowrap; }
+.btn--leave { flex: none; min-height: 34px; padding: 0 16px; background: #e5484d; border: 1px solid #e5484d; color: #fff; cursor: pointer; font: 700 12px/1 var(--font-sans); text-transform: lowercase; }
+.btn--leave:hover { background: #c93a3f; border-color: #c93a3f; }
+.live-frame { display: block; width: 100%; height: calc(100vh - var(--bar) - 55px); min-height: 420px; border: 0; background: #000; }
+.live-stage.is-room ~ .lp-nav, .lp-stage:has(.is-room) .lp-nav { display: none; }
+@media (max-width: 1000px) {
+  .live-frame { height: calc(100vh - var(--bar) - 55px); height: calc(100svh - var(--bar) - 55px); min-height: 360px; }
+  .live-bar { padding: 10px 12px; gap: 10px; }
+  .live-bar strong { display: none; }
+  .live-bar .linkish { margin-left: auto; }
+}
