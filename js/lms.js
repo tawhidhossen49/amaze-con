@@ -857,7 +857,8 @@
       // The class happens here, on the lesson page: a video room (camera, microphone, screen
       // share, chat, raised hands) opens on the stage when "enter the live class" is pressed.
       // Who may go in, and when, is decided by the live-room function on the server — this
-      // page only shows the door. See supabase/functions/live-room.
+      // page only shows the door. See supabase/functions/live-room. The room is Daily's when
+      // a Daily key is saved, and otherwise the built-in one further down.
       stageKind = 'live';
       about = content.body || '';
       bodyHtml = '<div class="live-stage" id="live-stage"></div>'
@@ -1131,13 +1132,14 @@
         if (busy) return;
         if (!S.user) { authDialog('signin'); return; }
         busy = true; problem = ''; door();
-        let got = null, why = '';
+        let got = null, why = '', own = false;
         try {
           const { data, error } = await sb.functions.invoke('live-room', { body: { lesson_id: lesson.id } });
           got = data;
-          if (error) { got = null; try { const said = await error.context.json(); why = said.message || said.error || ''; if (said.error === 'not_configured') why = outside ? 'the built-in room is not switched on yet — use “join by link instead” below.' : 'the live room is not switched on yet. please tell the academy team.'; } catch (e) { why = ''; } }
+          if (error) { got = null; try { const said = await error.context.json(); why = said.message || said.error || ''; if (said.error === 'not_configured') own = true; } catch (e) { why = ''; } }
         } catch (e) { got = null; }
         busy = false;
+        if (own) { if (!window.RTCPeerConnection) { problem = 'this browser cannot do video calls. open the class in chrome, safari, edge or firefox.'; door(); return; } return openBuiltIn(); }
         if (!got || !got.url || !got.token) { problem = why || 'the room could not be opened. check your connection and try again.'; door(); return; }
         inRoom = true;
         // the room itself: a page from the video service, given the camera, microphone and screen for as long as it is open
@@ -1151,6 +1153,228 @@
         $('#live-tab', stage).addEventListener('click', () => { inRoom = false; door(); });
         stage.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }
+      // ── the built-in room ────────────────────────────────────────────────────
+      // A live class with nothing to set up: every browser in the room connects straight
+      // to every other one (WebRTC), and they find each other through this site's own
+      // Supabase project (a private Realtime channel that only admins and learners the entry
+      // is open to may use — see can_join_live in the database). Good for small classes:
+      // with direct connections everyone sends their video to everyone, so it is capped.
+      // When a Daily key is saved (see supabase/functions/live-room) classes use Daily's
+      // rooms instead, which hold far more people.
+      const ROOM_CAP = 12;
+      const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+      const MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>';
+      const CAM = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="12" height="11"/><path d="M15 10.5l6-3.5v10l-6-3.5z"/></svg>';
+      const SCR = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="12"/><path d="M8.5 20.5h7M12 16.5v4M12 13.5v-6M9.5 10l2.5-2.5 2.5 2.5"/></svg>';
+      const HAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11m0-6.5a1.5 1.5 0 0 1 3 0V11m0-5a1.5 1.5 0 0 1 3 0v8.5c0 3.6-2.4 6-6 6s-5.2-1.9-6.5-4.6L4 14.2c-.4-.9.7-1.8 1.5-1.2L8 15"/></svg>';
+      const CHAT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-4 3.5V16H4z"/></svg>';
+      const PPL = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c.6-3 2.7-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><circle cx="17" cy="9.5" r="2.3"/><path d="M16 14.6c2.400 0 4 1.3 4.5 3.9"/></svg>';
+
+      // How the people in a room reach each other. The site uses its Supabase project; a test
+      // can put its own in window.__liveTransport to stand in for it.
+      function supabaseTransport(topic, id) {
+        let ch = null;
+        return {
+          join(info, on) {
+            return new Promise((resolve, reject) => {
+              ch = sb.channel(topic, { config: { private: true, broadcast: { self: false }, presence: { key: id } } });
+              ch.on('presence', { event: 'sync' }, () => { const st = ch.presenceState(); on.people(Object.keys(st).map((k) => ({ id: k, ...st[k][st[k].length - 1] }))); });
+              ch.on('broadcast', { event: 'sig' }, ({ payload }) => { if (payload.to === id) on.signal(payload); });
+              ch.on('broadcast', { event: 'chat' }, ({ payload }) => on.chat(payload));
+              ch.on('broadcast', { event: 'cmd' }, ({ payload }) => on.cmd(payload));
+              let settled = false;
+              ch.subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') { await ch.track(info); if (!settled) { settled = true; resolve(); } }
+                else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !settled) { settled = true; reject(new Error(status)); }
+              });
+            });
+          },
+          send: (event, payload) => ch && ch.send({ type: 'broadcast', event, payload }),
+          update: (info) => ch && ch.track(info),
+          leave() { if (ch) { try { ch.untrack(); } catch (e) {} sb.removeChannel(ch); ch = null; } },
+        };
+      }
+
+      async function openBuiltIn() {
+        inRoom = true;   // from this moment the stage belongs to the room: the door must not redraw itself over it
+        const me = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+        const host = !!S.admin;
+        const my = { name: (S.name || (S.user && S.user.email ? S.user.email.split('@')[0] : '') || 'learner').slice(0, 40), host, cam: false, mic: false, screen: false, hand: false, at: Date.now() };
+        const peers = new Map();    // id → { pc, a, v, stream, queue, out, timer, info }
+        const net = (window.__liveTransport || supabaseTransport)('live:' + lesson.id, me);
+        let micTrack = null, camTrack = null, screenTrack = null, people = [], chat = [], unread = 0, panel = '', closed = false;
+        const videoOut = () => screenTrack || camTrack || null;
+
+        stage.className = 'live-stage is-room is-own';
+        stage.innerHTML = `<div class="live-bar"><span class="live-flag">${host ? 'you are teaching' : 'live class'}</span><strong>${esc(lesson.title)}</strong><span class="mr-count" id="mr-count"></span>
+            <button class="btn btn--leave" type="button" id="live-leave">leave</button></div>
+          <div class="mr"><div class="mr-grid" id="mr-grid"></div>
+            <aside class="mr-side" id="mr-side" hidden></aside></div>
+          <div class="mr-controls" role="toolbar" aria-label="class controls">
+            <button type="button" data-do="mic" aria-pressed="false" title="microphone">${MIC}<span>unmute</span></button>
+            <button type="button" data-do="cam" aria-pressed="false" title="camera">${CAM}<span>start video</span></button>
+            ${host && navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? `<button type="button" data-do="screen" aria-pressed="false" title="share your screen">${SCR}<span>share screen</span></button>` : ''}
+            <button type="button" data-do="hand" aria-pressed="false" title="raise your hand">${HAND}<span>raise hand</span></button>
+            <button type="button" data-do="people" title="people in the class">${PPL}<span>people</span></button>
+            <button type="button" data-do="chat" title="chat">${CHAT}<span>chat</span><i class="mr-dot" hidden></i></button>
+          </div>
+          <p class="mr-msg" id="mr-msg" role="status"></p>`;
+        const grid = $('#mr-grid', stage), side = $('#mr-side', stage), msg = $('#mr-msg', stage);
+        const say = (t, bad) => { msg.textContent = t || ''; msg.classList.toggle('is-bad', !!bad); if (t) setTimeout(() => { if (msg.textContent === t) msg.textContent = ''; }, 6000); };
+        const btn = (k) => $(`[data-do="${k}"]`, stage);
+        const setBtn = (k, on, label) => { const b = btn(k); if (!b) return; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-on', on); $('span', b).textContent = label; };
+
+        // ── tiles ──
+        function tile(id, info, mine) {
+          let el = $(`[data-peer="${id}"]`, grid);
+          if (!el) {
+            el = document.createElement('div'); el.className = 'mr-tile' + (mine ? ' is-me' : ''); el.dataset.peer = id;
+            el.innerHTML = `<video autoplay playsinline${mine ? ' muted' : ''}></video><div class="mr-face"></div><div class="mr-name"><i class="mr-mic">${MIC}</i><span></span><b class="mr-hand" hidden>${HAND}</b></div>`;
+            grid.appendChild(el);
+          }
+          const showing = info.cam || info.screen;
+          el.classList.toggle('has-video', !!showing); el.classList.toggle('is-screen', !!info.screen); el.classList.toggle('is-muted', !info.mic);
+          $('.mr-face', el).textContent = (info.name || '?').trim()[0] || '?';
+          $('.mr-name span', el).textContent = (mine ? 'you' : info.name) + (info.host ? ' · teacher' : '') + (info.screen ? ' · screen' : '');
+          $('.mr-hand', el).hidden = !info.hand;
+          return el;
+        }
+        function layout() {
+          const n = grid.children.length, sharing = $('.mr-tile.is-screen', grid);
+          grid.dataset.n = String(Math.min(n, 12)); grid.classList.toggle('has-screen', !!sharing);
+          $('#mr-count', stage).textContent = `${n} in the class`;
+          // whoever is sharing a screen goes first and large; then the teacher; then everyone else
+          [...grid.children].sort((a, b) => (b.classList.contains('is-screen') - a.classList.contains('is-screen')) || ((b.dataset.host === '1') - (a.dataset.host === '1'))).forEach((el) => grid.appendChild(el));
+          if (panel === 'people') drawSide();
+        }
+
+        // ── connections: one to each other person; the one with the smaller id makes the call ──
+        function connect(id) {
+          const pc = new RTCPeerConnection({ iceServers: ICE });
+          const p = { pc, a: null, v: null, stream: new MediaStream(), queue: [], out: [], timer: null, info: {} };
+          peers.set(id, p);
+          pc.ontrack = (e) => { p.stream.addTrack(e.track); const el = $(`[data-peer="${id}"] video`, grid); if (el && el.srcObject !== p.stream) el.srcObject = p.stream; };
+          // ice candidates are sent a few at a time, not one message each
+          pc.onicecandidate = (e) => { if (!e.candidate) return; p.out.push(e.candidate.toJSON()); clearTimeout(p.timer); p.timer = setTimeout(() => { net.send('sig', { from: me, to: id, cands: p.out.splice(0) }); }, 120); };
+          pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && me < id) pc.restartIce(); };
+          pc.onnegotiationneeded = async () => { if (me > id) return; try { await pc.setLocalDescription(); net.send('sig', { from: me, to: id, desc: pc.localDescription.toJSON() }); } catch (e) {} };
+          return p;
+        }
+        function call(id) {
+          const p = connect(id);
+          // one audio and one video line each way from the start, so turning a camera on or off later never needs a new call
+          p.a = p.pc.addTransceiver('audio', { direction: 'sendrecv' }); p.v = p.pc.addTransceiver('video', { direction: 'sendrecv' });
+          p.a.sender.replaceTrack(micTrack); p.v.sender.replaceTrack(videoOut());
+        }
+        async function onSignal({ from, desc, cands }) {
+          let p = peers.get(from); if (!p) p = connect(from);
+          const pc = p.pc;
+          try {
+            if (desc && desc.type === 'offer') {
+              await pc.setRemoteDescription(desc);
+              pc.getTransceivers().forEach((t) => { const kind = t.receiver.track.kind; t.direction = 'sendrecv'; if (kind === 'audio') { p.a = t; t.sender.replaceTrack(micTrack); } else { p.v = t; t.sender.replaceTrack(videoOut()); } });
+              await pc.setLocalDescription(await pc.createAnswer());
+              net.send('sig', { from: me, to: from, desc: pc.localDescription.toJSON() });
+            } else if (desc) await pc.setRemoteDescription(desc);
+            if (cands) p.queue.push(...cands);
+            if (pc.remoteDescription) while (p.queue.length) await pc.addIceCandidate(p.queue.shift()).catch(() => {});
+          } catch (e) {}
+        }
+        function onPeople(list) {
+          if (closed) return;
+          people = list.sort((a, b) => (a.at || 0) - (b.at || 0));
+          const here = new Set(people.map((x) => x.id));
+          people.forEach((info) => {
+            const mine = info.id === me, el = tile(info.id, mine ? my : info, mine);
+            el.dataset.host = info.host ? '1' : '0';
+            if (mine) return;
+            if (!peers.has(info.id)) { if (me < info.id) call(info.id); else connect(info.id); }
+            peers.get(info.id).info = info;
+            const v = $('video', el), p = peers.get(info.id); if (v.srcObject !== p.stream) v.srcObject = p.stream;
+          });
+          [...peers.keys()].filter((id) => !here.has(id)).forEach((id) => { peers.get(id).pc.close(); peers.delete(id); const el = $(`[data-peer="${id}"]`, grid); if (el) el.remove(); });
+          layout();
+        }
+        const publish = () => { tile(me, my, true); layout(); net.update(my); };
+        const sendAll = () => peers.forEach((p) => { if (p.a) p.a.sender.replaceTrack(micTrack); if (p.v) p.v.sender.replaceTrack(videoOut()); });
+        const showMine = () => { const v = $(`[data-peer="${me}"] video`, grid); const t = videoOut(); if (v) v.srcObject = t ? new MediaStream([t]) : null; };
+        const why = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'your browser blocked it — allow the camera and microphone for this site (the padlock beside the address), then try again.' : e && e.name === 'NotFoundError' ? 'no camera or microphone was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and try again.' : 'that could not be started.');
+
+        // ── controls ──
+        async function toggleMic(force) {
+          const want = typeof force === 'boolean' ? force : !my.mic;
+          if (want && !micTrack) { try { micTrack = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })).getAudioTracks()[0]; } catch (e) { return say('microphone: ' + why(e), true); } }
+          if (micTrack) micTrack.enabled = want;
+          my.mic = want && !!micTrack; setBtn('mic', my.mic, my.mic ? 'mute' : 'unmute'); sendAll(); publish();
+        }
+        async function toggleCam() {
+          if (my.cam) { camTrack.stop(); camTrack = null; my.cam = false; }
+          else { try { camTrack = (await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 24 } } })).getVideoTracks()[0]; my.cam = true; } catch (e) { return say('camera: ' + why(e), true); } }
+          setBtn('cam', my.cam, my.cam ? 'stop video' : 'start video'); sendAll(); showMine(); publish();
+        }
+        async function toggleScreen() {
+          if (my.screen) { screenTrack.stop(); screenTrack = null; my.screen = false; }
+          else {
+            try { screenTrack = (await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 12, max: 15 } }, audio: false })).getVideoTracks()[0]; } catch (e) { return e && e.name === 'NotAllowedError' ? null : say('screen share: ' + why(e), true); }
+            my.screen = true;
+            // the browser's own "stop sharing" bar ends it too
+            screenTrack.addEventListener('ended', () => { if (my.screen) toggleScreen(); });
+          }
+          setBtn('screen', my.screen, my.screen ? 'stop sharing' : 'share screen'); sendAll(); showMine(); publish();
+        }
+        function drawSide() {
+          side.hidden = !panel; btn('chat').classList.toggle('is-on', panel === 'chat'); btn('people').classList.toggle('is-on', panel === 'people');
+          if (!panel) return;
+          if (panel === 'people') {
+            side.innerHTML = `<div class="mr-side-top"><strong>people · ${people.length}</strong><button type="button" data-do="shut" aria-label="close">✕</button></div>
+              <ul class="mr-people">${people.map((x) => { const info = x.id === me ? my : x; return `<li><span>${esc(info.name)}${x.id === me ? ' (you)' : ''}${info.host ? ' · teacher' : ''}</span><em>${info.hand ? 'hand up · ' : ''}${info.mic ? 'mic on' : 'muted'}</em></li>`; }).join('')}</ul>
+              ${host ? '<button class="btn-outline mr-muteall" type="button" data-do="muteall">mute everyone <span class="btn-arrow" aria-hidden="true">→</span></button>' : ''}`;
+          } else {
+            unread = 0; $('.mr-dot', stage).hidden = true;
+            side.innerHTML = `<div class="mr-side-top"><strong>chat</strong><button type="button" data-do="shut" aria-label="close">✕</button></div>
+              <ul class="mr-chat">${chat.map((c) => `<li${c.me ? ' class="is-me"' : ''}><small>${esc(c.name)}${c.host ? ' · teacher' : ''}</small><p>${esc(c.text).replace(/\n/g, '<br>')}</p></li>`).join('') || '<li class="is-empty">messages are seen by everyone in the class and are not saved.</li>'}</ul>
+              <form class="mr-say"><input name="text" maxlength="500" autocomplete="off" placeholder="write to everyone…"><button type="submit" aria-label="send">→</button></form>`;
+            const list = $('.mr-chat', side); list.scrollTop = list.scrollHeight;
+          }
+        }
+        const onChat = (c) => { chat.push(c); if (chat.length > 200) chat.shift(); if (panel === 'chat') drawSide(); else if (!c.me) { unread += 1; $('.mr-dot', stage).hidden = false; } };
+        const onCmd = (c) => { if (c.type === 'mute-all' && !host && my.mic) { toggleMic(false); say('the teacher muted everyone. unmute when you want to speak.'); } };
+
+        stage.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-do]'); if (!b || closed) return;
+          const k = b.dataset.do;
+          if (k === 'mic') toggleMic(); else if (k === 'cam') toggleCam(); else if (k === 'screen') toggleScreen();
+          else if (k === 'hand') { my.hand = !my.hand; setBtn('hand', my.hand, my.hand ? 'lower hand' : 'raise hand'); publish(); }
+          else if (k === 'chat' || k === 'people') { panel = panel === k ? '' : k; drawSide(); }
+          else if (k === 'shut') { panel = ''; drawSide(); }
+          else if (k === 'muteall') { net.send('cmd', { type: 'mute-all', from: me }); say('everyone else has been muted.'); }
+        });
+        stage.addEventListener('submit', (e) => {
+          const f = e.target.closest('.mr-say'); if (!f) return;
+          e.preventDefault();
+          const text = f.text.value.trim(); if (!text) return;
+          const c = { name: my.name, host, text: text.slice(0, 500), at: Date.now() };
+          net.send('chat', c); onChat({ ...c, me: true }); f.text.value = ''; const again = $('.mr-say input', side); if (again) again.focus();
+        });
+        const leave = () => {
+          if (closed) return; closed = true; inRoom = false;
+          [micTrack, camTrack, screenTrack].forEach((t) => t && t.stop());
+          peers.forEach((p) => p.pc.close()); peers.clear(); net.leave();
+          window.removeEventListener('pagehide', leave);
+          door();
+        };
+        $('#live-leave', stage).addEventListener('click', leave);
+        window.addEventListener('pagehide', leave);
+
+        tile(me, my, true); layout();
+        try { await net.join(my, { people: onPeople, signal: onSignal, chat: onChat, cmd: onCmd }); }
+        catch (e) { closed = true; inRoom = false; problem = 'you could not be connected to the class. check your connection, make sure you are signed in, and try again.'; net.leave(); door(); return; }
+        if (people.length > ROOM_CAP) { say(''); const full = people.findIndex((x) => x.id === me) >= ROOM_CAP; if (full && !host) { leave(); problem = `this class is full — the built-in room holds ${ROOM_CAP} people. please tell the academy team.`; door(); return; } }
+        inRoom = true;
+        say(host ? 'you are in. turn on your microphone and camera when you are ready.' : 'you are in. your microphone and camera are off until you turn them on.');
+        stage.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+
       door();
       // the door changes by itself as the time comes: "opens in 12 min" → "the room is open" → "live now" → "ended"
       setInterval(() => { if (!inRoom && shown !== phase() + '|' + problem + '|' + busy) door(); else if (!inRoom && phase() === 'early') { const b = $('.live-note b', stage); if (b) b.textContent = wait(); } }, 20000);
