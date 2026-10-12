@@ -1173,6 +1173,7 @@
       const SCR = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="12"/><path d="M8.5 20.5h7M12 16.5v4M12 13.5v-6M9.5 10l2.5-2.5 2.5 2.5"/></svg>';
       const HAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11m0-6.5a1.5 1.5 0 0 1 3 0V11m0-5a1.5 1.5 0 0 1 3 0v8.5c0 3.6-2.4 6-6 6s-5.2-1.9-6.5-4.6L4 14.2c-.4-.9.7-1.8 1.5-1.2L8 15"/></svg>';
       const CHAT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-4 3.5V16H4z"/></svg>';
+      const END = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14.5c0-1 .4-1.900 1.200-2.500C6.300 10.400 9 9.500 12 9.500s5.700.9 7.800 2.500c.8.600 1.200 1.500 1.200 2.500v1.300c0 .6-.5 1-1.100.9l-3.100-.6c-.5-.1-.8-.5-.8-1v-1.700c-1.200-.4-2.600-.6-4-.6s-2.800.2-4 .6v1.700c0 .5-.3.9-.8 1l-3.100.6c-.6.1-1.100-.3-1.100-.9z"/></svg>';
       const PPL = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c.6-3 2.7-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><circle cx="17" cy="9.5" r="2.3"/><path d="M16 14.6c2.400 0 4 1.3 4.5 3.9"/></svg>';
 
       // How the people in a room reach each other. The site uses its Supabase project; a test
@@ -1234,19 +1235,30 @@
         const videoOut = () => screenTrack || camTrack || null;
 
         stage.className = 'live-stage is-room is-own';
-        stage.innerHTML = `<div class="live-bar"><span class="live-flag">${host ? 'you are teaching' : 'live class'}</span><strong>${esc(lesson.title)}</strong><span class="mr-count" id="mr-count"></span>
-            <button class="btn btn--leave" type="button" id="live-leave">leave</button></div>
+        const ico = (svg) => `<i class="mr-ico">${svg}</i>`;
+        stage.innerHTML = `<div class="live-bar"><span class="live-flag">${host ? 'you are teaching' : 'live class'}</span><strong>${esc(lesson.title)}</strong>
+            <span class="mr-clock" id="mr-clock" title="time in this class">00:00</span><span class="mr-count" id="mr-count"></span></div>
           <div class="mr"><div class="mr-grid" id="mr-grid"></div>
+            <p class="mr-alone" id="mr-alone" hidden><b>you are the first one here.</b> everyone else appears as they come in.</p>
+            <p class="mr-msg" id="mr-msg" role="status"></p>
             <aside class="mr-side" id="mr-side" hidden></aside></div>
           <div class="mr-controls" role="toolbar" aria-label="class controls">
-            <button type="button" data-do="mic" aria-pressed="false" title="microphone">${MIC}<span>unmute</span></button>
-            <button type="button" data-do="cam" aria-pressed="false" title="camera">${CAM}<span>start video</span></button>
-            ${navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? `<button type="button" data-do="screen" aria-pressed="false" title="share your screen">${SCR}<span>share screen</span></button>` : ''}
-            <button type="button" data-do="hand" aria-pressed="false" title="raise your hand">${HAND}<span>raise hand</span></button>
-            <button type="button" data-do="people" title="people in the class">${PPL}<span>people</span></button>
-            <button type="button" data-do="chat" title="chat">${CHAT}<span>chat</span><i class="mr-dot" hidden></i></button>
-          </div>
-          <p class="mr-msg" id="mr-msg" role="status"></p>`;
+            <div class="mr-set">
+              <button type="button" data-do="mic" aria-pressed="false" title="microphone">${ico(MIC)}<span>unmute</span></button>
+              <button type="button" data-do="cam" aria-pressed="false" title="camera">${ico(CAM)}<span>start video</span></button>
+            </div>
+            <div class="mr-set">
+              ${navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia ? `<button type="button" data-do="screen" aria-pressed="false" title="share your screen">${ico(SCR)}<span>share screen</span></button>` : ''}
+              <button type="button" data-do="hand" aria-pressed="false" title="raise your hand">${ico(HAND)}<span>raise hand</span></button>
+            </div>
+            <div class="mr-set">
+              <button type="button" data-do="people" title="people in the class">${ico(PPL)}<span>people</span></button>
+              <button type="button" data-do="chat" title="chat">${ico(CHAT)}<span>chat</span><i class="mr-dot" hidden></i></button>
+            </div>
+            <div class="mr-set mr-set--end">
+              <button class="mr-leave" type="button" id="live-leave" title="leave the class">${ico(END)}<span>leave</span></button>
+            </div>
+          </div>`;
         const grid = $('#mr-grid', stage), side = $('#mr-side', stage), msg = $('#mr-msg', stage);
         const say = (t, bad) => { msg.textContent = t || ''; msg.classList.toggle('is-bad', !!bad); if (t) setTimeout(() => { if (msg.textContent === t) msg.textContent = ''; }, 6000); };
         const btn = (k) => $(`[data-do="${k}"]`, stage);
@@ -1257,12 +1269,13 @@
           let el = $(`[data-peer="${id}"]`, grid);
           if (!el) {
             el = document.createElement('div'); el.className = 'mr-tile' + (mine ? ' is-me' : ''); el.dataset.peer = id;
-            el.innerHTML = `<video autoplay playsinline${mine ? ' muted' : ''}></video><div class="mr-face"></div><div class="mr-name"><i class="mr-mic">${MIC}</i><span></span><b class="mr-hand" hidden>${HAND}</b></div>`;
+            el.innerHTML = `<video autoplay playsinline${mine ? ' muted' : ''}></video><div class="mr-face"><i></i></div><b class="mr-hand" hidden>${HAND}<em>hand up</em></b><div class="mr-name"><i class="mr-mic">${MIC}</i><span></span></div>`;
             grid.appendChild(el);
           }
           const showing = info.cam || info.screen;
           el.classList.toggle('has-video', !!showing); el.classList.toggle('is-screen', !!info.screen); el.classList.toggle('is-muted', !info.mic);
-          $('.mr-face', el).textContent = (info.name || '?').trim()[0] || '?';
+          $('.mr-face i', el).textContent = (info.name || '?').trim()[0] || '?';
+          el.classList.toggle('has-hand', !!info.hand);
           $('.mr-name span', el).textContent = (mine ? 'you' : info.name) + (info.host ? ' · teacher' : '') + (info.screen ? ' · screen' : '');
           $('.mr-hand', el).hidden = !info.hand;
           return el;
@@ -1271,6 +1284,7 @@
           const n = grid.children.length, sharing = $('.mr-tile.is-screen', grid);
           grid.dataset.n = String(Math.min(n, 12)); grid.classList.toggle('is-big', n > 12); grid.classList.toggle('has-screen', !!sharing);
           $('#mr-count', stage).textContent = `${n} in the class`;
+          $('#mr-alone', stage).hidden = n !== 1;
           // whoever is sharing a screen goes first and large; then the teacher; then cameras that are on; then everyone else
           const order = [...grid.children], sorted = order.slice().sort((a, b) => (b.classList.contains('is-screen') - a.classList.contains('is-screen')) || ((b.dataset.host === '1') - (a.dataset.host === '1')) || (b.classList.contains('has-video') - a.classList.contains('has-video')));
           if (sorted.some((el, i) => el !== order[i])) sorted.forEach((el) => grid.appendChild(el));
@@ -1350,6 +1364,7 @@
             if (track.kind === 'video') { const f = far.get(whose(person)); if (f && f.v === track) f.v = null; track.detach(); }
             else track.detach().forEach((el) => el.remove());
           });
+          room.on(lk.RoomEvent.ActiveSpeakersChanged, (list) => { const loud = new Set(list.map(whose)); $$('.mr-tile', grid).forEach((el) => el.classList.toggle('is-speaking', loud.has(el.dataset.peer))); });
           room.on(lk.RoomEvent.Disconnected, () => { if (!closed) say('the connection to the class was lost. press leave, then enter again.', true); });
           await room.connect(sfu.url, sfu.token);
           sendBig();
@@ -1399,7 +1414,7 @@
           if (!panel) return;
           if (panel === 'people') {
             side.innerHTML = `<div class="mr-side-top"><strong>people · ${people.length}</strong><button type="button" data-do="shut" aria-label="close">✕</button></div>
-              <ul class="mr-people">${people.map((x) => { const info = x.id === me ? my : x; return `<li><span>${esc(info.name)}${x.id === me ? ' (you)' : ''}${info.host ? ' · teacher' : ''}</span><em>${info.hand ? 'hand up · ' : ''}${info.mic ? 'mic on' : 'muted'}</em></li>`; }).join('')}</ul>
+              <ul class="mr-people">${people.map((x) => { const info = x.id === me ? my : x; return `<li${info.host ? ' class="is-host"' : ''}><i aria-hidden="true">${esc((info.name || '?').trim()[0] || '?')}</i><span>${esc(info.name)}${x.id === me ? ' (you)' : ''}${info.host ? ' · teacher' : ''}</span><em${info.mic ? ' class="is-live"' : ''}>${info.hand ? 'hand up · ' : ''}${info.mic ? 'mic on' : 'muted'}</em></li>`; }).join('')}</ul>
               ${host ? '<button class="btn-outline mr-muteall" type="button" data-do="muteall">mute everyone <span class="btn-arrow" aria-hidden="true">→</span></button>' : ''}`;
           } else {
             unread = 0; $('.mr-dot', stage).hidden = true;
@@ -1433,11 +1448,15 @@
           [micTrack, camTrack, screenTrack].forEach((t) => t && t.stop());
           peers.forEach((p) => p.pc.close()); peers.clear(); net.leave();
           if (room) { try { room.disconnect(); } catch (e) {} }
+          clearInterval(ticking);
           window.removeEventListener('pagehide', leave);
           door();
         };
         $('#live-leave', stage).addEventListener('click', leave);
         window.addEventListener('pagehide', leave);
+        // how long you have been in the class
+        const since = Date.now(), two = (n) => String(n).padStart(2, '0');
+        const ticking = setInterval(() => { const c = $('#mr-clock', stage); if (!c) return; const sec = Math.floor((Date.now() - since) / 1000), h = Math.floor(sec / 3600); c.textContent = (h ? h + ':' : '') + two(Math.floor(sec / 60) % 60) + ':' + two(sec % 60); }, 1000);
 
         tile(me, my, true); layout();
         try { await net.join(my, { people: onPeople, signal: onSignal, chat: onChat, cmd: onCmd }); }
