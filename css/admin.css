@@ -123,6 +123,17 @@ body.admin .field input::placeholder, body.admin .field textarea::placeholder { 
 .choice--cards button { padding: 16px; }
 .choice--cards button i { font-size: 22px; }
 
+/* admins: the parts of the panel a limited admin may open, as large ticks */
+.areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.area { position: relative; display: grid; gap: 5px; padding: 14px 16px 14px 48px; background: #0b0d0c; border: 1px solid rgba(255,255,255,0.16); cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease; }
+.area:hover { border-color: rgba(46,242,162,0.6); }
+body.admin .area input { position: absolute; left: 14px; top: 14px; appearance: none; width: 22px; height: 22px; margin: 0; padding: 0; border: 1px solid var(--faint); background: none; display: grid; place-items: center; cursor: pointer; }
+body.admin .area input:checked { background: var(--green); border-color: var(--green); }
+body.admin .area input:checked::after { content: '✓'; font-size: 13px; font-weight: 700; color: var(--ink); }
+.area:has(input:checked) { border-color: var(--green); background: rgba(46,242,162,0.08); }
+.area b { font-size: 15px; letter-spacing: -0.02em; text-transform: lowercase; }
+.area small { font-size: 12.5px; line-height: 1.4; color: var(--muted); text-transform: lowercase; }
+
 /* a course's own form: a few cards, the rest folded */
 .card { margin-bottom: 12px; padding: 6px 20px 22px; border: 1px solid var(--line); background: var(--surface); }
 .card-title { margin: 16px 0 0; font: 700 17px/1.2 var(--font-sans); letter-spacing: -0.025em; text-transform: lowercase; }

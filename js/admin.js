@@ -10,12 +10,15 @@
 //   courses   courses, modules, lessons (video / reading / quiz / form), files,
 //             announcements, reviews, questions and certificates
 //   learners  who is enrolled and how far along they are (read-only)
-//   admins    who may use this panel
+//   admins    who may use this panel, and which parts of it each person may open
+//             (a main admin has everything; a limited admin only what was ticked for them)
 //
 // This page is only a form. What a visitor is ALLOWED to change is enforced
 // by Row Level Security in the database (seed/website-backend.sql): every
 // write below is rejected unless the signed-in, email-confirmed user is
-// listed in the `admins` table. Hiding or bypassing this page changes nothing.
+// listed in the `admins` table — and, for a limited admin, unless that part of the
+// panel was given to them (seed/website-backend-09-admin-roles.sql). Hiding or
+// bypassing this page changes nothing.
 (function () {
   const A = window.AMAZE;
   const app = document.getElementById('admin');
@@ -31,6 +34,10 @@
   const slug = (t) => t.toLowerCase().trim().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const img = (src) => (!src ? '' : /^(https?:)?\/\//.test(src) || src.startsWith('data:') ? src : A.root + src);
   let user = null;
+  // what the signed-in admin may open: a main admin everything, a limited admin the parts ticked for them
+  let me = { role: 'main', access: [] };
+  const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled']];
+  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view));
 
   // ── feedback ───────────────────────────────────────────────────────────────
   let toastEl, toastTimer;
@@ -348,6 +355,9 @@
       $('#out', box).addEventListener('click', async () => { await sb.auth.signOut(); boot(); });
       return;
     }
+    // which parts of the panel this admin may use (older databases without roles: everything)
+    const mine = await sb.rpc('admin_me');
+    me = mine.error ? { role: 'main', access: [] } : { role: mine.data && mine.data.role === 'main' ? 'main' : 'limited', access: (mine.data && Array.isArray(mine.data.access) ? mine.data.access : []) };
     shell();
   }
 
@@ -367,9 +377,9 @@
     app.innerHTML = `<div class="admin-shell">
       <aside class="admin-side">
         <a class="admin-brand" href="${A.root}index.html" target="_blank" rel="noopener" title="open the website"><img src="${A.root}img/amazelogo.png" alt=""><span>site admin</span></a>
-        <nav class="admin-nav">${Object.entries(VIEWS).map(([k, [label, , icon]]) => `<button data-view="${k}"><i aria-hidden="true">${icon}</i><span>${label}</span></button>`).join('')}</nav>
+        <nav class="admin-nav">${Object.entries(VIEWS).filter(([k]) => can(k)).map(([k, [label, , icon]]) => `<button data-view="${k}"><i aria-hidden="true">${icon}</i><span>${label}</span></button>`).join('')}</nav>
         <a class="admin-site" href="${A.root}index.html" target="_blank" rel="noopener">see the website ↗</a>
-        <div class="admin-user"><span>signed in as</span>${esc(user.email)}<button class="linkish" id="signout">sign out</button></div>
+        <div class="admin-user"><span>signed in as — ${me.role === 'main' ? 'main admin' : 'limited admin'}</span>${esc(user.email)}<button class="linkish" id="signout">sign out</button></div>
       </aside>
       <main class="admin-main"></main>
     </div>
@@ -382,32 +392,31 @@
     window.onhashchange = () => { const [v, arg] = route(); if (v in VIEWS) go(v, arg); };
     const [v, arg] = route();
     go(v in VIEWS ? v : 'home', arg);
-    payBadge();
+    if (can('learners')) payBadge();
   }
 
   // ── home: what would you like to do? ───────────────────────────────────────
   async function homeView() {
     let waiting = 0;
-    try { const { data } = await sb.from('payments').select('id').eq('status', 'pending'); waiting = Array.isArray(data) ? data.length : 0; } catch (e) {}
+    if (can('learners')) { try { const { data } = await sb.from('payments').select('id').eq('status', 'pending'); waiting = Array.isArray(data) ? data.length : 0; } catch (e) {} }
+    const open = Object.entries(VIEWS).filter(([k]) => k !== 'home' && can(k));
+    const jobs = [['courses', 'new:course', '+ make a new course'], ['courses', 'new:webinar', '+ make a new webinar'], ['pages', '', 'change text on the home page'], ['lists', '', 'add a person or a logo']].filter(([k]) => can(k));
     const first = String((user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user.email.split('@')[0]).split(/[ .]/)[0];
-    main.innerHTML = head(`hello, ${esc(first)}`, 'what would you like to do? pick one — you can always come back here with “home” in the menu.')
+    if (!open.length) { main.innerHTML = head(`hello, ${esc(first)}`, 'you are an admin, but no part of the panel has been opened for you yet. ask a main admin to choose what you can do — they do that on their “admins” screen.'); return; }
+    main.innerHTML = head(`hello, ${esc(first)}`, 'what would you like to do? pick one — you can always come back here with “home” in the menu.' + (me.role === 'main' ? '' : ' you see the parts a main admin opened for you.'))
       + (waiting ? `<button class="notice" data-go="learners"><b>${waiting} payment${waiting === 1 ? ' is' : 's are'} waiting for you to check</b><span>open learners & payments →</span></button>` : '')
-      + `<div class="home-cards">${Object.entries(VIEWS).filter(([k]) => k !== 'home').map(([k, [label, , icon, text]]) => `<button class="home-card" data-go="${k}"><i aria-hidden="true">${icon}</i><b>${label}</b><span>${text}</span><em>open →</em></button>`).join('')}</div>
+      + `<div class="home-cards">${open.map(([k, [label, , icon, text]]) => `<button class="home-card" data-go="${k}"><i aria-hidden="true">${icon}</i><b>${label}</b><span>${text}</span><em>open →</em></button>`).join('')}</div>
         <div class="h2"><span>quick jobs</span></div>
-        <div class="quick">
-          <button class="btn" data-go="courses" data-arg="new:course">+ make a new course</button>
-          <button class="btn" data-go="courses" data-arg="new:webinar">+ make a new webinar</button>
-          <button class="btn" data-go="pages">change text on the home page</button>
-          <button class="btn" data-go="lists">add a person or a logo</button>
-        </div>
+        <div class="quick">${jobs.map(([k, arg, label]) => `<button class="btn" data-go="${k}"${arg ? ` data-arg="${arg}"` : ''}>${label}</button>`).join('')}</div>
         <p class="lede" style="margin-top:28px;">nothing here can break the website: every change can be changed back, and anything you delete asks you first.</p>`;
-    main.onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go, b.dataset.arg); };
+    main.onclick = (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go, b.dataset.arg || undefined); };
   }
 
   // '#courses/web-development-fundamentals' → ['courses', 'web-development-fundamentals']
   const route = () => { const [v, ...rest] = location.hash.slice(1).split('/'); return [v, rest.length ? decodeURIComponent(rest.join('/')) : undefined]; };
 
   function go(view, arg) {
+    if (!can(view)) { view = 'home'; arg = undefined; }   // a part this admin was not given
     if (dirtyGuard() && !confirm('you have unsaved changes on this screen. leave without saving?')) return;
     dirtyGuard = () => false;
     main.onclick = null; main.oninput = null; main.onsubmit = null; savebar.onclick = null;
@@ -1247,7 +1256,7 @@
   }
 
   // ── admins ─────────────────────────────────────────────────────────────────
-  async function adminsView() {
+  async function adminsView(editing) {
     const [rows, setting, auth] = await Promise.all([
       run(sb.from('admins').select('*').order('added_at')),
       sb.from('site_settings').select('value').eq('key', 'auto_admin').maybeSingle(),
@@ -1271,34 +1280,64 @@
       if (!error) auto = false;
     }
 
-    main.innerHTML = head('admins', 'the people who can sign in to this panel and change the website. add someone with the form below; remove someone with the button beside their email.')
-      + (hasSwitch ? `<details class="group"${unsafe.length ? ' open' : ''}><summary>advanced: accounts added in supabase<small>${unsafe.length ? '<b style="color:#ff6b5e;">switched off for safety</b>' : auto ? 'on' : 'off'}</small></summary><div style="padding:18px 20px 22px;">
-          <label class="check" style="margin-top:0;"><input type="checkbox" id="auto-admin"${auto ? ' checked' : ''}${unsafe.length ? ' disabled' : ''}> anyone i add in supabase becomes an admin automatically</label>
-          <p style="margin-top:12px;font-size:13px;line-height:1.6;color:var(--muted);">${unsafe.length
-            ? `<b style="color:#ff6b5e;">switched off for safety:</b> ${unsafe.join(' and ')} in this supabase project, so a website sign-up can no longer be told apart from an account you added. turn that setting back, or add admins by email below.`
-            : 'add a person under <b>authentication → users → add user</b> (or send them an invitation) and they can sign in here straight away — nothing else to do. people who sign up on the website stay learners. removing someone below takes their access away for good; it is only granted at the moment they are added.'}</p>
-        </div></details>` : '')
-      + `<div class="h2"><span>add an admin</span></div>
+    // one person's role, as a form: main admin, or limited with the parts ticked
+    const roleForm = (r) => `<div class="field"><span>what can they do?</span>${choice('role', [['limited', 'limited admin', 'only the parts you tick below', '◐'], ['main', 'main admin', 'everything — including adding and removing admins', '●']], r.role === 'main' ? 'main' : 'limited', 'choice--2')}</div>
+      <div class="field" data-when="role=limited"><span>which parts can they open?</span>
+        <div class="areas">${AREAS.map(([k, label, text]) => `<label class="area"><input type="checkbox" name="access" value="${k}"${(r.access || []).includes(k) ? ' checked' : ''}><b>${label}</b><small>${text}</small></label>`).join('')}</div>
+        <small class="hint">nothing ticked means they can sign in but cannot open or change anything. a limited admin never sees this “admins” screen.</small></div>`;
+    const says = (r) => (r.role === 'main' ? 'main admin — everything' : (r.access || []).length ? 'limited — ' + AREAS.filter(([k]) => r.access.includes(k)).map(([, label]) => label).join(', ') : 'limited — nothing opened yet');
+    const mains = list.filter((r) => r.role === 'main').length;
+    const mineRow = (r) => r.email.toLowerCase() === user.email.toLowerCase();
+
+    main.innerHTML = head('admins', 'the people who can sign in to this panel. a main admin can do everything; a limited admin can open only the parts you tick for them.')
+      + `<div class="h2"><span>admins now <small>${list.length} · ${mains} main</small></span></div>
+        <div class="rows">${list.map((r) => (r.email === editing ? `<form class="editor" data-aform="${esc(r.email)}"><p class="lede" style="padding-top:18px;margin-bottom:0;">changing what <b style="color:var(--fg);text-transform:none;">${esc(r.email)}</b> can do</p>${roleForm(r)}
+            <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button><button class="btn" type="button" data-acancel>cancel</button></div></form>`
+          : `<div class="row row--plain" data-email="${esc(r.email)}"><div><strong style="text-transform:none;">${esc(r.email)}${mineRow(r) ? '<span class="badge badge--on">you</span>' : ''}</strong>
+            <span class="pills"><span class="badge${r.role === 'main' ? ' badge--on' : ''}"${r.role !== 'main' && !(r.access || []).length ? ' style="border-color:#f2b42e;color:#f2b42e;"' : ''}>${says(r)}</span></span></div>
+          <div class="row-actions">${mineRow(r) ? '' : '<button class="btn btn--sm btn--solid" data-aedit>change what they can do</button><button class="btn btn--sm btn--danger" data-remove>remove</button>'}</div></div>`)).join('')}</div>
+        <div class="h2"><span>add an admin</span></div>
         <form class="editor" id="add-admin" style="border-color:var(--line);">
           <p class="lede" style="padding-top:18px;">make a login for them here, then tell them the email and password. use an email that has not signed in on the website as a learner.</p>
           <div class="form-grid"><label class="field"><span>their email</span><input name="email" type="email" required autocomplete="off" placeholder="name@example.com"></label>
           <label class="field"><span>a password for them — at least 8 letters or numbers</span><input name="password" type="text" required minlength="8" autocomplete="off"></label></div>
+          ${roleForm({ role: 'limited', access: [] })}
           <div class="editor-foot"><button class="btn btn--solid" type="submit">create admin login</button></div></form>`
-      + `<div class="h2"><span>admins now <small>${list.length}</small></span></div><div class="rows">${list.map((r) => `<div class="row row--plain" data-email="${esc(r.email)}"><div><strong style="text-transform:none;">${esc(r.email)}${r.email.toLowerCase() === user.email.toLowerCase() ? '<span class="badge badge--on">you</span>' : ''}</strong></div>
-        <div class="row-actions">${r.email.toLowerCase() === user.email.toLowerCase() ? '' : '<button class="btn btn--sm btn--danger" data-remove>remove</button>'}</div></div>`).join('')}</div>`;
+      + (hasSwitch ? `<details class="group" style="margin-top:28px;"${unsafe.length ? ' open' : ''}><summary>advanced: accounts added in supabase<small>${unsafe.length ? '<b style="color:#ff6b5e;">switched off for safety</b>' : auto ? 'on' : 'off'}</small></summary><div style="padding:18px 20px 22px;">
+          <label class="check" style="margin-top:0;"><input type="checkbox" id="auto-admin"${auto ? ' checked' : ''}${unsafe.length ? ' disabled' : ''}> anyone i add in supabase becomes an admin automatically</label>
+          <p style="margin-top:12px;font-size:13px;line-height:1.6;color:var(--muted);">${unsafe.length
+            ? `<b style="color:#ff6b5e;">switched off for safety:</b> ${unsafe.join(' and ')} in this supabase project, so a website sign-up can no longer be told apart from an account you added. turn that setting back, or add admins with the form above.`
+            : 'a person added under <b>authentication → users → add user</b> can sign in here — as a limited admin with nothing opened, until you choose above what they can do. people who sign up on the website stay learners.'}</p>
+        </div></details>` : '');
+    $$('form', main).forEach(syncShown);
+    const picked = (f) => { const v = new FormData(f); const role = v.get('role') === 'main' ? 'main' : 'limited'; return { role, access: role === 'main' ? [] : v.getAll('access') }; };
     const sw = $('#auto-admin', main);
     if (sw) sw.addEventListener('change', async () => {
-      if (!(await run(sb.from('site_settings').update({ value: sw.checked }).eq('key', 'auto_admin'), sw.checked ? 'on — people you add in supabase become admins' : 'off — add admins by email below'))) sw.checked = !sw.checked;
+      if (!(await run(sb.from('site_settings').update({ value: sw.checked }).eq('key', 'auto_admin'), sw.checked ? 'on — people you add in supabase can sign in here' : 'off — add admins with the form on this screen'))) sw.checked = !sw.checked;
     });
-    $('#add-admin', main).addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.target);
-      // creates the login and its admin access together, in the database
-      if (await run(sb.rpc('create_admin', { p_email: f.get('email').trim(), p_password: f.get('password') }), 'admin login created — they can sign in now')) adminsView();
-    });
+    main.onsubmit = async (e) => {
+      const f = e.target; e.preventDefault();
+      if (f.id === 'add-admin') {
+        const v = new FormData(f), email = v.get('email').trim(), give = picked(f);
+        if (give.role === 'main' && !confirm(`make ${email} a main admin?\n\nthey will be able to do everything you can — including removing you.`)) return;
+        // the login is made first (with nothing opened); what it may do is set straight after
+        if (!(await run(sb.rpc('create_admin', { p_email: email, p_password: v.get('password') })))) return;
+        if (await run(sb.from('admins').update(give).eq('email', email.toLowerCase()), give.role === 'main' ? 'main admin created — they can sign in now' : give.access.length ? 'limited admin created — they can sign in now' : 'admin created, with nothing opened yet')) adminsView();
+        else adminsView();
+        return;
+      }
+      if (f.dataset.aform) {
+        const email = f.dataset.aform, give = picked(f), was = list.find((r) => r.email === email) || {};
+        if (give.role === 'main' && was.role !== 'main' && !confirm(`make ${email} a main admin?\n\nthey will be able to do everything you can — including removing you.`)) return;
+        if (await run(sb.from('admins').update(give).eq('email', email), 'saved — it applies the next time they open the panel')) adminsView();
+      }
+    };
     main.onclick = async (e) => {
-      const b = e.target.closest('[data-remove]'); if (!b) return;
-      const email = b.closest('.row').dataset.email;
+      if (e.target.closest('[data-acancel]')) return adminsView();
+      const row = e.target.closest('.row'); if (!row) return;
+      const email = row.dataset.email;
+      if (e.target.closest('[data-aedit]')) return adminsView(email);
+      if (!e.target.closest('[data-remove]')) return;
       if (!confirm(`remove ${email} as an admin? they lose access to this panel straight away. (the login itself stays in supabase until you delete it there.)`)) return;
       if (await run(sb.from('admins').delete().eq('email', email), 'removed')) adminsView();
     };
