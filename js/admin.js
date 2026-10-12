@@ -660,7 +660,12 @@
         <div class="field"><span>what kind of bkash account is it?</span>${choice('bkash_type', [['personal', 'personal', 'learners use “send money”'], ['merchant', 'merchant', 'learners use “payment”']], ps.bkash_type === 'merchant' ? 'merchant' : 'personal', 'choice--2')}
           <small class="hint">the wrong one makes payments fail in the bkash app.</small></div>
         <label class="field field--wide"><span>anything else to tell learners on the payment page (optional)</span><textarea name="note" rows="2" placeholder="e.g. payments are checked every evening.">${esc(ps.note || '')}</textarea></label>
-      </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form></details>`
+      </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form></details>
+      <details class="group help-box"${ps.whatsapp ? '' : ' open'}><summary>help for learners — your whatsapp number<small>${ps.whatsapp ? `<b>+${esc(ps.whatsapp)}</b> · press to change` : '<b style="color:#f2b42e;">not set yet — learners are told to email instead</b>'}</small></summary>
+      <form id="help-form" style="padding:4px 20px 22px;">
+        <label class="field field--short" style="max-width:420px;"><span>the whatsapp number learners can message</span><input name="whatsapp" inputmode="tel" value="${esc(ps.whatsapp ? '+' + ps.whatsapp : '')}" placeholder="017XXXXXXXX" maxlength="20">
+          <small class="hint">a “message us on whatsapp” button with this number appears on every learner’s “my learning” page, on the payment page and on live class pages. type it the way you would dial it — a bangladesh number like 017… gets +88 added for you. leave it empty to take the button away.</small></label>
+        <div class="editor-foot"><button class="btn btn--solid" type="submit">save whatsapp number</button>${ps.whatsapp ? `<a class="btn" href="https://wa.me/${esc(ps.whatsapp)}" target="_blank" rel="noopener noreferrer">try it ↗</a>` : ''}</div></form></details>`
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>${TYPES[type]} <small>${rowsOf(type).length}</small></span></div>
       <div class="rows">${rowsOf(type).map((c) => { const f = feeOf(pay, c.id); return `<div class="row row--plain row--entry" data-id="${esc(c.id)}">
           <div><strong>${esc(c.title)}</strong>
@@ -683,6 +688,16 @@
       // read the settings again first, so nothing saved elsewhere in the meantime is lost
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, bkash: n, bkash_type: v.bkash_type === 'merchant' ? 'merchant' : 'personal', note: v.note.trim() }, n ? 'bkash details saved' : 'saved — without a number, paid entries say “payment opens soon”')) coursesView();
+    });
+    $('#help-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let n = String(new FormData(e.target).get('whatsapp')).replace(/[^0-9]/g, '');
+      if (/^01\d{9}$/.test(n)) n = '88' + n;          // a bangladesh number written the local way
+      if (n.startsWith('00')) n = n.slice(2);
+      if (n && (n.length < 10 || n.length > 15)) return toast('that does not look like a phone number — type it with its country code, like 8801712345678, or the local way, like 01712345678', true);
+      // read the settings again first, so nothing saved elsewhere in the meantime is lost
+      const fresh = (await payLoad()).settings;
+      if (await paySave('pay.settings', { ...fresh, whatsapp: n }, n ? `saved — learners now see a whatsapp button for +${n}` : 'saved — the whatsapp button is gone; learners are told to email')) coursesView();
     });
     main.onclick = async (e) => {
       const row = e.target.closest('.row'); if (!row) return;

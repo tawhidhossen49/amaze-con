@@ -172,6 +172,33 @@
     const start = +new Date(at), now = Date.now();
     return now < start ? 'upcoming' : now < start + Math.max(15, minutes || 60) * 60000 ? 'live' : 'ended';
   };
+  // ── help, reminders and "where was i" ──────────────────────────────────────
+  // The WhatsApp number learners can write to is set in the admin panel (academy → help for
+  // learners) and kept with the payment settings. Without one, help falls back to email.
+  const HELP_MAIL = 'learn@amazeconsortium.org';
+  const waNumber = () => { let n = String(S.pay.settings.whatsapp || '').replace(/[^0-9]/g, ''); if (/^01\d{9}$/.test(n)) n = '88' + n; return n.length >= 10 && n.length <= 15 ? n : ''; };
+  const WA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2a8.7 8.7 0 0 0-7.5 13.2L3.3 20.8l4.500-1.200A8.700 8.700 0 1 0 12 3.200z"/><path d="M9 8.200c-.3.700-.4 1.600.300 2.800.9 1.500 2.200 2.700 3.800 3.400 1 .4 1.800.2 2.400-.5l.3-.700-1.900-.900-.700.800c-1-.4-1.900-1.300-2.400-2.300l.7-.700-.800-1.900z"/></svg>';
+  // a link to get help about something: whatsapp when a number is set, otherwise email
+  const helpUrl = (about) => (waNumber() ? `https://wa.me/${waNumber()}?text=${enc('hello amaze consortium — ' + about)}` : `mailto:${HELP_MAIL}?subject=${enc(about)}`);
+  const helpLink = (about, label) => `<a class="help-link${waNumber() ? ' is-wa' : ''}" href="${esc(helpUrl(about))}" target="_blank" rel="noopener noreferrer">${waNumber() ? WA : ''}<span>${label || (waNumber() ? 'message us on whatsapp' : 'email ' + HELP_MAIL)}</span></a>`;
+  // a live class as a google calendar entry
+  const calLink = (lesson, course) => {
+    if (!lesson.live_at) return '';
+    const stamp = (d) => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, ''), mins = Math.max(15, lesson.duration_min || 60);
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + `&text=${enc(lesson.title + ' — ' + course.title)}`
+      + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + mins * 60000)}`
+      + `&details=${enc('live class — amaze consortium academy\n' + new URL(`learn.html?c=${enc(course.id)}&l=${lesson.id}`, location.href).href)}`;
+  };
+  // "in 3 days 4 h", "in 2 h 10 min", "in 5 min"
+  const until = (at) => { const sec = Math.max(0, (+new Date(at) - Date.now()) / 1000), d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.ceil((sec % 3600) / 60); return d ? `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}` : h ? `${h} h ${m} min` : `${Math.max(1, m)} min`; };
+  // the next live class of a course that has not finished yet (live now counts)
+  const nextLive = (course) => lessonsOf(course.id).filter((l) => l.kind === 'live' && l.live_at && liveState(l.live_at, l.duration_min) !== 'ended').sort((a, b) => new Date(a.live_at) - new Date(b.live_at))[0] || null;
+  // the lesson last opened on this device, and how far into each video the learner got
+  const LOCAL_LAST = 'amaze.lms.last';
+  const LOCAL_WATCH = 'amaze.lms.watch';
+  const mmss = (sec) => `${Math.floor(sec / 60)}:${pad2(Math.floor(sec % 60))}`;
+
   // one small line icon per lesson type, shown beside every lesson title
   const svg = (inner) => `<svg class="kind-icon" viewBox="0 0 16 16" aria-hidden="true">${inner}</svg>`;
   const ICON = {
@@ -256,7 +283,7 @@
   // any YouTube address (watch, youtu.be, shorts, live, embed — with or without
   // extra ?si= / &t= parts), Vimeo, a Google Drive file, or a video file of our
   // own (uploaded from the admin panel, or any direct .mp4 / .webm link).
-  function videoEmbed(raw) {
+  function videoEmbed(raw, opts = {}) {
     const url = String(raw || '').trim();
     const frame = (src, extra = '') => `<iframe src="${esc(src)}" title="lesson video" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen ${extra}></iframe>`;
     let u = null;
@@ -271,8 +298,9 @@
         // a link copied at a timestamp (?t=90 or ?t=1m30s) starts there
         const t = u.searchParams.get('t') || u.searchParams.get('start') || '';
         const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t);
-        const start = m && t ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0;
-        return frame(`https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1${start ? '&start=' + start : ''}`);
+        const start = opts.resume || (m && t ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0);
+        // (enablejsapi lets the lesson page hear how far the video has played, to resume it next time)
+        return frame(`https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1${start ? '&start=' + Math.floor(start) : ''}${opts.track ? '&enablejsapi=1&origin=' + enc(location.origin) : ''}`, opts.track ? 'data-yt' : '');
       }
       if (host === 'vimeo.com' || host === 'player.vimeo.com') {
         const id = parts.find((p) => /^\d+$/.test(p));
@@ -679,6 +707,24 @@
     const second = !going && preview && !open && !mustPay ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
     const initials = (course.instructor_name || 'a').trim()[0];
+    // for someone who has not started: the whole path in four short steps
+    const steps = going || S.admin || !st.count ? [] : price.paid ? [
+      ['sign in with google', 'one click — no password to make or remember.'],
+      [`pay ${price.label} by bkash`, 'send the fee from your bkash app, then type the transaction id here.'],
+      ['we confirm it', 'usually within a day. the lessons then open by themselves.'],
+      [noun === 'webinar' ? 'join the session' : 'learn, then get your certificate', noun === 'webinar' ? 'it happens on this website — nothing to install.' : 'at your own pace, on your phone or laptop.'],
+    ] : [
+      ['sign in with google', 'one click — no password to make or remember.'],
+      [noun === 'webinar' ? 'press “register”' : 'press “enrol”', 'it is free. nothing to pay.'],
+      [noun === 'webinar' ? 'join the session' : 'learn at your own pace', noun === 'webinar' ? 'it happens on this website — nothing to install.' : 'on your phone or laptop. your place is saved.'],
+      ['get your certificate', 'when you finish every lesson.'],
+    ];
+    const live = nextLive(course);
+    const liveNow = live && liveState(live.live_at, live.duration_min) === 'live';
+    const liveCard = live ? `<div class="next-live rise${liveNow ? ' is-now' : ''}"><div><span class="live-flag">${liveNow ? 'live now' : 'next live class'}</span><strong>${esc(live.title)}</strong>
+        <p>${when(live.live_at)} — ${liveNow ? 'it has started' : `in <b data-until="${esc(live.live_at)}">${until(live.live_at)}</b>`}. the class happens on this website; nothing to install.</p></div>
+        <div class="hero-buttons">${mustPay ? '' : `<a class="btn-${liveNow ? 'primary' : 'outline'}" href="${lessonUrl(live)}">${liveNow ? 'go to the class' : 'open the class page'} <span class="btn-arrow" aria-hidden="true">→</span></a>`}
+          ${liveNow ? '' : `<a class="btn-outline" href="${esc(calLink(live, course))}" target="_blank" rel="noopener noreferrer">add to my calendar <span class="btn-arrow" aria-hidden="true">+</span></a>`}</div></div>` : '';
     const kinds = (k) => st.lessons.filter((l) => l.kind === k).length;
     // "this course includes": the list written in the admin panel, or — if that
     // is left empty — one worked out from the lessons themselves
@@ -696,7 +742,7 @@
         ['certificate', 'verifiable'],
       ].filter(Boolean);
     const social = [rating(course), learners(course), course.updated_at ? `updated ${new Date(course.updated_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }).toLowerCase()}` : '', esc(course.language || '')].filter(Boolean).join(' · ');
-    const bullets = (title, items, cls = 'outcomes') => ((items || []).length ? `<div class="course-block rise"><h2>// ${title}</h2><ul class="${cls}">${items.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : '');
+    const bullets = (title, items, cls = 'outcomes') => ((items || []).length ? `<div class="course-block rise"><h2>${title}</h2><ul class="${cls}">${items.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></div>` : '');
     const avg = shown.length ? shown.reduce((t, r) => t + r.rating, 0) / shown.length : 0;
     const bars = [5, 4, 3, 2, 1].map((n) => {
       const c = shown.filter((r) => r.rating === n).length;
@@ -710,7 +756,7 @@
         <button class="btn-outline" type="submit">post review <span class="btn-arrow" aria-hidden="true">→</span></button>
         <small class="hint">reviews are public and can't be edited once posted.</small>
       </form>` : '';
-    const reviewsBlock = !S.preview && (shown.length || reviewForm || mineReview) ? `<div class="course-block rise" id="reviews"><h2>// learner reviews</h2>
+    const reviewsBlock = !S.preview && (shown.length || reviewForm || mineReview) ? `<div class="course-block rise" id="reviews"><h2>learner reviews</h2>
         ${shown.length ? `<div class="review-summary"><div><strong>${avg.toFixed(1)}</strong><span class="stars">★★★★★</span><small>${shown.length} review${shown.length === 1 ? '' : 's'}</small></div><ul>${bars}</ul></div>` : '<p class="lms-empty" style="padding:28px 0;">no reviews yet — be the first.</p>'}
         ${reviewForm}
         ${mineReview && mineReview.is_hidden ? '<p class="lms-notice" style="margin-top:20px;">your review is currently hidden by a moderator.</p>' : ''}
@@ -729,7 +775,8 @@
             <div>
               <p class="page-sub">${esc(course.tagline || '')}</p>
               <div class="course-actions" style="margin-top:28px;">
-                <div class="hero-buttons" style="justify-content:flex-start;">${action}${second}</div>
+                <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}</div>
+                ${going || S.admin ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
                 ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="certificate.html?c=${enc(course.id)}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
               </div>
             </div>
@@ -745,12 +792,14 @@
       <section style="border-top:1px solid var(--line);">
         <div class="course-body">
           <div>
-            ${news.length ? `<div class="course-block rise"><h2>// announcements</h2><ul class="news">${news.map((n) => `<li><small>${ago(n.created_at)}</small><strong>${esc(n.title)}</strong>${n.body ? `<div class="prose">${markdown(n.body)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
-            ${course.trailer_url ? `<div class="course-block rise"><h2>// watch the introduction</h2><div class="lesson-video" style="margin:0;">${videoEmbed(course.trailer_url)}</div></div>` : ''}
-            ${course.description ? `<div class="course-block rise"><h2>// about this ${noun}</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
+            ${liveCard}
+            ${steps.length ? `<div class="course-block rise"><h2>how it works</h2><ol class="how">${steps.map(([t, d], i) => `<li><b>${i + 1}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('')}</ol></div>` : ''}
+            ${news.length ? `<div class="course-block rise"><h2>announcements</h2><ul class="news">${news.map((n) => `<li><small>${ago(n.created_at)}</small><strong>${esc(n.title)}</strong>${n.body ? `<div class="prose">${markdown(n.body)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
+            ${course.trailer_url ? `<div class="course-block rise"><h2>watch the introduction</h2><div class="lesson-video" style="margin:0;">${videoEmbed(course.trailer_url)}</div></div>` : ''}
+            ${course.description ? `<div class="course-block rise"><h2>about this ${noun}</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
             ${bullets('what you will be able to do', course.outcomes)}
-            ${(course.tags || []).length ? `<div class="course-block rise"><h2>// skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-            <div class="course-block rise"><h2>// curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
+            ${(course.tags || []).length ? `<div class="course-block rise"><h2>skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+            <div class="course-block rise"><h2>curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
               ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${payState(course) === 'pending' ? 'your payment is being checked.' : payState(course) === 'rejected' ? 'we could not confirm your payment.' : `the lessons open once you have enrolled and paid.`}</strong>
                 <p>${payState(course) === 'pending' ? 'as soon as we confirm it, every lesson below unlocks for your account.' : payState(course) === 'rejected' ? 'open the payment page to see why, and enter your transaction id again.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
                 <a class="btn-primary" href="pay.html?c=${enc(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
@@ -766,7 +815,17 @@
             </ul></div>
           </aside>
         </div>
-      </section>`;
+      </section>
+      ${st.count ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
+
+    // on a phone the main button stays in reach once the one at the top has scrolled away
+    const sticky = $('#sticky-cta', root), cta = $('#course-cta', root);
+    if (sticky && cta && 'IntersectionObserver' in window) {
+      new IntersectionObserver(([en]) => { sticky.hidden = en.isIntersecting; document.body.classList.toggle('has-sticky', !en.isIntersecting); }, { threshold: 0 }).observe(cta);
+      $('button', sticky).addEventListener('click', () => { const b = $('a.btn-primary, button.btn-primary', cta); if (b) b.click(); });
+    }
+    // the countdown keeps itself up to date
+    setInterval(() => $$('[data-until]', root).forEach((b) => { b.textContent = until(b.dataset.until); }), 30000);
 
     wireModules(root);
     const enrolBtn = $('#enrol');
@@ -798,6 +857,7 @@
     const courseUrl = `course.html?c=${enc(course.id)}`;
     const isLocked = locked(course, lesson, all);
     document.title = `${lesson.title} — ${course.title}`;
+    local.set(LOCAL_LAST, { c: course.id, l: lesson.id, at: Date.now() });
 
     // a paid entry opens once the payment is confirmed — every lesson of it, previews included
     const payLocked = !isLocked && fee(course).paid && !paidUp(course);
@@ -823,7 +883,7 @@
     // (the video, the document, the reading, the quiz…), the course content list down the
     // right, and tabs underneath. `bodyHtml` is what goes on the stage; `about` is any
     // written text that belongs with a video or document and is shown under "overview".
-    let bodyHtml, about = '', stageKind = 'page';
+    let bodyHtml, about = '', stageKind = 'page', resumeAt = 0;
     // a document a reading lesson is built around: a pdf attached to it (or a google drive file)
     const isDoc = (r) => /\.pdf($|[?#])/i.test(String(r.url || '')) || /drive\.google\.com\/file\/d\//.test(String(r.url || ''));
     let docs = [];
@@ -832,7 +892,8 @@
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
         <p>${waiting ? 'as soon as it is confirmed, every lesson here unlocks for your account by itself.' : `enrol to unlock every lesson, the live classes, your notes and the certificate. the fee is ${fee(course).label}.`}</p>
         <div class="hero-buttons"><a class="btn-primary" href="pay.html?c=${enc(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
-        <a class="btn-outline" href="${courseUrl}">back to the ${typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
+        <a class="btn-outline" href="${courseUrl}">back to the ${typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a></div>
+        <p class="ask">${waiting ? 'waiting longer than a day?' : 'not sure how to pay?'} ${helpLink('i need help with my payment for “' + course.title + '”')}</p></div>`;
     } else if (isLocked) {
       const need = all.find((l) => !S.done[l.id]);
       bodyHtml = `<div class="gate"><strong>this lesson unlocks in order.</strong><p>finish the lessons before it first — you are up to “${esc(need.title)}”.</p>
@@ -862,7 +923,7 @@
       stageKind = 'live';
       about = content.body || '';
       bodyHtml = '<div class="live-stage" id="live-stage"></div>'
-        + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">// recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div></div>` : '');
+        + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div></div>` : '');
     } else if (lesson.kind === 'form') {
       about = content.body || '';
       bodyHtml = (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
@@ -870,7 +931,10 @@
           : '<p class="lms-empty">the form for this lesson hasn\'t been added yet.</p>');
     } else if (content.video_url) {
       stageKind = 'video'; about = content.body || '';
-      bodyHtml = `<div class="lesson-video">${videoEmbed(content.video_url)}</div>`;
+      // a video carries on from where it was stopped last time (unless it was nearly over)
+      const seen = +(local.get(LOCAL_WATCH)[lesson.id] || 0);
+      resumeAt = seen > 15 && !S.done[lesson.id] ? seen : 0;
+      bodyHtml = `<div class="lesson-video">${videoEmbed(content.video_url, { track: true, resume: resumeAt })}</div>`;
     } else if ((docs = resources.filter(isDoc)).length) {
       // a reading built around a pdf: the pages are drawn right here, one under another
       stageKind = 'doc'; about = content.body || '';
@@ -961,6 +1025,7 @@
           </section>
           <div class="lp-under"><article class="lesson rise">
             ${notice()}
+            <div class="lp-note" id="lp-note"${resumeAt ? '' : ' hidden'}>${resumeAt ? `<span>carrying on from <b>${mmss(resumeAt)}</b>, where you stopped.</span><button class="linkish" type="button" id="from-start">start from the beginning</button>` : ''}</div>
             <div class="lp-head">
               <div><div class="lesson-kicker lesson-name">${kindIcon(lesson)}<span>${esc(mod ? mod.title : '')} · lesson ${idx + 1} of ${all.length} · ${KIND[lesson.kind] || esc(lesson.kind)}</span></div>
                 ${stageKind === 'read' ? '' : `<h1 class="lesson-title">${esc(lesson.title)}</h1>`}</div>
@@ -995,11 +1060,7 @@
         if (S.user && !S.admin) await sb.from('lesson_progress').delete().eq('user_id', S.user.id).eq('lesson_id', l.id);
         else local.set(LOCAL_PROGRESS, S.done);
       } else await markDone(course, l);
-      const opened = $$('.lp-sec', side).map((x) => x.classList.contains('is-open'));
-      side.innerHTML = sideList();
-      $$('.lp-sec', side).forEach((x, i) => x.classList.toggle('is-open', !!opened[i]));
-      $('.player-bar', root).innerHTML = bar(); wireBar();
-      if (l.id === lesson.id) { const c = $('#complete', root); if (c) c.firstChild.textContent = (S.done[l.id] ? (next ? 'next lesson' : 'finish') : doneLabel) + ' '; }
+      refreshProgress();
     });
 
     // ── a pdf, read inside the lesson ────────────────────────────────────────
@@ -1090,11 +1151,7 @@
       const stage = $('#live-stage', root), OPENS = 15, STAYS = 30;   // minutes: the same as the server's
       const mins = Math.max(15, lesson.duration_min || 60);
       const outside = content.live_url ? safeUrl(content.live_url) : '';   // an optional link to somewhere else, kept as a way in if the room is not set up
-      const stamp = (d) => new Date(d).toISOString().replace(/[-:]|\.\d{3}/g, '');
-      const cal = lesson.live_at ? 'https://calendar.google.com/calendar/render?action=TEMPLATE'
-        + `&text=${enc(lesson.title + ' — ' + course.title)}`
-        + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + mins * 60000)}`
-        + `&details=${enc('live class — amaze consortium academy\n' + location.href)}` : '';
+      const cal = calLink(lesson, course);
       // tba | early (more than 15 minutes to go) | open (the door is open) | live | over
       const phase = () => {
         if (!lesson.live_at) return 'tba';
@@ -1120,13 +1177,64 @@
             ${problem ? `<p class="dialog-msg is-error" role="alert">${esc(problem)}</p>` : ''}
             <div class="hero-buttons">
               ${canEnter ? `<button class="btn-primary" id="live-enter" type="button"${busy ? ' disabled' : ''}>${busy ? 'opening the room…' : S.admin ? (ph === 'live' || ph === 'open' || ph === 'late' ? 'start teaching' : 'open the room') : 'enter the live class'} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
-              ${cal && ph === 'early' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
+              ${cal && ph === 'early' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to my calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
+              ${ph !== 'over' && ph !== 'tba' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? '<button class="btn-outline" id="live-test" type="button">test my camera &amp; microphone <span class="btn-arrow" aria-hidden="true">→</span></button>' : ''}
               ${outside && ph !== 'over' && ph !== 'tba' ? `<a class="btn-outline" href="${esc(outside)}" target="_blank" rel="noopener noreferrer">join by link instead <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''}
             </div>
+            <div class="live-check" id="live-check" hidden></div>
+            ${ph === 'over' ? '' : `<p class="ask">trouble getting in? ${helpLink('i cannot get into the live class “' + lesson.title + '”')}</p>`}
           </div>`;
         const enter = $('#live-enter', stage);
-        if (enter) enter.addEventListener('click', goIn);
+        if (enter) enter.addEventListener('click', () => { stopCheck(); goIn(); });
+        const test = $('#live-test', stage);
+        if (test) test.addEventListener('click', deviceCheck);
+        if (checking) deviceCheck();   // the door was redrawn while a check was open: keep it open
       }
+
+      // ── before the class: does my camera work, can my microphone hear me? ──
+      // Nothing is sent anywhere — the picture is only shown back to the learner, and the
+      // microphone is only measured for the bar. Both are switched off again when the check is closed.
+      let checking = false, checkStream = null, checkFrame = 0, checkAudio = null;
+      function stopCheck() {
+        checking = false; cancelAnimationFrame(checkFrame);
+        if (checkStream) { checkStream.getTracks().forEach((t) => t.stop()); checkStream = null; }
+        if (checkAudio) { try { checkAudio.close(); } catch (e) {} checkAudio = null; }
+        const box = $('#live-check', stage); if (box) { box.hidden = true; box.innerHTML = ''; }
+      }
+      async function deviceCheck() {
+        const box = $('#live-check', stage); if (!box) return;
+        if (checking && checkStream && !box.hidden) return stopCheck();
+        checking = true; box.hidden = false;
+        box.innerHTML = '<p class="live-check-msg">your browser will ask to use the camera and microphone — press “allow”.</p>';
+        const reason = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'the browser blocked it. press the padlock beside the website address, allow the camera and microphone, then test again.' : e && e.name === 'NotFoundError' ? 'none was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and test again.' : 'it could not be started.');
+        if (checkStream) { checkStream.getTracks().forEach((t) => t.stop()); checkStream = null; }
+        let cam = null, mic = null, camWhy = '', micWhy = '';
+        try { cam = (await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 } } })).getVideoTracks()[0]; } catch (e) { camWhy = reason(e); }
+        try { mic = (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]; } catch (e) { micWhy = reason(e); }
+        if (!checking) { [cam, mic].forEach((t) => t && t.stop()); return; }
+        checkStream = new MediaStream([cam, mic].filter(Boolean));
+        box.innerHTML = `<div class="live-check-in">
+            <div class="live-check-pic">${cam ? '<video autoplay playsinline muted></video>' : '<span>no picture</span>'}</div>
+            <ul>
+              <li class="${cam ? 'is-ok' : 'is-bad'}"><b>${cam ? '✓' : '!'}</b><div><strong>camera ${cam ? 'works' : 'is not working'}</strong><span>${cam ? 'that is you in the picture. a camera is optional in class.' : esc(camWhy)}</span></div></li>
+              <li class="${mic ? 'is-ok' : 'is-bad'}"><b>${mic ? '✓' : '!'}</b><div><strong>microphone ${mic ? 'works' : 'is not working'}</strong><span>${mic ? 'say something — the bar below should move.' : esc(micWhy)}</span>${mic ? '<div class="live-meter"><i></i></div>' : ''}</div></li>
+            </ul></div>
+          <div class="hero-buttons"><button class="btn-outline" type="button" id="live-check-done">${cam || mic ? 'done — close the test' : 'close'} <span class="btn-arrow" aria-hidden="true">✓</span></button></div>
+          <p class="live-check-msg">${cam && mic ? 'everything works. in class both start switched off — you turn them on when you want.' : !cam && !mic ? 'you can still join and listen, and write in the chat.' : 'you can still join the class with what works.'}</p>`;
+        const v = $('video', box); if (v) v.srcObject = new MediaStream([cam]);
+        $('#live-check-done', box).addEventListener('click', stopCheck);
+        if (mic) {
+          try {
+            checkAudio = new (window.AudioContext || window.webkitAudioContext)();
+            const an = checkAudio.createAnalyser(); an.fftSize = 256;
+            checkAudio.createMediaStreamSource(new MediaStream([mic])).connect(an);
+            const buf = new Uint8Array(an.frequencyBinCount), bar = $('.live-meter i', box);
+            const tick = () => { if (!checking) return; an.getByteTimeDomainData(buf); let peak = 0; for (let i = 0; i < buf.length; i += 1) peak = Math.max(peak, Math.abs(buf[i] - 128)); if (bar) bar.style.width = Math.min(100, Math.round((peak / 60) * 100)) + '%'; checkFrame = requestAnimationFrame(tick); };
+            tick();
+          } catch (e) {}
+        }
+      }
+      window.addEventListener('pagehide', stopCheck);
 
       async function goIn() {
         if (busy) return;
@@ -1470,7 +1578,7 @@
 
       door();
       // the door changes by itself as the time comes: "opens in 12 min" → "the room is open" → "live now" → "ended"
-      setInterval(() => { if (!inRoom && shown !== phase() + '|' + problem + '|' + busy) door(); else if (!inRoom && phase() === 'early') { const b = $('.live-note b', stage); if (b) b.textContent = wait(); } }, 20000);
+      setInterval(() => { if (!inRoom && !checking && shown !== phase() + '|' + problem + '|' + busy) door(); else if (!inRoom && phase() === 'early') { const b = $('.live-note b', stage); if (b) b.textContent = wait(); } }, 20000);
       // closing the page in the middle of a class by accident is easy to do
       window.addEventListener('beforeunload', (e) => { if (inRoom) { e.preventDefault(); e.returnValue = ''; } });
     }
@@ -1512,6 +1620,59 @@
     // bring the current lesson into view inside the list, without moving the page itself
     const current = $('.lp-item.is-current', root);
     if (current) { const list = $('.lp-side', root); list.scrollTop = Math.max(0, current.offsetTop - list.clientHeight / 2); }
+
+    // ── the video: remember how far it got, and when it ends say what comes next ──
+    function refreshProgress() {
+      const opened = $$('.lp-sec', side).map((x) => x.classList.contains('is-open'));
+      side.innerHTML = sideList();
+      $$('.lp-sec', side).forEach((x, i) => x.classList.toggle('is-open', !!opened[i]));
+      $('.player-bar', root).innerHTML = bar(); wireBar();
+      const c = $('#complete', root); if (c) c.firstChild.textContent = (S.done[lesson.id] ? (next ? 'next lesson' : 'finish') : doneLabel) + ' ';
+    }
+    if (stageKind === 'video') {
+      const noteBox = $('#lp-note', root);
+      let lastSaved = 0, ended = false;
+      const savePos = (sec, total) => {
+        if (ended || !(sec > 0) || Math.abs(sec - lastSaved) < 5) return;
+        lastSaved = sec;
+        const w = local.get(LOCAL_WATCH);
+        if (total && sec > total - 20) delete w[lesson.id]; else w[lesson.id] = Math.floor(sec);
+        local.set(LOCAL_WATCH, w);
+      };
+      const onEnded = async () => {
+        if (ended) return; ended = true;
+        const w = local.get(LOCAL_WATCH); delete w[lesson.id]; local.set(LOCAL_WATCH, w);
+        const wasDone = !!S.done[lesson.id];
+        if (!wasDone && !locked(course, lesson, all)) { await markDone(course, lesson); refreshProgress(); }
+        if (!noteBox) return;
+        noteBox.hidden = false; noteBox.classList.add('is-done');
+        noteBox.innerHTML = `<span><b>✓ ${wasDone ? 'video finished.' : 'lesson complete.'}</b> ${next ? `next: ${esc(next.title)}` : 'that was the last lesson.'}</span><a class="btn-primary" href="${next ? url(next) : (stats(course).pct === 100 ? `certificate.html?c=${enc(course.id)}` : courseUrl)}">${next ? 'next lesson' : stats(course).pct === 100 ? 'get my certificate' : 'back to the ' + typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
+      };
+      const restart = $('#from-start', root);
+      if (restart) restart.addEventListener('click', () => { const w = local.get(LOCAL_WATCH); delete w[lesson.id]; local.set(LOCAL_WATCH, w); location.reload(); });
+      const own = $('.lp-stage video', root), yt = $('.lp-stage iframe[data-yt]', root);
+      if (own) {
+        // a file of our own: the browser tells us directly
+        own.addEventListener('loadedmetadata', () => { if (resumeAt && resumeAt < own.duration - 20) own.currentTime = resumeAt; });
+        own.addEventListener('timeupdate', () => savePos(own.currentTime, own.duration));
+        own.addEventListener('ended', onEnded);
+      } else if (yt) {
+        // youtube: the player reports its time once it has been told someone is listening
+        let heard = false, tries = 0;
+        const ask = () => { try { yt.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), 'https://www.youtube-nocookie.com'); } catch (e) {} };
+        const knock = setInterval(() => { tries += 1; if (heard || tries > 40) return clearInterval(knock); ask(); }, 750);
+        yt.addEventListener('load', ask);
+        window.addEventListener('message', (e) => {
+          if (e.source !== yt.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
+          let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
+          if (!d || !d.info) return;
+          heard = true;
+          if (typeof d.info.duration === 'number' && d.info.duration > 0) yt.dataset.total = d.info.duration;
+          if (typeof d.info.currentTime === 'number') savePos(d.info.currentTime, +yt.dataset.total || 0);
+          if (d.info.playerState === 0) onEnded();
+        });
+      }
+    }
 
     const complete = $('#complete');
     if (complete) complete.addEventListener('click', async () => {
@@ -1675,11 +1836,12 @@
           ? `<div class="pay-status"><strong>thank you — we are checking your payment.</strong>
               <p>we match it against our bkash account by hand, usually within a day. the moment it is confirmed, this ${type} unlocks by itself — you do not need to do anything else, and you can close this page.</p>
               <dl class="pay-sent"><div><dt>transaction id</dt><dd><code>${esc(mine.trx_id)}</code></dd></div><div><dt>paid from</dt><dd>${esc(hide(mine.sender))}</dd></div><div><dt>amount</dt><dd>${esc(mine.amount || f.label)}</dd></div><div><dt>sent to us</dt><dd>${ago(mine.created_at)}</dd></div></dl>
-              <button class="linkish" type="button" id="pay-redo">i typed something wrong — let me correct it</button></div>`
+              <button class="linkish" type="button" id="pay-redo">i typed something wrong — let me correct it</button>
+              <p class="ask">waiting longer than a day? ${helpLink('i am waiting for my payment for “' + course.title + '” to be confirmed (transaction id ' + mine.trx_id + ')')}</p></div>`
           : state === 'rejected'
             ? `<div class="pay-status is-bad"><strong>we could not confirm that payment.</strong>
                 <p>${esc(mine.note || 'the transaction id did not match a payment in our bkash account.')}</p>
-                <p>check the transaction id in your bkash app or the confirmation sms and enter it again below. if you are sure it is right, write to <a href="mailto:learn@amazeconsortium.org">learn@amazeconsortium.org</a> with a screenshot.</p></div>`
+                <p>check the transaction id in your bkash app or the confirmation sms and enter it again below. if you are sure it is right, send us a screenshot: ${helpLink('my payment for “' + course.title + '” was not confirmed')}</p></div>`
             : state === 'admin'
               ? '<div class="pay-status"><strong>you are signed in with an admin login.</strong><p>this is the page learners see. admins can open every lesson without paying, so the form below is switched off for you.</p></div>'
               : '';
@@ -1691,7 +1853,7 @@
            <p class="hint">the ${type} is unlocked for this account. not you? use the button at the top right to sign out.</p>`;
 
       const how = !open
-        ? `<p class="pay-lead">our bkash number will be shown here. if you do not have it yet, write to <a href="mailto:learn@amazeconsortium.org" style="color:var(--green)">learn@amazeconsortium.org</a> and we will send it to you — the fee is <b style="color:var(--fg)">${esc(f.label)}</b>. once you have paid, fill in the two boxes below.</p>`
+        ? `<p class="pay-lead">our bkash number will be shown here. if you do not have it yet, ask us and we will send it to you — the fee is <b style="color:var(--fg)">${esc(f.label)}</b>. once you have paid, fill in the two boxes below.</p><p class="ask">${helpLink('please send me the bkash number for “' + course.title + '”')}</p>`
         : `<div class="pay-bkash">
              <div><span>bkash number${merchant ? ' (merchant)' : ' (personal)'}</span><strong id="pay-number">${esc(spaced(number))}</strong><button class="linkish" type="button" data-copy="${esc(number)}">copy number</button></div>
              <div><span>amount to send</span><strong>${esc(f.label)}</strong>${f.amount ? `<button class="linkish" type="button" data-copy="${esc(f.amount)}">copy amount</button>` : ''}</div>
@@ -1749,6 +1911,7 @@
               <div class="pay-lines"><div><span>${type} fee</span><b>${esc(f.was || f.label)}</b></div>${f.was ? `<div class="pay-cut"><span>discount · ${f.off}% off</span><b>− ${esc(f.saved)}</b></div>` : ''}<div class="pay-total"><span>total to pay</span><b>${esc(f.label)}</b></div></div>
               ${sideButton}
               ${state === 'paid' ? '' : `<p class="pay-fine">${LOCK}<span>you pay in your own bkash app — we never ask for your pin or password. your place is confirmed once we have checked the payment.</span></p>`}
+              ${state === 'paid' || state === 'admin' ? '' : `<div class="pay-help"><strong>stuck on a step?</strong>${helpLink('i need help paying for “' + course.title + '”')}</div>`}
             </div>
           </div></aside>
         </div>
@@ -1789,7 +1952,7 @@
             if (again[0]) S.payments[course.id] = again[0];
             problem = '';
           } else {
-            problem = /payments_trx_once/.test(m) ? 'that transaction id has already been used for a payment. check it again — if it really is yours, write to learn@amazeconsortium.org.'
+            problem = /payments_trx_once/.test(m) ? `that transaction id has already been used for a payment. check it again — if it really is yours, ${waNumber() ? 'message us on whatsapp (the button on this page)' : 'write to ' + HELP_MAIL}.`
               : /too many attempts/.test(m) ? m
                 : /row-level security/.test(m) ? 'this account cannot submit a payment. sign out and sign in again with your own google account.'
                   : plain(m);
@@ -1824,6 +1987,47 @@
     const finished = mine.filter((c) => stats(c).pct === 100);
     const lessonsDone = S.lessons.filter((l) => S.done[l.id]).length;
     const hello = S.user ? (S.name.split(' ')[0] || 'welcome back') : 'my learning';
+    const lessonUrl = (c, l) => `learn.html?c=${enc(c.id)}&l=${l.id}`;
+
+    // where they stopped: the lesson last opened on this device, or the next one of whatever is in progress
+    const last = local.get(LOCAL_LAST);
+    let onCourse = going.find((c) => c.id === last.c), onLesson = onCourse ? lessonsOf(onCourse.id).find((l) => l.id === last.l) : null;
+    if (onLesson && S.done[onLesson.id]) onLesson = stats(onCourse).next;
+    if (!onCourse && going.length) onCourse = going[0];
+    if (onCourse && !onLesson) onLesson = stats(onCourse).next;
+    const resume = onCourse && onLesson ? (() => {
+      const st = stats(onCourse), n = st.lessons.indexOf(onLesson) + 1;
+      return `<a class="dash-continue rise rise-3" href="${lessonUrl(onCourse, onLesson)}">
+          <div class="dash-continue-in"><span class="lesson-kicker">continue where you left off</span>
+            <strong>${esc(onLesson.title)}</strong>
+            <p>${esc(onCourse.title)} · lesson ${n} of ${st.count} · ${KIND[onLesson.kind] || esc(onLesson.kind)}</p>
+            <div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons done</small></div>
+          <span class="btn-primary">continue <span class="btn-arrow" aria-hidden="true">→</span></span></a>`;
+    })() : '';
+
+    // the next live class in anything they can enter
+    const classes = S.courses.filter((c) => paidUp(c) && (started(c) || payState(c) === 'confirmed' || S.enrolled[c.id])).map((c) => ({ c, l: nextLive(c) })).filter((x) => x.l).sort((a, b) => new Date(a.l.live_at) - new Date(b.l.live_at));
+    const cls = classes[0];
+    const clsNow = cls && liveState(cls.l.live_at, cls.l.duration_min) === 'live';
+    const liveCard = cls ? `<div class="next-live rise rise-3${clsNow ? ' is-now' : ''}"><div><span class="live-flag">${clsNow ? 'live now' : 'your next live class'}</span><strong>${esc(cls.l.title)}</strong>
+        <p>${esc(cls.c.title)} · ${when(cls.l.live_at)} — ${clsNow ? 'it has started' : `in <b data-until="${esc(cls.l.live_at)}">${until(cls.l.live_at)}</b>`}</p></div>
+        <div class="hero-buttons"><a class="btn-${clsNow ? 'primary' : 'outline'}" href="${lessonUrl(cls.c, cls.l)}">${clsNow ? 'go to the class' : 'open the class page'} <span class="btn-arrow" aria-hidden="true">→</span></a>
+          ${clsNow ? '' : `<a class="btn-outline" href="${esc(calLink(cls.l, cls.c))}" target="_blank" rel="noopener noreferrer">add to my calendar <span class="btn-arrow" aria-hidden="true">+</span></a>`}</div></div>` : '';
+
+    // payments that still need something
+    const open = S.courses.filter((c) => fee(c).paid && ['pending', 'rejected'].includes(payState(c)));
+    const payRows = open.length ? `<div class="dash-pay rise rise-3">${open.map((c) => { const bad = payState(c) === 'rejected'; return `<a href="pay.html?c=${enc(c.id)}" class="${bad ? 'is-bad' : ''}"><div><strong>${bad ? 'we could not confirm your payment' : 'your payment is being checked'}</strong><span>${esc(c.title)} — ${bad ? 'open it to see why and try again' : 'usually within a day; the lessons then open by themselves'}</span></div><i aria-hidden="true">→</i></a>`; }).join('')}</div>` : '';
+
+    const faq = [
+      ['how do i join a course?', 'open it from the academy page and press “enrol”. a free one starts straight away. for a paid one you are taken to the payment page.'],
+      ['how do i pay?', 'by bkash. the payment page shows our number and the amount. send it from your bkash app, then type two things on that page: the number you paid from and the transaction id (trxid) from the bkash message.'],
+      ['i paid — why are my lessons still locked?', 'we check each payment by hand, usually within a day. you do not need to do anything: when it is confirmed, the lessons open by themselves and this page shows it.'],
+      ['how do i join a live class?', 'open the class from this page or from the course. the room opens 15 minutes before the start: press “enter the live class”. it happens on this website — there is nothing to install.'],
+      ['my camera or microphone does not work', 'on the class page press “test my camera & microphone” before the class. if the browser blocked it, press the padlock beside the website address and allow both. you can always join without them and use the chat.'],
+      ['will i lose my place if i change phone?', 'no. sign in with the same google account on any phone or laptop and your lessons, notes and certificates are there.'],
+      ['how do i get my certificate?', 'finish every lesson of a course. the certificate then appears on this page under “completed”, with a link you can share.'],
+    ];
+
     root.innerHTML = `
       <section class="course-hero"><div class="course-hero-inner">
         ${notice()}
@@ -1832,26 +2036,39 @@
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
         ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">
           <strong>sign in to keep your place.</strong>
-          <p>a free learner account saves the courses you enrol in, every lesson you finish, your notes and your certificates — so you can stop anywhere and carry on later, on any device.</p>
-          <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signup">create a free account <span class="btn-arrow" aria-hidden="true">→</span></button>
-          <button class="btn-outline" type="button" data-auth="signin">sign in <span class="btn-arrow" aria-hidden="true">→</span></button></div>
+          <p>one click with your google account. it saves the courses you join, every lesson you finish, your notes and your certificates — so you can stop anywhere and carry on later, on any phone or laptop.</p>
+          <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signin">continue with google <span class="btn-arrow" aria-hidden="true">→</span></button></div>
           ${mine.length ? '<p style="margin:22px 0 0;font-size:13px;">the progress below is saved on this device only. it moves into your account as soon as you sign in.</p>' : ''}
         </div>`}
-        <ul class="course-facts rise rise-3" style="grid-template-columns:repeat(3,1fr);margin:clamp(36px,5vw,64px) 0 clamp(40px,5vw,72px);">
-          <li><small>courses started</small><span>${mine.length}</span></li>
-          <li><small>lessons completed</small><span>${lessonsDone}</span></li>
-          <li><small>courses finished</small><span>${finished.length}</span></li>
+        <div class="dash">${resume}${liveCard}${payRows}</div>
+        <ul class="course-facts rise rise-3" style="grid-template-columns:repeat(3,1fr);margin:clamp(28px,4vw,48px) 0 clamp(40px,5vw,72px);">
+          <li><small>started</small><span>${mine.length}</span></li>
+          <li><small>lessons done</small><span>${lessonsDone}</span></li>
+          <li><small>finished</small><span>${finished.length}</span></li>
         </ul>
       </div></section>
       <section style="border-top:1px solid var(--line);"><div class="sect-inner">
-        <span class="lesson-kicker">// in progress</span>
-        ${going.length ? `<div class="ugrid" style="margin-top:24px;">${going.map((c, i) => card(c, i, { resume: true })).join('')}</div>` : `<p class="lms-empty" style="margin-top:24px;">nothing in progress. <a href="index.html" style="color:var(--green)">browse the catalogue →</a></p>`}
-        ${finished.length ? `<span class="lesson-kicker" style="display:block;margin-top:clamp(56px,7vw,96px);">// completed</span>
+        <span class="lesson-kicker">in progress</span>
+        ${going.length ? `<div class="ugrid" style="margin-top:24px;">${going.map((c, i) => card(c, i, { resume: true })).join('')}</div>` : `<p class="lms-empty" style="margin-top:24px;">${mine.length ? 'nothing in progress — everything you started is finished.' : 'you have not started anything yet.'} <a class="btn-outline" href="index.html" style="margin-left:8px;">find something to learn <span class="btn-arrow" aria-hidden="true">→</span></a></p>`}
+        ${finished.length ? `<span class="lesson-kicker" style="display:block;margin-top:clamp(56px,7vw,96px);">completed</span>
           <div class="rows-plain">${finished.map((c) => `<div><div><strong>${esc(c.title)}</strong><small>${stats(c).count} lessons${S.enrolled[c.id] && S.enrolled[c.id].completed_at ? ` · finished ${day(S.enrolled[c.id].completed_at)}` : ''}</small></div>
             <div class="hero-buttons" style="justify-content:flex-end;"><a class="btn-outline" href="course.html?c=${enc(c.id)}">review <span class="btn-arrow" aria-hidden="true">→</span></a>
             <a class="btn-primary" href="certificate.html?${S.certs[c.id] ? 'id=' + enc(S.certs[c.id]) : 'c=' + enc(c.id)}">certificate <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`).join('')}</div>` : ''}
+      </div></section>
+      <section style="border-top:1px solid var(--line);"><div class="sect-inner">
+        <div class="dash-help">
+          <div class="dash-help-card" id="help"><span class="lesson-kicker">need help?</span>
+            <strong>${waNumber() ? 'talk to us on whatsapp.' : 'write to us.'}</strong>
+            <p>stuck on a payment, a class or anything else? ${waNumber() ? 'send us a message and a person from the team will answer.' : 'send us an email and a person from the team will answer.'}</p>
+            ${waNumber() ? `<a class="btn-wa" href="${esc(helpUrl('i need help with my learning'))}" target="_blank" rel="noopener noreferrer">${WA}<span>message us on whatsapp</span></a><small>+${esc(waNumber())}</small>` : `<a class="btn-outline" href="${esc(helpUrl('i need help with my learning'))}">email ${HELP_MAIL} <span class="btn-arrow" aria-hidden="true">→</span></a>`}
+          </div>
+          <div><span class="lesson-kicker">questions people ask</span>
+            <div class="faq">${faq.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</div>
+          </div>
+        </div>
       </div></section>`;
     $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
+    setInterval(() => $$('[data-until]', root).forEach((b) => { b.textContent = until(b.dataset.until); }), 30000);
     wireSaves(root);
   }
 
