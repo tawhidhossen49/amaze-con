@@ -376,9 +376,9 @@
   function shell() {
     app.innerHTML = `<div class="admin-shell">
       <aside class="admin-side">
-        <a class="admin-brand" href="${A.root}index.html" target="_blank" rel="noopener" title="open the website"><img src="${A.root}img/amazelogo.png" alt=""><span>site admin</span></a>
+        <a class="admin-brand" href="${A.root}" target="_blank" rel="noopener" title="open the website"><img src="${A.root}img/amazelogo.png" alt=""><span>site admin</span></a>
         <nav class="admin-nav">${Object.entries(VIEWS).filter(([k]) => can(k)).map(([k, [label, , icon]]) => `<button data-view="${k}"><i aria-hidden="true">${icon}</i><span>${label}</span></button>`).join('')}</nav>
-        <a class="admin-site" href="${A.root}index.html" target="_blank" rel="noopener">see the website ↗</a>
+        <a class="admin-site" href="${A.root}" target="_blank" rel="noopener">see the website ↗</a>
         <div class="admin-user"><span>signed in as — ${me.role === 'main' ? 'main admin' : 'limited admin'}</span>${esc(user.email)}<button class="linkish" id="signout">sign out</button></div>
       </aside>
       <main class="admin-main"></main>
@@ -450,7 +450,7 @@
     const hints = { pre: 'paste your text here. it appears on the page exactly as it looks in this box — every new line and empty line is kept. a long text gets a “read more” button by itself.', html: 'to make a word green, write &lt;em&gt;word&lt;/em&gt;. to start a new line, write &lt;br&gt;.', stat: 'a number — you can add a sign after it, like 25+' };
 
     main.innerHTML = head('words & pictures', 'change any text, button or picture on a page. 1 — choose the page. 2 — open a part of it and type. 3 — press “save changes” at the bottom.',
-      `<a class="btn" href="${A.root + page.file}" target="_blank" rel="noopener">see this page ↗</a>`)
+      `<a class="btn" href="${(A.root + page.file).replace(/index\.html$/, '')}" target="_blank" rel="noopener">see this page ↗</a>`)
       + `<p class="step-label"><b>1</b> which page?</p><div class="tabs">${window.AMAZE_PAGES.map((p) => `<button class="chip${p.id === page.id ? ' is-active' : ''}" data-page="${p.id}">${esc(p.title)}</button>`).join('')}</div>`
       + `<p class="step-label"><b>2</b> which part of “${esc(page.title)}”?</p><label class="search"><input type="search" id="find" placeholder="type a few words you see on the page to find them…" autocomplete="off"><span id="find-n"></span></label>`
       + groups.map((g, gi) => {
@@ -616,14 +616,18 @@
   // Prices and the bKash number are kept with the site's other saved text (site_text):
   //   pay.course.<id>   { paid, price, was }                    one entry: free or paid, price, previous price
   //   pay.settings      { bkash, bkash_type, note, price, … }   where the fee is sent, and the older general price
+//   pay.teachers      [{ name, role, img }]                   teachers saved once, to fill in on any course with one press
+// Coupons are rows in the coupons table (seed/website-backend-10-coupons.sql): only admins can read them, and
+// the database works out what a learner owes when a payment comes in with one.
   // An entry with nothing saved is paid. The payments themselves — who sent which transaction id,
   // and what an admin decided — are rows in the payments table (seed/website-backend-07-bkash-payments.sql).
   async function payLoad() {
     const rows = await run(sb.from('site_text').select('key,value').like('key', 'pay.%'));
-    const out = { settings: {}, course: {} };
+    const out = { settings: {}, course: {}, teachers: [] };
     (rows && rows !== true ? rows : []).forEach((r) => {
       let v; try { v = JSON.parse(r.value); } catch (e) { return; }
       if (r.key === 'pay.settings') out.settings = v || {};
+      else if (r.key === 'pay.teachers') out.teachers = Array.isArray(v) ? v.filter((t) => t && t.name) : [];
       else if (r.key.startsWith('pay.course.')) out.course[r.key.slice(11)] = v || {};
     });
     return out;
@@ -636,16 +640,27 @@
     return { paid, priced: !paid || !!amount, label: !paid ? 'free' : amount ? money(amount) + (own.was ? ` · was ${money(own.was)}` : '') : 'paid — no price set' };
   };
 
+  let madeCoupon = '';   // the code just made, shown large once
   async function coursesView(courseId) {
     await checkAcademy();
     if (courseId && courseId.startsWith('new:')) return courseEditor(null, null, courseId.slice(4));
     if (courseId) return courseEditor(courseId);
-    const [courses, lessons, pay] = await Promise.all([
+    const [courses, lessons, pay, couponRows, usedRows] = await Promise.all([
       run(sb.from('courses').select('*').order('sort_order').order('created_at')),
       run(sb.from('course_lessons').select('course_id')),
       payLoad(),
+      sb.from('coupons').select('*').order('created_at', { ascending: false }),
+      can('learners') ? sb.from('payments').select('coupon,status').not('coupon', 'is', null) : Promise.resolve({ data: null }),
     ]);
     if (!courses || !lessons) return;
+    // coupons need seed/website-backend-10-coupons.sql; without it the box is simply left out
+    const coupons = couponRows.error ? null : (couponRows.data || []);
+    const used = (code) => (usedRows.data || []).filter((p) => p.coupon === code && p.status !== 'rejected').length;
+    const cur = String(pay.settings.currency || '৳').trim();
+    const money = (v) => (/^[a-z]/i.test(cur) ? `${cur} ${v}` : cur + v);
+    const worth = (k) => (k.kind === 'percent' ? `${+k.value}% off` : `${money(+k.value)} off`);
+    const couponState = (k) => { const now = Date.now(); return k.is_off ? ['switched off', ''] : k.starts_at && now < +new Date(k.starts_at) ? [`starts ${whenText(k.starts_at)}`, 'wait'] : k.ends_at && now >= +new Date(k.ends_at) ? [`ended ${whenText(k.ends_at)}`, ''] : [k.ends_at ? `working — until ${whenText(k.ends_at)}` : 'working now', 'on']; };
+    const paidOnes = courses.filter((c) => feeOf(pay, c.id).paid);
     const ps = pay.settings;
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
@@ -666,6 +681,28 @@
         <label class="field field--short" style="max-width:420px;"><span>the whatsapp number learners can message</span><input name="whatsapp" inputmode="tel" value="${esc(ps.whatsapp ? '+' + ps.whatsapp : '')}" placeholder="017XXXXXXXX" maxlength="20">
           <small class="hint">a “message us on whatsapp” button with this number appears on every learner’s “my learning” page, on the payment page and on live class pages. type it the way you would dial it — a bangladesh number like 017… gets +88 added for you. leave it empty to take the button away.</small></label>
         <div class="editor-foot"><button class="btn btn--solid" type="submit">save whatsapp number</button>${ps.whatsapp ? `<a class="btn" href="https://wa.me/${esc(ps.whatsapp)}" target="_blank" rel="noopener noreferrer">try it ↗</a>` : ''}</div></form></details>`
+      + (coupons ? `<details class="group coupon-box" id="coupon-box"${madeCoupon ? ' open' : ''}><summary>coupons — discount codes<small>${coupons.filter((k) => couponState(k)[1] === 'on').length ? `<b>${coupons.filter((k) => couponState(k)[1] === 'on').length} working now</b>` : coupons.length ? 'none working now' : 'none yet — press to make one'}</small></summary>
+      <div style="padding:4px 20px 22px;">
+        <p class="lede" style="margin-top:16px;">a coupon is a code a learner types on the payment page to pay less. you choose what it is worth and when it works — the code itself is made for you.</p>
+        ${madeCoupon ? `<div class="coupon-made"><span>your new coupon — send this code to your learners</span><code>${esc(madeCoupon)}</code><button type="button" class="btn btn--solid" data-copy-code="${esc(madeCoupon)}">copy the code</button></div>` : ''}
+        <form id="coupon-form" class="card" style="margin-top:14px;"><h2 class="card-title">make a coupon</h2>
+          <div class="field"><span>what is it worth?</span>${choice('kind', [['percent', 'a percentage off', 'for example 20% off the fee', '%'], ['amount', 'an amount of money off', `for example ${money(100)} off the fee`, cur]], 'percent', 'choice--2')}</div>
+          <label class="field field--short"><span data-when="kind=percent">how many percent off? (1 to 99)</span><span data-when="kind=amount">how much money off? (in ${esc(cur)})</span><input name="value" inputmode="decimal" required placeholder="20" autocomplete="off"></label>
+          <div class="field"><span>when does it start working?</span>${choice('start', [['now', 'straight away', 'as soon as it is made'], ['date', 'on a date', 'you choose the day and time']], 'now', 'choice--2')}</div>
+          <label class="field field--short" data-when="start=date"><span>the day and time it starts</span><input name="starts_at" type="datetime-local"></label>
+          <div class="field"><span>when does it stop working?</span>${choice('stop', [['never', 'when i switch it off', 'it keeps working until then'], ['date', 'on a date', 'it stops by itself']], 'never', 'choice--2')}</div>
+          <label class="field field--short" data-when="stop=date"><span>the day and time it stops</span><input name="ends_at" type="datetime-local"></label>
+          <label class="field"><span>what can it be used on?</span><select name="course_id"><option value="">every paid course, program and webinar</option>${paidOnes.map((c) => `<option value="${esc(c.id)}">only: ${esc(c.title)}</option>`).join('')}</select></label>
+          <label class="field"><span>a note for yourself (optional)</span><input name="note" maxlength="200" placeholder="e.g. eid offer, for the first 20 students" autocomplete="off"></label>
+          <div class="editor-foot"><button class="btn btn--solid" type="submit">make the coupon</button><span class="foot-note">a code like “K7QM2XPA” is made for you.</span></div></form>
+        <div class="h2" style="margin-top:28px;"><span>your coupons <small>${coupons.length}</small></span></div>
+        <div class="rows">${coupons.map((k) => { const [state, tone] = couponState(k); return `<div class="row row--plain" data-coupon="${esc(k.code)}">
+            <div><strong style="text-transform:none;"><code class="coupon-code">${esc(k.code)}</code></strong>
+              <span class="pills"><span class="badge${tone === 'on' ? ' badge--on' : ''}"${tone === 'wait' ? ' style="border-color:#f2b42e;color:#f2b42e;"' : ''}>${esc(state)}</span><span class="badge badge--on">${esc(worth(k))}</span>${usedRows.data ? `<span class="badge">used ${used(k.code)} time${used(k.code) === 1 ? '' : 's'}</span>` : ''}</span>
+              <span class="sub">${k.course_id ? 'only for: ' + esc((courses.find((c) => c.id === k.course_id) || {}).title || k.course_id) : 'for every paid course, program and webinar'}${k.note ? ' · ' + esc(k.note) : ''}</span></div>
+            <div class="row-actions"><button class="btn btn--sm" data-copy-code="${esc(k.code)}">copy</button><button class="btn btn--sm" data-coupon-off>${k.is_off ? 'switch on' : 'switch off'}</button><button class="btn btn--sm btn--danger" data-coupon-del>delete</button></div>
+          </div>`; }).join('') || '<p class="empty">no coupons yet. fill in the form above and press “make the coupon”.</p>'}</div>
+      </div></details>` : '')
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>${TYPES[type]} <small>${rowsOf(type).length}</small></span></div>
       <div class="rows">${rowsOf(type).map((c) => { const f = feeOf(pay, c.id); return `<div class="row row--plain row--entry" data-id="${esc(c.id)}">
           <div><strong>${esc(c.title)}</strong>
@@ -673,7 +710,7 @@
             <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${count(c.id)} lesson${count(c.id) === 1 ? '' : 's'} · ${esc(c.category)} · ${esc(c.level)}</span></div>
           <div class="row-actions"><button class="btn btn--sm btn--solid" data-open>edit</button><button class="btn btn--sm" data-toggle title="${c.status === 'published' ? 'take it off the website (it stays here as a draft)' : 'put it on the academy page'}">${c.status === 'published' ? 'unpublish' : 'publish'}</button>
             <details class="menu"><summary class="btn btn--sm" aria-label="more actions">more ▾</summary><div class="menu-in">
-              <a href="${A.root}academy/course.html?c=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
+              <a href="${A.root}academy/${encodeURIComponent(c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
               <button type="button" data-fee title="${f.paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${f.paid ? 'make free' : 'make paid'}</button>
               <button type="button" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button>
             </div></details></div>
@@ -699,7 +736,47 @@
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, whatsapp: n }, n ? `saved — learners now see a whatsapp button for +${n}` : 'saved — the whatsapp button is gone; learners are told to email')) coursesView();
     });
+    const cform = $('#coupon-form', main);
+    if (cform) {
+      syncShown(cform);
+      cform.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(cform));
+        const n = parseFloat(String(v.value).replace(/[^0-9.]/g, ''));
+        if (!(n > 0)) return toast('type what the coupon is worth — a number', true);
+        if (v.kind === 'percent' && !(n >= 1 && n <= 99)) return toast('a percentage coupon is between 1 and 99. to let someone in for free, use “let someone in without a bkash payment” on the learners screen.', true);
+        const starts = v.start === 'date' ? fromLocalInput(v.starts_at) : null, ends = v.stop === 'date' ? fromLocalInput(v.ends_at) : null;
+        if (v.start === 'date' && !starts) return toast('choose the day and time it starts — or pick “straight away”', true);
+        if (v.stop === 'date' && !ends) return toast('choose the day and time it stops — or pick “when i switch it off”', true);
+        if (ends && +new Date(ends) <= Math.max(Date.now(), starts ? +new Date(starts) : 0)) return toast('the stop time has to be after the start time, and in the future', true);
+        // the fee it is used on must stay above zero
+        if (v.kind === 'amount') {
+          const prices = (v.course_id ? paidOnes.filter((c) => c.id === v.course_id) : paidOnes).map((c) => parseFloat(String((pay.course[c.id] || {}).price || pay.settings.price || '').replace(/[^0-9.]/g, ''))).filter((p) => p > 0);
+          const tooBig = prices.filter((p) => p <= n).length;
+          if (prices.length && tooBig === prices.length) return toast(`${money(n)} is the whole fee or more — a coupon has to leave something to pay. choose a smaller amount.`, true);
+          if (tooBig && !confirm(`${money(n)} off is more than the fee of ${tooBig} of your paid entries, so the coupon will not work on ${tooBig === 1 ? 'that one' : 'those'}. make it anyway?`)) return;
+        }
+        // the code: 8 letters and numbers that are hard to mix up (no 0/O, 1/I)
+        const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        for (let tries = 0; tries < 4; tries += 1) {
+          const code = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => ABC[b % ABC.length]).join('');
+          const { error } = await sb.from('coupons').insert({ code, kind: v.kind === 'amount' ? 'amount' : 'percent', value: n, starts_at: starts, ends_at: ends, course_id: v.course_id || null, note: v.note.trim() || null, created_by: user.email });
+          if (!error) { madeCoupon = code; toast(`coupon ${code} made`); return coursesView(); }
+          if (!/duplicate|coupons_pkey/i.test(error.message)) return toast(error.message, true);
+        }
+        toast('a code could not be made — try again', true);
+      });
+    }
     main.onclick = async (e) => {
+      const copyCode = e.target.closest('[data-copy-code]');
+      if (copyCode) { try { await navigator.clipboard.writeText(copyCode.dataset.copyCode); toast(`${copyCode.dataset.copyCode} copied — paste it wherever you tell your learners`); } catch (err) { prompt('copy this code', copyCode.dataset.copyCode); } return; }
+      const krow = e.target.closest('[data-coupon]');
+      if (krow) {
+        const k = coupons.find((x) => x.code === krow.dataset.coupon);
+        if (e.target.closest('[data-coupon-off]')) { if (await run(sb.from('coupons').update({ is_off: !k.is_off }).eq('code', k.code), k.is_off ? `${k.code} is switched on again` : `${k.code} is switched off — it no longer lowers the fee`)) { madeCoupon = ''; coursesView(); } return; }
+        if (e.target.closest('[data-coupon-del]')) { if (!confirm(`delete the coupon ${k.code}? learners who type it will be told it is not one of ours. payments already made with it are not changed.`)) return; if (await run(sb.from('coupons').delete().eq('code', k.code), `${k.code} deleted`)) { madeCoupon = ''; coursesView(); } return; }
+        return;
+      }
       const row = e.target.closest('.row'); if (!row) return;
       const c = courses.find((x) => x.id === row.dataset.id);
       if (e.target.closest('[data-open]')) return go('courses', c.id);
@@ -832,7 +909,7 @@
     };
 
     main.innerHTML = head(id ? esc(course.title) : 'new ' + noun, id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${course.status === 'published' ? 'on the website' : 'draft — not on the website yet'}</span>` : 'three short steps: fill in the basics, press create, then add lessons.',
-      `<button class="btn" data-back>← back to academy</button>${id ? `<a class="btn" href="${A.root}academy/course.html?c=${encodeURIComponent(id)}" target="_blank" rel="noopener">see it on the site ↗</a>` : ''}`)
+      `<button class="btn" data-back>← back to academy</button>${id ? `<a class="btn" href="${A.root}academy/${encodeURIComponent(id)}" target="_blank" rel="noopener">see it on the site ↗</a>` : ''}`)
       + setupNote()
       + `<form id="course-form" class="course-form">
         <section class="card">
@@ -877,10 +954,13 @@
             <small class="hint">you can leave this empty: the box then counts the lessons by itself.</small></div>
         </div></details>
 
-        <details class="group"><summary>who teaches it<small>name, role and photo</small></summary><div class="group-body">
-          <label class="field"><span>teacher’s name</span><input name="instructor_name" value="${esc(course.instructor_name || '')}"></label>
-          <label class="field"><span>their role or organisation</span><input name="instructor_role" value="${esc(course.instructor_role || '')}"></label>
+        <details class="group" id="teacher-group"${!id && pay.teachers.length ? ' open' : ''}><summary>who teaches it<small>${course.instructor_name ? esc(course.instructor_name) : pay.teachers.length ? `pick one of ${pay.teachers.length} saved teacher${pay.teachers.length === 1 ? '' : 's'}, or add a new one` : 'name, role and photo'}</small></summary><div class="group-body">
+          <div class="field field--wide" id="teacher-pick"></div>
+          <label class="field"><span>teacher’s name</span><input name="instructor_name" value="${esc(course.instructor_name || '')}" autocomplete="off"></label>
+          <label class="field"><span>their role or organisation</span><input name="instructor_role" value="${esc(course.instructor_role || '')}" autocomplete="off"></label>
           <div class="field field--wide"><span>their photo (optional)</span>${imageField('instructor_img', course.instructor_img)}</div>
+          <p class="teacher-ask field--wide" id="teacher-ask" hidden></p>
+          <label class="check field--wide" id="teacher-keep" hidden><input type="checkbox" name="remember_teacher" checked> <span></span></label>
         </div></details>
 
         <details class="group"><summary>more options<small>featured card, lesson order, who can read</small></summary><div class="group-body">
@@ -928,6 +1008,60 @@
 
     $('[data-back]', main).addEventListener('click', () => go('courses'));
     syncShown($('#course-form', main));
+
+    // ── saved teachers: press one and the three boxes are filled in ──
+    const cf = $('#course-form', main);
+    let teachers = pay.teachers.slice();
+    const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    const savedAs = (name) => teachers.find((t) => same(t.name, name));
+    function drawTeachers() {
+      const name = cf.instructor_name.value, known = savedAs(name);
+      $('#teacher-pick', main).innerHTML = teachers.length ? `<span>${name.trim() ? 'saved teachers — press one to use them here' : 'who teaches this? press a saved teacher, or add a new one'}</span>
+        <div class="teachers">${teachers.map((t, i) => `<div class="teacher${same(t.name, name) ? ' is-on' : ''}">
+            <button type="button" class="teacher-use" data-teacher="${i}"><span class="thumb">${t.img ? `<img src="${esc(img(t.img))}" alt="" data-fallback="${esc(t.name.trim()[0] || '?')}">` : esc(t.name.trim()[0] || '?')}</span><b>${esc(t.name)}</b><small>${esc(t.role || 'no role saved')}</small></button>
+            <button type="button" class="teacher-forget" data-forget="${i}" title="take ${esc(t.name)} off this saved list" aria-label="take ${esc(t.name)} off the saved list">✕</button></div>`).join('')}
+          <div class="teacher teacher--new${name.trim() && !known ? ' is-on' : ''}"><button type="button" class="teacher-use" data-teacher="new"><span class="thumb">+</span><b>a new teacher</b><small>type their details below</small></button></div></div>` : '';
+      $('#teacher-pick', main).hidden = !teachers.length;
+      // someone new is being typed in: offer to remember them
+      const keep = $('#teacher-keep', main), changed = known && (!same(known.role, cf.instructor_role.value) || (known.img || '') !== cf.instructor_img.value.trim());
+      keep.hidden = !name.trim() || (known && !changed);
+      $('span', keep).textContent = known ? `update what is saved for ${known.name}, so the new role and photo are used next time` : `remember ${name.trim() || 'this teacher'} — next time you only press their name`;
+    }
+    function useTeacher(t) {
+      cf.instructor_name.value = t.name; cf.instructor_role.value = t.role || ''; cf.instructor_img.value = t.img || '';
+      cf.instructor_img.dispatchEvent(new Event('input', { bubbles: true }));   // redraws the small picture
+      $('#teacher-ask', main).hidden = true;
+      drawTeachers();
+      toast(`${t.name} filled in — press save at the bottom to keep it`);
+    }
+    drawTeachers();
+    $('#teacher-group', main).addEventListener('input', (e) => {
+      if (!e.target.matches('[name=instructor_name], [name=instructor_role], [name=instructor_img]')) return;
+      drawTeachers();
+      // typing the start of a saved name: ask whether to fill in the rest
+      const ask = $('#teacher-ask', main), typed = cf.instructor_name.value.trim().toLowerCase();
+      const guess = e.target.name === 'instructor_name' && typed.length >= 2 ? teachers.find((t) => t.name.toLowerCase().startsWith(typed) && (!same(t.role, cf.instructor_role.value) || (t.img || '') !== cf.instructor_img.value.trim() || !same(t.name, typed))) : null;
+      ask.hidden = !guess;
+      if (guess) ask.innerHTML = `<b>${esc(guess.name)}</b> is saved${guess.role ? ` as “${esc(guess.role)}”` : ''}. fill in their details? <button type="button" class="btn btn--sm btn--solid" data-teacher="${teachers.indexOf(guess)}">yes, fill them in</button><button type="button" class="btn btn--sm" data-ask-no>no</button>`;
+    });
+    $('#teacher-group', main).addEventListener('click', async (e) => {
+      if (e.target.closest('[data-ask-no]')) { $('#teacher-ask', main).hidden = true; return; }
+      const use = e.target.closest('[data-teacher]');
+      if (use) {
+        if (use.dataset.teacher !== 'new') return useTeacher(teachers[+use.dataset.teacher]);
+        cf.instructor_name.value = ''; cf.instructor_role.value = ''; cf.instructor_img.value = '';
+        cf.instructor_img.dispatchEvent(new Event('input', { bubbles: true }));
+        drawTeachers(); cf.instructor_name.focus();
+        return;
+      }
+      const forget = e.target.closest('[data-forget]');
+      if (forget) {
+        const t = teachers[+forget.dataset.forget];
+        if (!confirm(`take ${t.name} off the saved list?\n\ncourses that already show ${t.name} keep them — this only removes the shortcut.`)) return;
+        const fresh = (await payLoad()).teachers.filter((x) => !same(x.name, t.name));
+        if (await paySave('pay.teachers', fresh, `${t.name} is no longer on the saved list`)) { teachers = fresh; drawTeachers(); }
+      }
+    });
     // fills the "includes" box with what the page would show on its own, ready to edit
     $('[data-fill-includes]', main).addEventListener('click', () => {
       const shown = lessons.filter((l) => !l.is_hidden && !(modules.find((m) => m.id === l.module_id) || {}).is_hidden);
@@ -956,9 +1090,17 @@
       const nowPrice = v.pay_price.trim(), wasPrice = v.pay_was.trim();
       if (wasPrice && !(num(wasPrice) > num(nowPrice || pay.settings.price))) return toast('the previous price has to be higher than the price learners pay now — or leave it empty', true);
       const fee = { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice };
+      // remember the teacher for next time (a new one is added; a known one gets the new role and photo)
+      if (row.instructor_name && v.remember_teacher && !$('#teacher-keep', main).hidden) {
+        const list = (await payLoad()).teachers.filter((t) => !same(t.name, row.instructor_name));
+        list.push({ name: row.instructor_name.trim(), role: (row.instructor_role || '').trim(), img: (row.instructor_img || '').trim() });
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        await paySave('pay.teachers', list);
+      }
       if (id) { if ((await run(sb.from('courses').update(row).eq('id', id))) && (await paySave('pay.course.' + id, fee, 'saved'))) reload(); return; }
-      const newId = slug(row.title);
+      let newId = slug(row.title);
       if (!newId) return toast('give the course a title first', true);
+      if (['course', 'learn', 'pay', 'my', 'my-learning', 'certificate', 'index', 'sample'].includes(newId)) newId += '-' + noun;
       const { data: clash } = await sb.from('courses').select('id').eq('id', newId).maybeSingle();
       if (clash) return toast('there is already a course with that title — choose a different one', true);
       if ((await run(sb.from('courses').insert({ ...row, id: newId }))) && (await paySave('pay.course.' + newId, fee, 'created — now add a module'))) go('courses', newId);
@@ -1132,7 +1274,7 @@
 
       <div class="h2"><span>certificates given <small>${certs.length}</small></span></div>
       <div class="rows">${certs.map((c) => `<div class="row row--plain" data-kind="cert" data-id="${esc(c.id)}"><div><strong style="text-transform:none;">${esc(c.learner_name)}</strong><span class="sub" style="text-transform:none;">${esc(c.id)} · ${when(c.issued_at)}</span></div>
-        <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/certificate.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm btn--danger" data-x="del">revoke</button></div></div>`).join('') || '<p class="empty">none yet.</p>'}</div>`;
+        <div class="row-actions"><a class="btn btn--sm" href="${A.root}academy/certificate/${encodeURIComponent(c.id)}" target="_blank" rel="noopener">view ↗</a><button class="btn btn--sm btn--danger" data-x="del">revoke</button></div></div>`).join('') || '<p class="empty">none yet.</p>'}</div>`;
 
     const again = () => courseExtras(el, id, lessons);
     el.onsubmit = async (e) => {
@@ -1202,7 +1344,7 @@
     const decided = payments.filter((p) => p.status !== 'pending').slice(0, 40);
     const rows = list(en);
     const who = (p) => `<strong style="text-transform:none;">${esc(p.learner_name || '—')}</strong><span class="sub" style="text-transform:none;">${esc(p.learner_email || '')}</span>`;
-    const what = (p) => `${esc(title[p.course_id] || p.course_id)}${p.amount ? ` · <b style="color:var(--fg)">${esc(p.amount)}</b>` : ''}`;
+    const what = (p) => `${esc(title[p.course_id] || p.course_id)}${p.amount ? ` · <b style="color:var(--fg)">${esc(p.amount)}</b>` : ''}${p.coupon ? ` · <b style="color:var(--green)">coupon ${esc(p.coupon)}</b>${p.list_amount ? ` (full fee ${esc(p.list_amount)})` : ''}` : ''}`;
     const paidOpts = list(courses).filter((c) => isPaid(c.id)).map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
 
     main.innerHTML = head('learners & payments', 'when a learner pays by bkash they send you two things: the number they paid from and the transaction id. find that payment in your bkash app, then press “confirm” here — their lessons open straight away.')

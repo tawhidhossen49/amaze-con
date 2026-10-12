@@ -1,6 +1,111 @@
 {
   "redirects": [
     {
+      "source": "/academy/learn.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "c",
+          "value": "(?<course>[^/]+)"
+        },
+        {
+          "type": "query",
+          "key": "l",
+          "value": "(?<lesson>[^/]+)"
+        }
+      ],
+      "destination": "/academy/:course/learn/:lesson",
+      "permanent": true
+    },
+    {
+      "source": "/academy/learn.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "c",
+          "value": "(?<course>[^/]+)"
+        }
+      ],
+      "destination": "/academy/:course/learn",
+      "permanent": true
+    },
+    {
+      "source": "/academy/course.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "c",
+          "value": "(?<course>[^/]+)"
+        }
+      ],
+      "destination": "/academy/:course",
+      "permanent": true
+    },
+    {
+      "source": "/academy/pay.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "c",
+          "value": "(?<course>[^/]+)"
+        }
+      ],
+      "destination": "/academy/:course/pay",
+      "permanent": true
+    },
+    {
+      "source": "/academy/certificate.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "id",
+          "value": "(?<cert>[^/]+)"
+        }
+      ],
+      "destination": "/academy/certificate/:cert",
+      "permanent": true
+    },
+    {
+      "source": "/academy/certificate.html",
+      "destination": "/academy/certificate",
+      "permanent": true
+    },
+    {
+      "source": "/academy/my.html",
+      "destination": "/academy/my-learning",
+      "permanent": true
+    },
+    {
+      "source": "/academy/course.html",
+      "destination": "/academy/",
+      "permanent": true
+    },
+    {
+      "source": "/academy/learn.html",
+      "destination": "/academy/",
+      "permanent": true
+    },
+    {
+      "source": "/academy/pay.html",
+      "destination": "/academy/",
+      "permanent": true
+    },
+    {
+      "source": "/learn.html",
+      "destination": "/academy/",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/:folder/index.html",
+      "destination": "/:folder/",
+      "permanent": true
+    },
+    {
       "source": "/courses",
       "destination": "/academy/",
       "permanent": true
@@ -14,6 +119,36 @@
       "source": "/courses/:path*",
       "destination": "/academy/:path*",
       "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/academy/my-learning",
+      "destination": "/academy/my.html"
+    },
+    {
+      "source": "/academy/certificate",
+      "destination": "/academy/certificate.html"
+    },
+    {
+      "source": "/academy/certificate/:id",
+      "destination": "/academy/certificate.html"
+    },
+    {
+      "source": "/academy/:course/learn/:lesson",
+      "destination": "/academy/learn.html"
+    },
+    {
+      "source": "/academy/:course/learn",
+      "destination": "/academy/learn.html"
+    },
+    {
+      "source": "/academy/:course/pay",
+      "destination": "/academy/pay.html"
+    },
+    {
+      "source": "/academy/:course",
+      "destination": "/academy/course.html"
     }
   ],
   "headers": [

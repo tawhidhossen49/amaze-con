@@ -2,12 +2,15 @@
 // One script for the five academy views, chosen by <body data-view="…">.
 // An entry is a course, a program or a webinar (courses.kind); all three are
 // built the same way — modules of lessons — and share every page below.
-//   catalog      academy/index.html          courses, programs, webinars: filter, sort, search
-//   course       academy/course.html?c=      overview, curriculum, reviews
-//   learn        academy/learn.html?c=&l=    the lesson player
-//   my           academy/my.html             a learner's dashboard
-//   certificate  academy/certificate.html    ?c= to claim one, ?id= to verify one
-//   pay          academy/pay.html?c=         enrolment and payment for a paid entry
+//   catalog      /academy/                          courses, programs, webinars: filter, sort, search
+//   course       /academy/<course>                  overview, curriculum, reviews
+//   learn        /academy/<course>/learn/<lesson>   the lesson player
+//   my           /academy/my-learning               a learner's dashboard
+//   certificate  /academy/certificate/<id>          to verify one  (…/certificate?c=<course> to claim one)
+//   pay          /academy/<course>/pay              enrolment and payment for a paid entry
+// Those addresses are folders, not files: vercel.json maps each onto the page that draws it
+// (course.html, learn.html, my.html, certificate.html, pay.html). Older links that end in
+// .html?c=… still open, and are tidied into the new form in the address bar.
 //
 // Data lives in the site's Supabase project (seed/website-backend*.sql).
 // Course outlines, reviews and announcements are public; lesson content,
@@ -23,6 +26,30 @@
   const view = document.body.dataset.view;
   const sb = window.supabase ? window.supabase.createClient(A.url, A.key) : null;
   const params = new URLSearchParams(location.search);
+  // ── addresses ──────────────────────────────────────────────────────────────
+  const HOME = new URL(A.root).pathname + 'academy/';
+  const U = {
+    catalog: () => HOME,
+    course: (id) => HOME + encodeURIComponent(id),
+    learn: (id, lesson) => HOME + encodeURIComponent(id) + '/learn' + (lesson ? '/' + encodeURIComponent(lesson) : ''),
+    pay: (id) => HOME + encodeURIComponent(id) + '/pay',
+    my: () => HOME + 'my-learning',
+    cert: (x) => (x.id ? HOME + 'certificate/' + encodeURIComponent(x.id) : HOME + 'certificate?c=' + encodeURIComponent(x.c)),
+  };
+  // which course / lesson / certificate this page is about: from the folders of the address,
+  // or — for a link in the old form — from ?c= &l= &id=
+  const Q = (() => {
+    const tail = location.pathname.startsWith(HOME) ? location.pathname.slice(HOME.length) : '';
+    const seg = tail.split('/').filter(Boolean).map((x) => { try { return decodeURIComponent(x); } catch (e) { return x; } });
+    const old = !seg.length || /\.html$/.test(seg[0]) || ['course', 'learn', 'pay', 'my', 'index'].includes(seg[0]);
+    const q = { c: params.get('c') || '', l: params.get('l') || '', id: params.get('id') || '', old: /\.html$/.test(location.pathname) || !!(params.get('c') || params.get('l') || params.get('id')) };
+    if (old) return q;
+    if (seg[0] === 'certificate') { if (seg[1]) q.id = seg[1]; return q; }
+    if (seg[0] === 'my-learning') return q;
+    q.c = seg[0];
+    if (seg[1] === 'learn' && seg[2]) q.l = seg[2];
+    return q;
+  })();
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -188,7 +215,7 @@
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
       + `&text=${enc(lesson.title + ' — ' + course.title)}`
       + `&dates=${stamp(lesson.live_at)}/${stamp(+new Date(lesson.live_at) + mins * 60000)}`
-      + `&details=${enc('live class — amaze consortium academy\n' + new URL(`learn.html?c=${enc(course.id)}&l=${lesson.id}`, location.href).href)}`;
+      + `&details=${enc('live class — amaze consortium academy\n' + new URL(`${U.learn(course.id, lesson.id)}`, location.href).href)}`;
   };
   // "in 3 days 4 h", "in 2 h 10 min", "in 5 min"
   const until = (at) => { const sec = Math.max(0, (+new Date(at) - Date.now()) / 1000), d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.ceil((sec % 3600) / 60); return d ? `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}` : h ? `${h} h ${m} min` : `${Math.max(1, m)} min`; };
@@ -299,8 +326,30 @@
         const t = u.searchParams.get('t') || u.searchParams.get('start') || '';
         const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t);
         const start = opts.resume || (m && t ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0);
-        // (enablejsapi lets the lesson page hear how far the video has played, to resume it next time)
-        return frame(`https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1${start ? '&start=' + Math.floor(start) : ''}${opts.track ? '&enablejsapi=1&origin=' + enc(location.origin) : ''}`, opts.track ? 'data-yt' : '');
+        if (!opts.guard) return frame(`https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1${start ? '&start=' + Math.floor(start) : ''}`);
+        // A lesson's video plays inside our own player. YouTube's own buttons — the title that links
+        // to youtube, "copy link", "share", "watch on youtube", the right-click menu — are all still
+        // drawn by YouTube inside its frame, so a sheet is laid over the whole frame: nothing in it can
+        // be pressed, and the buttons learners use (play, seek, sound, speed, full screen) are ours and
+        // talk to the video from outside. See guard() for the other half.
+        const src = `https://www.youtube-nocookie.com/embed/${yt}?controls=0&disablekb=1&fs=0&iv_load_policy=3&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${enc(location.origin)}${start ? '&start=' + Math.floor(start) : ''}`;
+        return `<div class="vp is-new" data-vp>
+            <iframe src="${esc(src)}" title="lesson video" tabindex="-1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" data-yt></iframe>
+            <div class="vp-band vp-band--top"></div><div class="vp-band vp-band--bottom"></div>
+            <div class="vp-dim"></div>
+            <div class="vp-mark" aria-hidden="true"></div>
+            <div class="vp-shield" tabindex="0" role="button" aria-label="play or pause the video"></div>
+            <button class="vp-big" type="button" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.500z"/></svg></button>
+            <p class="vp-hint" hidden>tap the video once more to start it.</p>
+            <div class="vp-bar">
+              <button type="button" data-vp="play" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.500z"/><path class="i-pause" d="M7 5.5h3.500v13H7zM13.500 5.500H17v13h-3.500z"/></svg></button>
+              <span class="vp-time"><b data-vp="now">0:00</b> / <span data-vp="total">0:00</span></span>
+              <input class="vp-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="move through the video">
+              <button type="button" data-vp="mute" aria-label="sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.500h3.500L12 6v12l-4.500-3.500H4z"/><path class="i-loud" d="M15.500 9a4.500 4.500 0 0 1 0 6M17.800 6.700a7.800 7.800 0 0 1 0 10.600"/><path class="i-quiet" d="M15.500 9.500l5 5M20.500 9.500l-5 5"/></svg></button>
+              <button type="button" class="vp-speed" data-vp="speed" aria-label="speed" title="speed">1×</button>
+              <button type="button" data-vp="full" aria-label="full screen" title="full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.500 9.500v-5h5M19.500 9.500v-5h-5M4.500 14.500v5h5M19.500 14.500v5h-5"/></svg></button>
+            </div>
+          </div>`;
       }
       if (host === 'vimeo.com' || host === 'player.vimeo.com') {
         const id = parts.find((p) => /^\d+$/.test(p));
@@ -308,8 +357,94 @@
       }
       if (host === 'drive.google.com' && parts[0] === 'file' && parts[2]) return frame(`https://drive.google.com/file/d/${parts[2]}/preview`);
     }
-    return `<video src="${esc(url)}" controls playsinline preload="metadata"></video>`;
+    return `<video src="${esc(url)}" controls controlslist="nodownload noremoteplayback" disablepictureinpicture oncontextmenu="return false" playsinline preload="metadata"></video>`;
   }
+  // Runs one guarded youtube player (the markup from videoEmbed with guard: true).
+  //   on.time(seconds, total)   as it plays        on.ended()   when it reaches the end
+  //   mark                      text drifted across the picture (who is watching), or ''
+  function guard(el, on = {}, mark = '') {
+    const frame = $('iframe', el), shield = $('.vp-shield', el), seek = $('.vp-seek', el), hint = $('.vp-hint', el);
+    const YT = 'https://www.youtube-nocookie.com';
+    const st = { state: -1, now: 0, total: 0, muted: false, rate: 1, heard: false, dragging: false, started: false };
+    const tell = (func, args = []) => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), YT); } catch (e) {} };
+    const listen = () => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT); } catch (e) {} };
+    let knocks = 0; const knock = setInterval(() => { knocks += 1; if (st.heard || knocks > 60) return clearInterval(knock); listen(); }, 600);
+    frame.addEventListener('load', listen);
+    const draw = () => {
+      const playing = st.state === 1 || st.state === 3;
+      el.classList.toggle('is-playing', playing); el.classList.toggle('is-paused', st.state === 2);
+      el.classList.toggle('is-ended', st.state === 0); el.classList.toggle('is-loading', st.state === 3);
+      el.classList.toggle('is-muted', st.muted);
+      $('[data-vp=play]', el).setAttribute('aria-label', playing ? 'pause' : 'play');
+      $('[data-vp=now]', el).textContent = mmss(st.now); $('[data-vp=total]', el).textContent = mmss(st.total);
+      if (!st.dragging) { seek.value = st.total ? Math.round((st.now / st.total) * 1000) : 0; seek.style.setProperty('--at', (st.total ? (st.now / st.total) * 100 : 0) + '%'); }
+      $('[data-vp=speed]', el).textContent = st.rate + '×';
+    };
+    window.addEventListener('message', (e) => {
+      if (e.source !== frame.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
+      let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
+      if (!d || !d.info) return;
+      st.heard = true;
+      const i = d.info;
+      if (typeof i.duration === 'number' && i.duration > 0) { st.total = i.duration; frame.dataset.total = i.duration; }
+      if (typeof i.currentTime === 'number') { st.now = i.currentTime; if (on.time) on.time(st.now, st.total); }
+      if (typeof i.muted === 'boolean') st.muted = i.muted;
+      if (typeof i.playbackRate === 'number') st.rate = i.playbackRate;
+      if (typeof i.playerState === 'number') {
+        const was = st.state; st.state = i.playerState;
+        if (st.state === 1) { st.started = true; el.classList.remove('is-new', 'needs-tap'); hint.hidden = true; }
+        if (st.state === 0 && was !== 0 && on.ended) on.ended();
+      }
+      draw();
+    });
+    // pressing play: asked from outside. some phones only let a video start from a touch on the
+    // video itself — if it has not started a moment later, the middle of the sheet is opened for one tap.
+    const play = () => {
+      tell('playVideo');
+      if (st.started) return;
+      setTimeout(() => { if (!st.started && st.state !== 1 && st.state !== 3) { el.classList.add('needs-tap'); hint.hidden = false; } }, 1800);
+    };
+    const toggle = () => (st.state === 1 || st.state === 3 ? tell('pauseVideo') : st.state === 0 ? (tell('seekTo', [0, true]), tell('playVideo')) : play());
+    const jump = (sec) => { const to = Math.max(0, Math.min(st.total || 1e9, sec)); st.now = to; tell('seekTo', [to, true]); draw(); };
+    const SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+    const full = () => { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
+    if (!(el.requestFullscreen || el.webkitRequestFullscreen)) $('[data-vp=full]', el).hidden = true;
+    shield.addEventListener('click', toggle);
+    $('.vp-big', el).addEventListener('click', toggle);
+    shield.addEventListener('dblclick', full);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-vp]'); if (!b || b === el) return;
+      const k = b.dataset.vp;
+      if (k === 'play') toggle(); else if (k === 'mute') { tell(st.muted ? 'unMute' : 'mute'); st.muted = !st.muted; draw(); }
+      else if (k === 'speed') { st.rate = SPEEDS[(SPEEDS.indexOf(st.rate) + 1) % SPEEDS.length]; tell('setPlaybackRate', [st.rate]); draw(); }
+      else if (k === 'full') full();
+    });
+    seek.addEventListener('input', () => { st.dragging = true; st.now = (seek.value / 1000) * st.total; seek.style.setProperty('--at', seek.value / 10 + '%'); $('[data-vp=now]', el).textContent = mmss(st.now); });
+    seek.addEventListener('change', () => { st.dragging = false; jump((seek.value / 1000) * st.total); });
+    el.addEventListener('keydown', (e) => {
+      if (e.target.matches('input')) return;
+      const k = e.key;
+      if (k === ' ' || k === 'k') { e.preventDefault(); toggle(); } else if (k === 'ArrowRight') { e.preventDefault(); jump(st.now + 5); } else if (k === 'ArrowLeft') { e.preventDefault(); jump(st.now - 5); }
+      else if (k === 'm') $('[data-vp=mute]', el).click(); else if (k === 'f') full();
+    });
+    // nothing to right-click, drag or select on the picture
+    ['contextmenu', 'dragstart', 'selectstart'].forEach((t) => el.addEventListener(t, (e) => e.preventDefault()));
+    // the buttons fade away while it plays, and come back when the pointer moves or the screen is touched
+    let idle; const wake = () => { el.classList.remove('is-idle'); clearTimeout(idle); idle = setTimeout(() => el.classList.add('is-idle'), 2600); };
+    ['pointermove', 'pointerdown', 'keydown', 'focusin'].forEach((t) => el.addEventListener(t, wake)); wake();
+    // who is watching, drifting across the picture: a recording of the screen carries it too
+    const tag = $('.vp-mark', el);
+    if (mark && tag) {
+      tag.textContent = mark;
+      const move = () => { tag.style.left = 4 + Math.random() * 62 + '%'; tag.style.top = 8 + Math.random() * 74 + '%'; };
+      move(); setInterval(move, 9000);
+      // if the mark is taken out of the page or hidden, the video stops
+      const check = setInterval(() => { const cs = tag.isConnected ? getComputedStyle(tag) : null; if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.1 || tag.textContent !== mark) { tell('pauseVideo'); if (!tag.isConnected) { clearInterval(check); el.querySelector('iframe').remove(); } else tag.textContent = mark; } }, 3000);
+    } else if (tag) tag.remove();
+    draw();
+    return { tell, state: st };
+  }
+
   // a link is only used if it is a normal web address (or a path on this site)
   const safeUrl = (v) => (/^(https?:)?\/\//i.test(String(v || '').trim()) ? String(v).trim() : /^[a-z][a-z0-9+.-]*:/i.test(String(v || '').trim()) ? '#' : A.root + String(v || '').trim().replace(/^\/+/, ''));
   // a Google Form link in the shape that can be shown inside the page
@@ -375,9 +510,9 @@
       <h2>${esc(S.name || (S.admin ? 'admin' : 'learner'))}</h2>
       <p>${esc(S.user.email)}</p>
       <ul class="account-list">
-        <li><a href="${A.root}academy/my.html">my learning <span>→</span></a></li>
-        <li><a href="${A.root}academy/index.html">all courses <span>→</span></a></li>
-        ${S.admin ? `<li><a href="${A.root}admin/index.html">admin panel <span>→</span></a></li>` : ''}
+        <li><a href="${U.my()}">my learning <span>→</span></a></li>
+        <li><a href="${U.catalog()}">all courses <span>→</span></a></li>
+        ${S.admin ? `<li><a href="${A.root}admin/">admin panel <span>→</span></a></li>` : ''}
         <li><button data-act="out">sign out <span>→</span></button></li>
       </ul>`);
     $('[data-act="out"]', body).addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
@@ -403,7 +538,7 @@
     btn.addEventListener('click', () => (S.user ? accountDialog() : authDialog()));
   }
 
-  const adminNote = () => (S.admin ? `<div class="lms-notice">you are signed in with an admin login, so you are previewing — nothing you do here is saved as learner progress. to take courses, sign out and use a learner account. <a href="${A.root}admin/index.html" style="color:var(--green)">open the admin panel →</a></div>` : '');
+  const adminNote = () => (S.admin ? `<div class="lms-notice">you are signed in with an admin login, so you are previewing — nothing you do here is saved as learner progress. to take courses, sign out and use a learner account. <a href="${A.root}admin/" style="color:var(--green)">open the admin panel →</a></div>` : '');
   const notice = () => adminNote() + (S.preview ? '<div class="lms-notice">preview mode — the course database isn\'t connected yet, so these are sample courses and your progress is kept on this device only.</div>' : '');
 
   // ── course card — image on top, then title, instructor, badges, action ────
@@ -418,7 +553,7 @@
     const st = stats(course);
     const going = started(course);
     const n = S.numbers[course.id] || {};
-    const href = opts.resume && st.next ? `learn.html?c=${enc(course.id)}&l=${st.next.id}` : `course.html?c=${enc(course.id)}`;
+    const href = opts.resume && st.next ? `${U.learn(course.id, st.next.id)}` : `${U.course(course.id)}`;
     const isSaved = !!saved()[course.id];
     const media = course.cover
       ? `<img src="${esc(imageUrl(course.cover))}" alt="" loading="lazy">`
@@ -497,7 +632,7 @@
       const mins = ls.reduce((t, l) => t + (l.duration_min || 0), 0);
       const done = ls.filter((l) => S.done[l.id]).length;
       const rows = ls.map((l) => {
-        if (closed) return `<li><a class="lesson-row is-closed" href="pay.html?c=${enc(course.id)}" title="unlocks after payment"><span class="mark"></span><span class="lesson-name"><span class="kind">${PADLOCK}</span><span>${esc(l.title)}</span></span><small><b>locked</b>${KIND[l.kind] || esc(l.kind)}${l.kind === 'live' ? '' : ` · ${l.duration_min} min`}</small></a></li>`;
+        if (closed) return `<li><a class="lesson-row is-closed" href="${U.pay(course.id)}" title="unlocks after payment"><span class="mark"></span><span class="lesson-name"><span class="kind">${PADLOCK}</span><span>${esc(l.title)}</span></span><small><b>locked</b>${KIND[l.kind] || esc(l.kind)}${l.kind === 'live' ? '' : ` · ${l.duration_min} min`}</small></a></li>`;
         const lock = locked(course, l, all);
         const cls = `lesson-row${S.done[l.id] ? ' is-done' : ''}${l.id === currentId ? ' is-current' : ''}${lock ? ' is-locked' : ''}`;
         const live = l.kind === 'live' ? liveState(l.live_at, l.duration_min) : '';
@@ -506,7 +641,7 @@
           // the player's side list is narrow: just the day there, the full date on the course page
           : inPlayer ? (live === 'live' ? '' : l.live_at ? new Date(l.live_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase() + ' · ' + clock(l.live_at) : 'live · date tba')
           : `live class · ${l.live_at ? when(l.live_at) : 'date to be announced'}`}</small>`;
-        return `<li><a class="${cls}" href="learn.html?c=${enc(course.id)}&l=${l.id}"><span class="mark"></span><span class="lesson-name">${kindIcon(l)}<span>${esc(l.title)}</span></span>${tag}</a></li>`;
+        return `<li><a class="${cls}" href="${U.learn(course.id, l.id)}"><span class="mark"></span><span class="lesson-name">${kindIcon(l)}<span>${esc(l.title)}</span></span>${tag}</a></li>`;
       }).join('');
       const open = inPlayer ? ls.some((l) => l.id === currentId) || !currentId : mi === 0;
       return `<div class="module${open ? ' is-open' : ''}">
@@ -617,7 +752,7 @@
       featAt = i;
       const c = featured[i], st = stats(c), type = typeOf(c), n = S.numbers[c.id] || {};
       const state = c.starts_at ? liveState(c.starts_at, st.minutes) : '';
-      const href = started(c) && st.next ? `learn.html?c=${enc(c.id)}&l=${st.next.id}` : `course.html?c=${enc(c.id)}`;
+      const href = started(c) && st.next ? `${U.learn(c.id, st.next.id)}` : `${U.course(c.id)}`;
       const media = c.cover ? `<img src="${esc(imageUrl(c.cover))}" alt="">`
         : `<span class="feat-blank"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg><b>${esc(c.category)}</b></span>`;
       const facts = [
@@ -677,9 +812,9 @@
   // ── view: course page ──────────────────────────────────────────────────────
   async function coursePage() {
     const root = $('#course-root');
-    const course = S.courses.find((c) => c.id === params.get('c'));
+    const course = S.courses.find((c) => c.id === Q.c);
     if (!course) {
-      root.innerHTML = '<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="index.html">← academy</a><h1 class="course-h1">not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>';
+      root.innerHTML = '<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="${U.catalog()}">← academy</a><h1 class="course-h1">not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>';
       return;
     }
     document.title = `${course.title} — amaze consortium`;
@@ -694,13 +829,13 @@
     const st = stats(course);
     const going = started(course);
     const open = course.access === 'open' || S.preview;
-    const lessonUrl = (l) => `learn.html?c=${enc(course.id)}&l=${l.id}`;
+    const lessonUrl = (l) => `${U.learn(course.id, l.id)}`;
     const preview = st.lessons.find((l) => l.is_preview);
     let action;
     const price = fee(course), mustPay = price.paid && !paidUp(course);
     if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
     // a paid entry: "enrol now" leads to the payment page; while a payment is being checked it says so
-    else if (mustPay) action = `<a class="btn-primary" href="pay.html?c=${enc(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
+    else if (mustPay) action = `<a class="btn-primary" href="${U.pay(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
     else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the ' + noun : noun === 'webinar' ? 'open the webinar' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
     else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enrol — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enrol'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
@@ -764,10 +899,11 @@
       </div>` : '';
 
     root.innerHTML = `
-      <section class="course-hero">
+      <section class="course-hero${course.cover ? ' has-cover' : ''}">
+        ${course.cover ? `<div class="course-hero-bg" aria-hidden="true"><img src="${esc(imageUrl(course.cover))}" alt="" decoding="async" onerror="this.parentNode.remove()"></div>` : ''}
         <div class="course-hero-inner">
           ${notice()}
-          <a class="crumb rise" href="index.html">← academy</a>
+          <a class="crumb rise" href="${U.catalog()}">← academy</a>
           <div class="hero-tag rise"><i></i>${esc(course.category)}</div>
           <h1 class="course-h1 rise rise-2">${esc(course.title)}</h1>
           ${social ? `<div class="course-social course-social--lg rise rise-2">${social}</div>` : ''}
@@ -777,7 +913,7 @@
               <div class="course-actions" style="margin-top:28px;">
                 <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}</div>
                 ${going || S.admin ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
-                ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="certificate.html?c=${enc(course.id)}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
+                ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="${U.cert({ c: course.id })}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
               </div>
             </div>
             <ul class="course-facts">
@@ -802,7 +938,7 @@
             <div class="course-block rise"><h2>curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
               ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${payState(course) === 'pending' ? 'your payment is being checked.' : payState(course) === 'rejected' ? 'we could not confirm your payment.' : `the lessons open once you have enrolled and paid.`}</strong>
                 <p>${payState(course) === 'pending' ? 'as soon as we confirm it, every lesson below unlocks for your account.' : payState(course) === 'rejected' ? 'open the payment page to see why, and enter your transaction id again.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
-                <a class="btn-primary" href="pay.html?c=${enc(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
+                <a class="btn-primary" href="${U.pay(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
               ${outline(course, null, false) || '<p class="lms-empty">lessons are being added.</p>'}</div>
             ${bullets('before you start', course.requirements, 'plain-list')}
             ${bullets(`who this ${noun} is for`, course.audience, 'plain-list')}
@@ -845,16 +981,16 @@
   // ── view: lesson player ────────────────────────────────────────────────────
   async function player() {
     const root = $('#player-root');
-    const course = S.courses.find((c) => c.id === params.get('c'));
-    if (!course) { location.replace('index.html'); return; }
+    const course = S.courses.find((c) => c.id === Q.c);
+    if (!course) { location.replace(U.catalog()); return; }
     const all = lessonsOf(course.id);
-    const lesson = all.find((l) => l.id === params.get('l')) || stats(course).next;
-    if (!lesson) { location.replace(`course.html?c=${enc(course.id)}`); return; }
+    const lesson = all.find((l) => l.id === Q.l) || stats(course).next;
+    if (!lesson) { location.replace(`${U.course(course.id)}`); return; }
     const idx = all.indexOf(lesson);
     const prev = all[idx - 1], next = all[idx + 1];
     const mod = S.modules.find((m) => m.id === lesson.module_id);
-    const url = (l) => `learn.html?c=${enc(course.id)}&l=${l.id}`;
-    const courseUrl = `course.html?c=${enc(course.id)}`;
+    const url = (l) => `${U.learn(course.id, l.id)}`;
+    const courseUrl = `${U.course(course.id)}`;
     const isLocked = locked(course, lesson, all);
     document.title = `${lesson.title} — ${course.title}`;
     local.set(LOCAL_LAST, { c: course.id, l: lesson.id, at: Date.now() });
@@ -891,7 +1027,7 @@
       const waiting = payState(course) === 'pending';
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
         <p>${waiting ? 'as soon as it is confirmed, every lesson here unlocks for your account by itself.' : `enrol to unlock every lesson, the live classes, your notes and the certificate. the fee is ${fee(course).label}.`}</p>
-        <div class="hero-buttons"><a class="btn-primary" href="pay.html?c=${enc(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
+        <div class="hero-buttons"><a class="btn-primary" href="${U.pay(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
         <a class="btn-outline" href="${courseUrl}">back to the ${typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a></div>
         <p class="ask">${waiting ? 'waiting longer than a day?' : 'not sure how to pay?'} ${helpLink('i need help with my payment for “' + course.title + '”')}</p></div>`;
     } else if (isLocked) {
@@ -923,7 +1059,7 @@
       stageKind = 'live';
       about = content.body || '';
       bodyHtml = '<div class="live-stage" id="live-stage"></div>'
-        + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">recording</span><div class="lesson-video">${videoEmbed(content.video_url)}</div></div>` : '');
+        + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">recording</span><div class="lesson-video">${videoEmbed(content.video_url, { guard: true })}</div></div>` : '');
     } else if (lesson.kind === 'form') {
       about = content.body || '';
       bodyHtml = (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
@@ -934,7 +1070,7 @@
       // a video carries on from where it was stopped last time (unless it was nearly over)
       const seen = +(local.get(LOCAL_WATCH)[lesson.id] || 0);
       resumeAt = seen > 15 && !S.done[lesson.id] ? seen : 0;
-      bodyHtml = `<div class="lesson-video">${videoEmbed(content.video_url, { track: true, resume: resumeAt })}</div>`;
+      bodyHtml = `<div class="lesson-video">${videoEmbed(content.video_url, { guard: true, resume: resumeAt })}</div>`;
     } else if ((docs = resources.filter(isDoc)).length) {
       // a reading built around a pdf: the pages are drawn right here, one under another
       stageKind = 'doc'; about = content.body || '';
@@ -1005,7 +1141,7 @@
             : canTick(l) ? `<button class="lp-tick${isDone ? ' is-on' : ''}" type="button" data-tick="${l.id}" aria-pressed="${isDone}" aria-label="${isDone ? 'mark as not done' : 'mark as done'}: ${esc(l.title)}"></button>`
               : `<span class="lp-tick${isDone ? ' is-on' : ''}" title="${l.kind === 'quiz' ? 'ticked when you pass the quiz' : 'ticked after the class'}"></span>`;
           return `<li class="lp-item${l.id === lesson.id ? ' is-current' : ''}${isDone ? ' is-done' : ''}${shut ? ' is-shut' : ''}">${box}
-            <a class="lp-row" href="${closedByFee ? `pay.html?c=${enc(course.id)}` : url(l)}"><span class="lesson-name">${n}. ${esc(l.title)}</span><span class="lp-meta">${ICON[l.kind] || ICON.article}<span>${meta}</span></span></a></li>`;
+            <a class="lp-row" href="${closedByFee ? `${U.pay(course.id)}` : url(l)}"><span class="lesson-name">${n}. ${esc(l.title)}</span><span class="lp-meta">${ICON[l.kind] || ICON.article}<span>${meta}</span></span></a></li>`;
         }).join('');
         return `<div class="lp-sec${ls.some((l) => l.id === lesson.id) ? ' is-open' : ''}">
           <button class="lp-sec-head" type="button" aria-expanded="${ls.some((l) => l.id === lesson.id)}"><div><strong>section ${mi + 1}: ${esc(m.title)}</strong><span>${done} / ${ls.length} | ${length(mins)}</span></div><i aria-hidden="true"></i></button>
@@ -1613,7 +1749,7 @@
     });
     const goNext = () => {
       if (next) { location.href = url(next); return; }
-      location.href = stats(course).pct === 100 ? `certificate.html?c=${enc(course.id)}` : courseUrl;
+      location.href = stats(course).pct === 100 ? `${U.cert({ c: course.id })}` : courseUrl;
     };
     $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
     wireBar();
@@ -1621,6 +1757,8 @@
     const current = $('.lp-item.is-current', root);
     if (current) { const list = $('.lp-side', root); list.scrollTop = Math.max(0, current.offsetTop - list.clientHeight / 2); }
 
+    // on a paid entry the learner's own name and email drift across the video
+    const viewerMark = fee(course).paid && S.user && !S.admin ? [S.name, S.user.email].filter(Boolean).join(' · ') : '';
     // ── the video: remember how far it got, and when it ends say what comes next ──
     function refreshProgress() {
       const opened = $$('.lp-sec', side).map((x) => x.classList.contains('is-open'));
@@ -1646,33 +1784,23 @@
         if (!wasDone && !locked(course, lesson, all)) { await markDone(course, lesson); refreshProgress(); }
         if (!noteBox) return;
         noteBox.hidden = false; noteBox.classList.add('is-done');
-        noteBox.innerHTML = `<span><b>✓ ${wasDone ? 'video finished.' : 'lesson complete.'}</b> ${next ? `next: ${esc(next.title)}` : 'that was the last lesson.'}</span><a class="btn-primary" href="${next ? url(next) : (stats(course).pct === 100 ? `certificate.html?c=${enc(course.id)}` : courseUrl)}">${next ? 'next lesson' : stats(course).pct === 100 ? 'get my certificate' : 'back to the ' + typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
+        noteBox.innerHTML = `<span><b>✓ ${wasDone ? 'video finished.' : 'lesson complete.'}</b> ${next ? `next: ${esc(next.title)}` : 'that was the last lesson.'}</span><a class="btn-primary" href="${next ? url(next) : (stats(course).pct === 100 ? `${U.cert({ c: course.id })}` : courseUrl)}">${next ? 'next lesson' : stats(course).pct === 100 ? 'get my certificate' : 'back to the ' + typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
       };
       const restart = $('#from-start', root);
       if (restart) restart.addEventListener('click', () => { const w = local.get(LOCAL_WATCH); delete w[lesson.id]; local.set(LOCAL_WATCH, w); location.reload(); });
-      const own = $('.lp-stage video', root), yt = $('.lp-stage iframe[data-yt]', root);
+      const own = $('.lp-stage video', root), yt = $('.lp-stage .vp iframe[data-yt]', root);
       if (own) {
         // a file of our own: the browser tells us directly
         own.addEventListener('loadedmetadata', () => { if (resumeAt && resumeAt < own.duration - 20) own.currentTime = resumeAt; });
         own.addEventListener('timeupdate', () => savePos(own.currentTime, own.duration));
         own.addEventListener('ended', onEnded);
       } else if (yt) {
-        // youtube: the player reports its time once it has been told someone is listening
-        let heard = false, tries = 0;
-        const ask = () => { try { yt.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), 'https://www.youtube-nocookie.com'); } catch (e) {} };
-        const knock = setInterval(() => { tries += 1; if (heard || tries > 40) return clearInterval(knock); ask(); }, 750);
-        yt.addEventListener('load', ask);
-        window.addEventListener('message', (e) => {
-          if (e.source !== yt.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
-          let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
-          if (!d || !d.info) return;
-          heard = true;
-          if (typeof d.info.duration === 'number' && d.info.duration > 0) yt.dataset.total = d.info.duration;
-          if (typeof d.info.currentTime === 'number') savePos(d.info.currentTime, +yt.dataset.total || 0);
-          if (d.info.playerState === 0) onEnded();
-        });
+        // youtube, inside our own player: it tells us the time as it plays, and when it ends
+        guard(yt.closest('[data-vp]'), { time: savePos, ended: onEnded }, viewerMark);
       }
     }
+    // the recording of a live class is guarded the same way
+    $$('.live-rec [data-vp]', root).forEach((el) => guard(el, {}, viewerMark));
 
     const complete = $('#complete');
     if (complete) complete.addEventListener('click', async () => {
@@ -1783,7 +1911,7 @@
         side.innerHTML = sideList();
         const after = $('#after-quiz');
         after.hidden = false;
-        if (!next && stats(course).pct === 100) { after.href = `certificate.html?c=${enc(course.id)}`; after.firstChild.textContent = 'get your certificate '; }
+        if (!next && stats(course).pct === 100) { after.href = `${U.cert({ c: course.id })}`; after.firstChild.textContent = 'get your certificate '; }
       }
     });
   }
@@ -1797,10 +1925,10 @@
   // enforces all of it — see seed/website-backend-07-bkash-payments.sql.
   async function payPage() {
     const root = $('#pay-root');
-    const course = S.courses.find((c) => c.id === params.get('c'));
-    if (!course) { location.replace('index.html'); return; }
+    const course = S.courses.find((c) => c.id === Q.c);
+    if (!course) { location.replace(U.catalog()); return; }
     const f = fee(course), type = typeOf(course), st = stats(course);
-    const back = `course.html?c=${enc(course.id)}`;
+    const back = `${U.course(course.id)}`;
     if (!f.paid) { location.replace(back); return; }
     document.title = `enrol — ${course.title} — amaze consortium`;
     const set = S.pay.settings;
@@ -1817,9 +1945,26 @@
     const readTrx = (v) => { const t = String(v).replace(/\s/g, '').toUpperCase(); return /^[A-Z0-9]{8,12}$/.test(t) ? t : ''; };
     // what has been typed is kept for this browser tab, so it survives the trip to google and back when signing in
     const DRAFT = 'amaze.pay.draft.' + course.id;
-    let draft = { sender: '', trx: '' }, problem = '', busy = false;
-    try { const kept = JSON.parse(sessionStorage.getItem(DRAFT) || 'null'); if (kept) draft = { sender: String(kept.sender || ''), trx: String(kept.trx || '') }; } catch (e) {}
-    const keep = () => { try { if (draft.sender || draft.trx) sessionStorage.setItem(DRAFT, JSON.stringify(draft)); else sessionStorage.removeItem(DRAFT); } catch (e) {} };
+    let draft = { sender: '', trx: '', coupon: '' }, problem = '', busy = false;
+    try { const kept = JSON.parse(sessionStorage.getItem(DRAFT) || 'null'); if (kept) draft = { sender: String(kept.sender || ''), trx: String(kept.trx || ''), coupon: String(kept.coupon || '') }; } catch (e) {}
+    const keep = () => { try { if (draft.sender || draft.trx || draft.coupon) sessionStorage.setItem(DRAFT, JSON.stringify(draft)); else sessionStorage.removeItem(DRAFT); } catch (e) {} };
+    // A coupon: the learner types a code, the database says whether it is good right now and what
+    // the fee becomes. (The database works the amount out again when the payment is sent, so a
+    // code that has ended in the meantime — or a made-up amount — is refused there.)
+    let cut = null, couponSaid = '', couponBusy = false;
+    const couponWhy = (r) => ({ unknown: 'that code is not one of ours — check the spelling and try again.', ended: 'this coupon is no longer working.', other_course: `this coupon is for a different ${type}.`, too_big: `this coupon cannot be used on this ${type}.`, no_price: `this coupon cannot be used on this ${type}.`,
+      not_yet: `this coupon starts working on ${r && r.starts_at ? when(r.starts_at) : 'a later date'}.` }[r && r.why] || 'that coupon could not be used.');
+    async function tryCoupon(code, quiet) {
+      code = String(code || '').replace(/\s/g, '').toUpperCase();
+      if (!code) { couponSaid = quiet ? '' : 'type the coupon code first.'; return; }
+      if (!/^[A-Z0-9]{4,20}$/.test(code)) { cut = null; couponSaid = quiet ? '' : couponWhy({ why: 'unknown' }); return; }
+      const { data, error } = await sb.rpc('check_coupon', { p_code: code, p_course: course.id });
+      if (error || !data) { cut = null; couponSaid = quiet ? '' : 'the coupon could not be checked — check your connection and try again.'; return; }
+      if (data.ok) { cut = data; couponSaid = ''; draft.coupon = data.code; } else { cut = null; couponSaid = quiet ? '' : couponWhy(data); if (quiet) draft.coupon = ''; }
+      keep();
+    }
+    const due = () => (cut ? cut.pay_label : f.label);
+    const dueNumber = () => (cut ? String(cut.pay) : f.amount);
 
     function draw() {
       const mine = S.payments[course.id];
@@ -1831,11 +1976,11 @@
 
       const status = state === 'paid'
         ? `<div class="pay-status is-ok"><strong>payment confirmed — you are in.</strong><p>everything in this ${type} is unlocked for your account.</p>
-            <a class="btn-primary" href="${st.next ? `learn.html?c=${enc(course.id)}&l=${st.next.id}` : back}">start learning <span class="btn-arrow" aria-hidden="true">→</span></a></div>`
+            <a class="btn-primary" href="${st.next ? `${U.learn(course.id, st.next.id)}` : back}">start learning <span class="btn-arrow" aria-hidden="true">→</span></a></div>`
         : state === 'pending'
           ? `<div class="pay-status"><strong>thank you — we are checking your payment.</strong>
               <p>we match it against our bkash account by hand, usually within a day. the moment it is confirmed, this ${type} unlocks by itself — you do not need to do anything else, and you can close this page.</p>
-              <dl class="pay-sent"><div><dt>transaction id</dt><dd><code>${esc(mine.trx_id)}</code></dd></div><div><dt>paid from</dt><dd>${esc(hide(mine.sender))}</dd></div><div><dt>amount</dt><dd>${esc(mine.amount || f.label)}</dd></div><div><dt>sent to us</dt><dd>${ago(mine.created_at)}</dd></div></dl>
+              <dl class="pay-sent"><div><dt>transaction id</dt><dd><code>${esc(mine.trx_id)}</code></dd></div><div><dt>paid from</dt><dd>${esc(hide(mine.sender))}</dd></div><div><dt>amount${mine.coupon ? ` · coupon ${esc(mine.coupon)}` : ''}</dt><dd>${esc(mine.amount || f.label)}</dd></div><div><dt>sent to us</dt><dd>${ago(mine.created_at)}</dd></div></dl>
               <button class="linkish" type="button" id="pay-redo">i typed something wrong — let me correct it</button>
               <p class="ask">waiting longer than a day? ${helpLink('i am waiting for my payment for “' + course.title + '” to be confirmed (transaction id ' + mine.trx_id + ')')}</p></div>`
           : state === 'rejected'
@@ -1852,16 +1997,24 @@
         : `<dl class="pay-who pay-who--2"><div><dt>name</dt><dd>${esc(S.name || '—')}</dd></div><div><dt>email</dt><dd style="text-transform:none;">${esc(S.user.email)}</dd></div></dl>
            <p class="hint">the ${type} is unlocked for this account. not you? use the button at the top right to sign out.</p>`;
 
+      // "have a coupon?" — offered while the payment can still be sent, on an entry that has a price
+      const couponBox = !(state === 'guest' || state === 'new' || state === 'rejected') || !f.amount ? ''
+        : cut ? `<div class="pay-coupon is-on"><div><strong>coupon ${esc(cut.code)} is applied.</strong><span>${esc(cut.price_label)} → <b>${esc(cut.pay_label)}</b> · you save ${esc(cut.saved_label)}${cut.ends_at ? ` · works until ${when(cut.ends_at)}` : ''}</span></div><button class="linkish" type="button" id="coupon-off">remove</button></div>`
+          : `<details class="pay-coupon"${couponSaid || draft.coupon ? ' open' : ''}><summary>have a coupon code?</summary>
+              <div class="pay-coupon-row"><input id="coupon-in" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="24" placeholder="type the code" value="${esc(draft.coupon)}" aria-label="coupon code"><button class="btn-outline" type="button" id="coupon-go"${couponBusy ? ' disabled' : ''}>${couponBusy ? 'checking…' : 'use it'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>
+              ${couponSaid ? `<p class="dialog-msg is-error" role="alert">${esc(couponSaid)}</p>` : ''}</details>`;
+
       const how = !open
         ? `<p class="pay-lead">our bkash number will be shown here. if you do not have it yet, ask us and we will send it to you — the fee is <b style="color:var(--fg)">${esc(f.label)}</b>. once you have paid, fill in the two boxes below.</p><p class="ask">${helpLink('please send me the bkash number for “' + course.title + '”')}</p>`
         : `<div class="pay-bkash">
              <div><span>bkash number${merchant ? ' (merchant)' : ' (personal)'}</span><strong id="pay-number">${esc(spaced(number))}</strong><button class="linkish" type="button" data-copy="${esc(number)}">copy number</button></div>
-             <div><span>amount to send</span><strong>${esc(f.label)}</strong>${f.amount ? `<button class="linkish" type="button" data-copy="${esc(f.amount)}">copy amount</button>` : ''}</div>
+             <div><span>amount to send${cut ? ' — with your coupon' : ''}</span><strong>${cut ? `<s>${esc(cut.price_label)}</s> ` : ''}${esc(due())}</strong>${dueNumber() ? `<button class="linkish" type="button" data-copy="${esc(dueNumber())}">copy amount</button>` : ''}</div>
            </div>
+           ${couponBox}
            <ol class="pay-how">${[
              ['open the bkash app', `or dial *247# on any phone.`],
              [merchant ? 'choose “payment”' : 'choose “send money”', `enter the number above${merchant ? '' : ' — it is a personal number, so “send money”, not “payment”'}.`],
-             [`send ${f.amount ? esc(f.label) : 'the fee'}`, 'the exact amount, in one go. confirm with your pin.'],
+             [`send ${dueNumber() ? esc(due()) : 'the fee'}`, 'the exact amount, in one go. confirm with your pin.'],
              ['keep the transaction id', 'bkash shows it on the confirmation screen and in the sms, as “TrxID” — ten letters and numbers, like 9FA5LK2B3C. you need it for the next step.'],
            ].map(([t, d], i) => `<li><b>${pad2(i + 1)}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('')}</ol>
            ${set.note ? `<div class="pay-note"><span class="lesson-kicker">from us</span><div class="prose">${markdown(set.note)}</div></div>` : ''}`;
@@ -1908,7 +2061,7 @@
                 <li><span>study time</span><b>${length(st.minutes)}</b></li>
                 <li><span>level</span><b>${esc(course.level)}</b></li>
               </ul>
-              <div class="pay-lines"><div><span>${type} fee</span><b>${esc(f.was || f.label)}</b></div>${f.was ? `<div class="pay-cut"><span>discount · ${f.off}% off</span><b>− ${esc(f.saved)}</b></div>` : ''}<div class="pay-total"><span>total to pay</span><b>${esc(f.label)}</b></div></div>
+              <div class="pay-lines"><div><span>${type} fee</span><b>${esc(f.was || f.label)}</b></div>${f.was ? `<div class="pay-cut"><span>discount · ${f.off}% off</span><b>− ${esc(f.saved)}</b></div>` : ''}${cut ? `<div class="pay-cut"><span>coupon ${esc(cut.code)}</span><b>− ${esc(cut.saved_label)}</b></div>` : ''}<div class="pay-total"><span>total to pay</span><b>${esc(due())}</b></div></div>
               ${sideButton}
               ${state === 'paid' ? '' : `<p class="pay-fine">${LOCK}<span>you pay in your own bkash app — we never ask for your pin or password. your place is confirmed once we have checked the payment.</span></p>`}
               ${state === 'paid' || state === 'admin' ? '' : `<div class="pay-help"><strong>stuck on a step?</strong>${helpLink('i need help paying for “' + course.title + '”')}</div>`}
@@ -1923,16 +2076,25 @@
         try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'copied'; } catch (e) { prompt('copy this', b.dataset.copy); }
         setTimeout(() => { b.textContent = was; }, 1600);
       }));
+      const cgo = $('#coupon-go', root), cin = $('#coupon-in', root);
+      if (cgo) {
+        const go = async () => { if (couponBusy) return; draft.coupon = cin.value.trim(); couponBusy = true; draw(); await tryCoupon(draft.coupon); couponBusy = false; draw(); };
+        cgo.addEventListener('click', go);
+        cin.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+        cin.addEventListener('input', () => { draft.coupon = cin.value.trim(); keep(); });
+      }
+      const coff = $('#coupon-off', root);
+      if (coff) coff.addEventListener('click', () => { cut = null; couponSaid = ''; draft.coupon = ''; keep(); draw(); });
       const jump = $('a.pay-now[href="#pay-form"]', root);
       if (jump) jump.addEventListener('click', (e) => { e.preventDefault(); $('#pay-tell', root).scrollIntoView({ behavior: 'smooth', block: 'center' }); const i = $('#pay-form [name=sender]', root); if (i) setTimeout(() => i.focus({ preventScroll: true }), 500); });
 
       const pf = $('#pay-form', root);
-      if (pf && canSend) pf.addEventListener('input', () => { draft = { sender: pf.sender.value, trx: pf.trx.value }; keep(); });
+      if (pf && canSend) pf.addEventListener('input', () => { draft = { ...draft, sender: pf.sender.value, trx: pf.trx.value }; keep(); });
       if (pf && canSend) pf.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (busy) return;
         const v = new FormData(pf);
-        draft = { sender: String(v.get('sender')).trim(), trx: String(v.get('trx')).trim() }; keep();
+        draft = { ...draft, sender: String(v.get('sender')).trim(), trx: String(v.get('trx')).trim() }; keep();
         const sender = readSender(draft.sender), trx = readTrx(draft.trx);
         problem = !draft.sender || !draft.trx ? 'fill in both boxes: the number you paid from, and the transaction id.'
           : !sender ? 'that does not look like a bkash number. enter the 11-digit number you paid from, for example 017XXXXXXXX.'
@@ -1943,11 +2105,16 @@
         // not signed in yet: sign in first — what was typed is waiting when google brings them back
         if (!S.user) { problem = 'one more step: sign in with google, and you will come straight back here with these two boxes still filled in — then press submit.'; draw(); authDialog('signin'); return; }
         busy = true; draw();
-        const { data, error } = await sb.from('payments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name || null, learner_email: S.user.email, amount: f.label, sender, trx_id: trx }).select().single();
+        const { data, error } = await sb.from('payments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name || null, learner_email: S.user.email, amount: due(), sender, trx_id: trx, ...(cut ? { coupon: cut.code } : {}) }).select().single();
         busy = false;
         if (error) {
           const m = error.message || '';
-          if (/payments_one_open/.test(m)) {   // already sent from another tab or device: show that one
+          const refused = /coupon_refused:(\w+)/.exec(m);
+          if (refused) {   // the coupon stopped working between applying it and paying
+            const was = cut; cut = null; draft.coupon = ''; keep();
+            couponSaid = couponWhy({ why: refused[1] });
+            problem = `your coupon could not be used any more, so nothing was submitted. the fee without it is ${f.label}${was ? ` — you were shown ${was.pay_label}` : ''}. if you already sent the lower amount, message us before paying again.`;
+          } else if (/payments_one_open/.test(m)) {   // already sent from another tab or device: show that one
             const again = await soft(sb.from('payments').select('*').eq('course_id', course.id).order('created_at', { ascending: false }).limit(1));
             if (again[0]) S.payments[course.id] = again[0];
             problem = '';
@@ -1959,7 +2126,7 @@
           }
           draw(); return;
         }
-        S.payments[course.id] = data; problem = ''; draft = { sender: '', trx: '' }; keep();
+        S.payments[course.id] = data; problem = ''; cut = null; draft = { sender: '', trx: '', coupon: '' }; keep();
         draw(); window.scrollTo({ top: 0, behavior: 'smooth' });
       });
 
@@ -1971,11 +2138,12 @@
         const now = await soft(sb.from('payments').select('*').eq('course_id', course.id).order('created_at', { ascending: false }).limit(1));
         // if it was confirmed or rejected in the meantime, that decision stands and is shown instead
         if (now[0]) S.payments[course.id] = now[0]; else delete S.payments[course.id];
-        if (!error && (!now[0] || now[0].status === 'rejected')) draft = { sender: mine.sender, trx: mine.trx_id };
+        if (!error && (!now[0] || now[0].status === 'rejected')) { draft = { sender: mine.sender, trx: mine.trx_id, coupon: mine.coupon || '' }; if (draft.coupon) await tryCoupon(draft.coupon, true); }
         if (S.payments[course.id] && S.payments[course.id].status === 'confirmed') { location.reload(); return; }
         draw();
       });
     }
+    if (draft.coupon && !S.preview && sb && f.amount) await tryCoupon(draft.coupon, true);
     draw();
   }
 
@@ -1987,7 +2155,7 @@
     const finished = mine.filter((c) => stats(c).pct === 100);
     const lessonsDone = S.lessons.filter((l) => S.done[l.id]).length;
     const hello = S.user ? (S.name.split(' ')[0] || 'welcome back') : 'my learning';
-    const lessonUrl = (c, l) => `learn.html?c=${enc(c.id)}&l=${l.id}`;
+    const lessonUrl = (c, l) => `${U.learn(c.id, l.id)}`;
 
     // where they stopped: the lesson last opened on this device, or the next one of whatever is in progress
     const last = local.get(LOCAL_LAST);
@@ -2016,7 +2184,7 @@
 
     // payments that still need something
     const open = S.courses.filter((c) => fee(c).paid && ['pending', 'rejected'].includes(payState(c)));
-    const payRows = open.length ? `<div class="dash-pay rise rise-3">${open.map((c) => { const bad = payState(c) === 'rejected'; return `<a href="pay.html?c=${enc(c.id)}" class="${bad ? 'is-bad' : ''}"><div><strong>${bad ? 'we could not confirm your payment' : 'your payment is being checked'}</strong><span>${esc(c.title)} — ${bad ? 'open it to see why and try again' : 'usually within a day; the lessons then open by themselves'}</span></div><i aria-hidden="true">→</i></a>`; }).join('')}</div>` : '';
+    const payRows = open.length ? `<div class="dash-pay rise rise-3">${open.map((c) => { const bad = payState(c) === 'rejected'; return `<a href="${U.pay(c.id)}" class="${bad ? 'is-bad' : ''}"><div><strong>${bad ? 'we could not confirm your payment' : 'your payment is being checked'}</strong><span>${esc(c.title)} — ${bad ? 'open it to see why and try again' : 'usually within a day; the lessons then open by themselves'}</span></div><i aria-hidden="true">→</i></a>`; }).join('')}</div>` : '';
 
     const faq = [
       ['how do i join a course?', 'open it from the academy page and press “enrol”. a free one starts straight away. for a paid one you are taken to the payment page.'],
@@ -2031,7 +2199,7 @@
     root.innerHTML = `
       <section class="course-hero"><div class="course-hero-inner">
         ${notice()}
-        <a class="crumb rise" href="index.html">← academy</a>
+        <a class="crumb rise" href="${U.catalog()}">← academy</a>
         <div class="hero-tag rise"><i></i>my learning</div>
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
         ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">
@@ -2049,11 +2217,11 @@
       </div></section>
       <section style="border-top:1px solid var(--line);"><div class="sect-inner">
         <span class="lesson-kicker">in progress</span>
-        ${going.length ? `<div class="ugrid" style="margin-top:24px;">${going.map((c, i) => card(c, i, { resume: true })).join('')}</div>` : `<p class="lms-empty" style="margin-top:24px;">${mine.length ? 'nothing in progress — everything you started is finished.' : 'you have not started anything yet.'} <a class="btn-outline" href="index.html" style="margin-left:8px;">find something to learn <span class="btn-arrow" aria-hidden="true">→</span></a></p>`}
+        ${going.length ? `<div class="ugrid" style="margin-top:24px;">${going.map((c, i) => card(c, i, { resume: true })).join('')}</div>` : `<p class="lms-empty" style="margin-top:24px;">${mine.length ? 'nothing in progress — everything you started is finished.' : 'you have not started anything yet.'} <a class="btn-outline" href="${U.catalog()}" style="margin-left:8px;">find something to learn <span class="btn-arrow" aria-hidden="true">→</span></a></p>`}
         ${finished.length ? `<span class="lesson-kicker" style="display:block;margin-top:clamp(56px,7vw,96px);">completed</span>
           <div class="rows-plain">${finished.map((c) => `<div><div><strong>${esc(c.title)}</strong><small>${stats(c).count} lessons${S.enrolled[c.id] && S.enrolled[c.id].completed_at ? ` · finished ${day(S.enrolled[c.id].completed_at)}` : ''}</small></div>
-            <div class="hero-buttons" style="justify-content:flex-end;"><a class="btn-outline" href="course.html?c=${enc(c.id)}">review <span class="btn-arrow" aria-hidden="true">→</span></a>
-            <a class="btn-primary" href="certificate.html?${S.certs[c.id] ? 'id=' + enc(S.certs[c.id]) : 'c=' + enc(c.id)}">certificate <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`).join('')}</div>` : ''}
+            <div class="hero-buttons" style="justify-content:flex-end;"><a class="btn-outline" href="${U.course(c.id)}">review <span class="btn-arrow" aria-hidden="true">→</span></a>
+            <a class="btn-primary" href="${U.cert(S.certs[c.id] ? { id: S.certs[c.id] } : { c: c.id })}">certificate <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`).join('')}</div>` : ''}
       </div></section>
       <section style="border-top:1px solid var(--line);"><div class="sect-inner">
         <div class="dash-help">
@@ -2090,18 +2258,18 @@
 
   async function certificate() {
     const root = $('#cert-root');
-    const id = params.get('id');
+    const id = Q.id;
 
     // ?id= — anyone can open this link to check a certificate is genuine
     if (id) {
       const rows = S.preview ? [] : await soft(sb.rpc('get_certificate', { p_id: id }));
       const c = rows[0];
       if (!c) {
-        root.innerHTML = '<div class="gate" style="max-width:640px;"><h1>no certificate with that reference.</h1><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="index.html">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>';
+        root.innerHTML = '<div class="gate" style="max-width:640px;"><h1>no certificate with that reference.</h1><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="${U.catalog()}">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>';
         return;
       }
       document.title = `certificate — ${c.learner_name}`;
-      const link = `${A.root}academy/certificate.html?id=${enc(c.id)}`;
+      const link = new URL(U.cert({ id: c.id }), location.href).href;
       root.innerHTML = `<div>
         <div class="cert-tools">
           <div class="verified">verified — issued by amaze consortium on ${day(c.issued_at)}</div>
@@ -2115,12 +2283,12 @@
       return;
     }
 
-    const course = S.courses.find((c) => c.id === params.get('c'));
-    if (!course) { location.replace('index.html'); return; }
-    if (S.certs[course.id]) { location.replace(`certificate.html?id=${enc(S.certs[course.id])}`); return; }
+    const course = S.courses.find((c) => c.id === Q.c);
+    if (!course) { location.replace(U.catalog()); return; }
+    if (S.certs[course.id]) { location.replace(U.cert({ id: S.certs[course.id] })); return; }
     const st = stats(course);
     if (st.pct < 100 || !st.count) {
-      root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>not quite there yet.</h1><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be waiting here.</p><div class="hero-buttons"><a class="btn-primary" href="learn.html?c=${enc(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
+      root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>not quite there yet.</h1><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be waiting here.</p><div class="hero-buttons"><a class="btn-primary" href="${U.learn(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
       return;
     }
     document.title = `certificate — ${course.title}`;
@@ -2135,7 +2303,7 @@
         e.preventDefault();
         const { data, error } = await sb.rpc('issue_certificate', { p_course: course.id, p_name: new FormData(e.target).get('name').trim() });
         if (error) { e.target.insertAdjacentHTML('beforeend', `<p class="dialog-msg is-error">${esc(error.message)}</p>`); return; }
-        location.replace(`certificate.html?id=${enc(data)}`);
+        location.replace(U.cert({ id: data }));
       });
       return;
     }
@@ -2159,6 +2327,11 @@
     await loadOutline();
     await loadLearner();
     wireAccountButton();
+    // a link in the old form (…/course.html?c=x) is shown as the new one, so what gets copied and shared is clean
+    if (Q.old && view !== 'catalog' && history.replaceState) {
+      const clean = view === 'course' && Q.c ? U.course(Q.c) : view === 'learn' && Q.c ? U.learn(Q.c, Q.l) : view === 'pay' && Q.c ? U.pay(Q.c) : view === 'my' ? U.my() : view === 'certificate' && Q.id ? U.cert({ id: Q.id }) : view === 'certificate' && Q.c ? U.cert({ c: Q.c }) : '';
+      if (clean && clean !== location.pathname + location.search) history.replaceState(null, '', clean + location.hash);
+    }
     if (view === 'catalog') catalog();
     else if (view === 'course') await coursePage();
     else if (view === 'learn') await player();

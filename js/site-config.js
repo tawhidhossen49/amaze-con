@@ -47,7 +47,7 @@ window.AMAZE.get = async function (path) {
     // until then it shows the name too, instead of "sign in" for a second
     const account = document.getElementById('lms-account');
     if (account && name && account.textContent.trim() === 'sign in') account.textContent = name;
-    document.querySelectorAll('.mobile-nav a[href$="academy/my.html"]').forEach(function (a) {
+    document.querySelectorAll('.mobile-nav a[href$="academy/my-learning"]').forEach(function (a) {
       a.textContent = name ? 'my learning — ' + name : 'sign in / my learning';
     });
   }
