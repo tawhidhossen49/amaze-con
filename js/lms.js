@@ -888,7 +888,13 @@
       stageKind = 'doc'; about = content.body || '';
       bodyHtml = `<div class="lp-doc">
           <div class="lp-doc-bar">${docs.length > 1 ? `<div class="lp-doc-pick">${docs.map((d, i) => `<button type="button" data-doc="${i}"${i ? '' : ' class="is-on"'}>${esc(d.label || 'document ' + (i + 1))}</button>`).join('')}</div>` : `<strong>${esc(docs[0].label || 'document')}</strong>`}
-            <span class="lp-doc-count" id="doc-count"></span><a id="doc-open" href="${esc(safeUrl(docs[0].url))}" target="_blank" rel="noopener noreferrer">open in a new tab ↗</a></div>
+            <div class="lp-doc-tools" hidden>
+              <button type="button" data-zoom="out" aria-label="zoom out" title="zoom out">−</button><span id="doc-zoom" aria-live="polite">100%</span><button type="button" data-zoom="in" aria-label="zoom in" title="zoom in">+</button>
+              <button type="button" data-zoom="fit" title="fit the page to the width">fit</button>
+              <span class="lp-doc-count" id="doc-count" title="page"></span>
+              <button type="button" id="doc-full">full screen</button>
+            </div>
+            <div class="lp-doc-links"><button type="button" id="doc-save">download</button><a id="doc-open" href="${esc(safeUrl(docs[0].url))}" target="_blank" rel="noopener noreferrer">open ↗</a></div></div>
           <div class="lp-doc-pages" id="doc-pages"><p class="lp-doc-msg">opening the document…</p></div>
         </div>`;
     } else {
@@ -924,7 +930,7 @@
         <small class="hint" id="note-status">${S.user ? 'saved to your account' : 'saved on this device — sign in to keep notes across devices'}</small>
       </div>
       <div class="tab-panel" data-panel="resources" hidden>
-        ${resources.length ? `<ul class="resources">${resources.map((r) => `<li><a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener noreferrer"><span class="lesson-name">${ICON.file}<span>${esc(r.label || r.url)}</span></span><i>↓</i></a></li>`).join('')}</ul>` : '<p class="lms-empty" style="padding:28px 0;">no files or links for this lesson.</p>'}
+        ${resources.length ? `<ul class="resources">${resources.map((r) => `<li><a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener noreferrer"${/\.pdf($|[?#])/i.test(String(r.url || '')) ? ` download="${esc(String(r.label || 'document').replace(/\.pdf$/i, ''))}.pdf"` : ''}><span class="lesson-name">${ICON.file}<span>${esc(r.label || r.url)}</span></span><i>↓</i></a></li>`).join('')}</ul>` : '<p class="lms-empty" style="padding:28px 0;">no files or links for this lesson.</p>'}
       </div>
       <div class="tab-panel" data-panel="qa" hidden id="qa"></div>
       <div class="tab-panel" data-panel="news" hidden>
@@ -1008,44 +1014,110 @@
       if (l.id === lesson.id) { const c = $('#complete', root); if (c) c.firstChild.textContent = (S.done[l.id] ? (next ? 'next lesson' : 'finish') : doneLabel) + ' '; }
     });
 
-    // a pdf: drawn page by page with pdf.js (kept on this site, js/vendor), so it reads the same on a phone as on a laptop
+    // ── a pdf, read inside the lesson ────────────────────────────────────────
+    // Drawn page by page with pdf.js (kept on this site, js/vendor), so it reads the same on a
+    // phone as on a laptop. The reader can zoom in and out (buttons, or ctrl + scroll), go back
+    // to "fit the width", fill the whole screen, and download the file or open it in a new tab.
+    const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+    const doc = { pdf: null, zoom: 1, token: 0, seen: null, timer: null };
+    const docName = (r) => (String(r.label || 'document').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'document').replace(/\.pdf$/i, '') + '.pdf';
+    // the width one page takes at 100%: the reading column, or the screen on a phone
+    const pageWidth = (box) => Math.max(200, Math.min(box.clientWidth - (window.innerWidth <= 700 ? 16 : 48), 980));
+    function drawPages() {
+      const box = $('#doc-pages', root); if (!doc.pdf || !box) return;
+      const w = Math.round(pageWidth(box) * doc.zoom), at = box.scrollHeight ? box.scrollTop / box.scrollHeight : 0;
+      if (doc.seen) doc.seen.disconnect();
+      const pdf = doc.pdf, token = doc.token;
+      // each page is drawn when it comes near the screen, not all at once
+      doc.seen = new IntersectionObserver((entries) => entries.forEach(async (en) => {
+        if (!en.isIntersecting || en.target.dataset.w === String(w)) return;
+        en.target.dataset.w = String(w);
+        const page = await pdf.getPage(+en.target.dataset.page);
+        // sharp on a good screen, but never so large that a phone runs out of memory
+        const scale = Math.min((w / page.getViewport({ scale: 1 }).width) * Math.min(2, window.devicePixelRatio || 1), 4096 / page.getViewport({ scale: 1 }).width);
+        const view = page.getViewport({ scale }), canvas = document.createElement('canvas');
+        canvas.width = Math.floor(view.width); canvas.height = Math.floor(view.height);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
+        if (token !== doc.token || en.target.dataset.w !== String(w)) return;   // zoomed or switched again meanwhile
+        en.target.replaceChildren(canvas);
+        en.target.classList.add('is-drawn');
+      }), { root: box, rootMargin: '900px 0px' });
+      $$('.lp-page', box).forEach((el) => { el.style.width = w + 'px'; doc.seen.observe(el); });
+      box.classList.toggle('is-zoomed', doc.zoom > 1);
+      box.scrollTop = at * box.scrollHeight;
+      if (doc.zoom > 1) box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2;
+      const label = $('#doc-zoom', root); if (label) label.textContent = Math.round(doc.zoom * 100) + '%';
+      const out = $('[data-zoom="out"]', root), inn = $('[data-zoom="in"]', root);
+      if (out) out.disabled = doc.zoom <= ZOOMS[0]; if (inn) inn.disabled = doc.zoom >= ZOOMS[ZOOMS.length - 1];
+    }
+    function setZoom(z) { doc.zoom = Math.min(ZOOMS[ZOOMS.length - 1], Math.max(ZOOMS[0], z)); clearTimeout(doc.timer); doc.timer = setTimeout(drawPages, 60); }
+    const stepZoom = (dir) => { const i = ZOOMS.findIndex((z) => z >= doc.zoom - 0.001); setZoom(ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (i < 0 ? ZOOMS.length - 1 : i) + dir))]); };
+    function showPageNumber() {
+      const box = $('#doc-pages', root), count = $('#doc-count', root); if (!doc.pdf || !box || !count) return;
+      const mid = box.getBoundingClientRect().top + box.clientHeight * 0.35;
+      const now = $$('.lp-page', box).find((el) => el.getBoundingClientRect().bottom > mid);
+      count.textContent = `${now ? now.dataset.page : doc.pdf.numPages} / ${doc.pdf.numPages}`;
+    }
+
     async function openDoc(r) {
-      const box = $('#doc-pages', root), count = $('#doc-count', root), link = safeUrl(r.url);
+      const box = $('#doc-pages', root), count = $('#doc-count', root), link = safeUrl(r.url), tools = $('.lp-doc-tools', root);
+      const token = (doc.token += 1); doc.pdf = null; doc.zoom = 1;
       $('#doc-open', root).href = link; count.textContent = '';
       const drive = /drive\.google\.com\/file\/d\/([^/]+)/.exec(link);
-      if (drive) { box.innerHTML = `<iframe class="lp-doc-frame" src="https://drive.google.com/file/d/${esc(drive[1])}/preview" title="${esc(r.label || 'document')}" allow="autoplay"></iframe>`; return; }
+      // a google drive file is shown by google's own viewer, which brings its own zoom
+      if (drive) { tools.hidden = true; box.classList.add('is-frame'); box.innerHTML = `<iframe class="lp-doc-frame" src="https://drive.google.com/file/d/${esc(drive[1])}/preview" title="${esc(r.label || 'document')}" allow="autoplay"></iframe>`; return; }
+      tools.hidden = false; box.classList.remove('is-frame');
       box.innerHTML = '<p class="lp-doc-msg">opening the document…</p>';
       try {
         if (!window.pdfjsLib) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = A.root + 'js/vendor/pdf.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = A.root + 'js/vendor/pdf.worker.min.js';
         // (isEvalSupported off: the site's security headers do not allow code built from strings, and pdf.js does not need it)
         const pdf = await window.pdfjsLib.getDocument({ url: link, isEvalSupported: false }).promise;
-        if (r !== docNow) return;   // another document was chosen while this one was loading
+        if (token !== doc.token) return;   // another document was chosen while this one was loading
         const first = await pdf.getPage(1), shape = first.getViewport({ scale: 1 });
         box.innerHTML = Array.from({ length: pdf.numPages }, (_, i) => `<div class="lp-page" data-page="${i + 1}" style="aspect-ratio:${shape.width}/${shape.height};"></div>`).join('');
-        count.textContent = `${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}`;
-        // each page is drawn when it comes near the screen, not all at once
-        const seen = new IntersectionObserver((entries) => entries.forEach(async (en) => {
-          if (!en.isIntersecting) return;
-          seen.unobserve(en.target);
-          const page = await pdf.getPage(+en.target.dataset.page);
-          const scale = (en.target.clientWidth / page.getViewport({ scale: 1 }).width) * Math.min(2, window.devicePixelRatio || 1);
-          const view = page.getViewport({ scale }), canvas = document.createElement('canvas');
-          canvas.width = Math.floor(view.width); canvas.height = Math.floor(view.height);
-          en.target.style.aspectRatio = `${view.width}/${view.height}`;
-          en.target.appendChild(canvas);
-          await page.render({ canvasContext: canvas.getContext('2d'), viewport: view }).promise;
-          en.target.classList.add('is-drawn');
-        }), { root: box, rootMargin: '800px 0px' });
-        $$('.lp-page', box).forEach((el) => seen.observe(el));
+        doc.pdf = pdf;
+        drawPages(); showPageNumber();
       } catch (e) {
+        if (token !== doc.token) return;
+        tools.hidden = true;
         box.innerHTML = `<div class="lp-doc-msg"><strong>this document could not be shown here.</strong><p>open it in a new tab instead — it will open or download there.</p><a class="btn-primary" href="${esc(link)}" target="_blank" rel="noopener noreferrer">open the document <span class="btn-arrow" aria-hidden="true">↗</span></a></div>`;
       }
     }
+    // saves the file itself (a plain link to another site's file would only open it)
+    async function downloadDoc(r, btn) {
+      const link = safeUrl(r.url), was = btn.textContent;
+      btn.disabled = true; btn.textContent = 'downloading…';
+      try {
+        const res = await fetch(link); if (!res.ok) throw new Error('not found');
+        const href = URL.createObjectURL(await res.blob());
+        const a = document.createElement('a'); a.href = href; a.download = docName(r); document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 20000);
+        btn.textContent = 'downloaded';
+      } catch (e) { window.open(link, '_blank', 'noopener'); btn.textContent = was; }
+      setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 1800);
+    }
     let docNow = docs[0];
     if (stageKind === 'doc') {
+      const frame = $('.lp-doc', root), box = $('#doc-pages', root);
       openDoc(docNow);
       $$('[data-doc]', root).forEach((b) => b.addEventListener('click', () => { docNow = docs[+b.dataset.doc]; $$('[data-doc]', root).forEach((x) => x.classList.toggle('is-on', x === b)); openDoc(docNow); }));
+      $('[data-zoom="in"]', root).addEventListener('click', () => stepZoom(1));
+      $('[data-zoom="out"]', root).addEventListener('click', () => stepZoom(-1));
+      $('[data-zoom="fit"]', root).addEventListener('click', () => setZoom(1));
+      $('#doc-save', root).addEventListener('click', (e) => downloadDoc(docNow, e.currentTarget));
+      box.addEventListener('scroll', showPageNumber, { passive: true });
+      // ctrl + scroll (or a pinch on a laptop trackpad) zooms the document, not the whole page
+      box.addEventListener('wheel', (e) => { if (!e.ctrlKey || !doc.pdf) return; e.preventDefault(); stepZoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+      const full = $('#doc-full', root);
+      if (!frame.requestFullscreen) full.hidden = true;
+      else {
+        full.addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : frame.requestFullscreen().catch(() => {})));
+        document.addEventListener('fullscreenchange', () => { full.textContent = document.fullscreenElement ? 'exit full screen' : 'full screen'; setZoom(doc.zoom); });
+      }
+      // turning the phone, or resizing the window: the pages are fitted again
+      let lastW = box.clientWidth;
+      new ResizeObserver(() => { if (Math.abs(box.clientWidth - lastW) < 2) return; lastW = box.clientWidth; setZoom(doc.zoom); }).observe(box);
     }
     // ← and → move between lessons, the way they do in a video course (not while typing)
     document.addEventListener('keydown', (e) => {

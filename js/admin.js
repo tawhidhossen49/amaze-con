@@ -131,18 +131,32 @@
   document.addEventListener('change', (e) => { const i = e.target.closest && e.target.closest('form[data-lesson] [name=video_url]'); if (i) titleFromVideo(i); });
   document.addEventListener('paste', (e) => { const i = e.target.closest && e.target.closest('form[data-lesson] [name=video_url]'); if (i) setTimeout(() => titleFromVideo(i), 60); });
 
-  // "attach a file" on a lesson: uploads it and adds a "name | link" line
+  // "attach a file" / "upload a pdf" on a lesson: uploads it and adds a "name | link" line.
+  // The name is the file's own, without its ending, and can be rewritten in the box.
   document.addEventListener('change', async (e) => {
     const input = e.target.closest('[data-attach]');
     if (!input || !input.files[0]) return;
-    toast('uploading…');
-    const file = input.files[0];
+    const file = input.files[0], pdf = input.hasAttribute('data-pdf');
+    if (pdf && !(file.type === 'application/pdf' || /\.pdf$/i.test(file.name))) { input.value = ''; return toast('that is not a pdf — choose a file ending in .pdf', true); }
+    const mb = file.size / 1048576;
+    if (mb > 50) { input.value = ''; return toast(`that file is ${mb.toFixed(0)} MB — the limit is 50 MB. compress it (search “compress pdf”) and try again.`, true); }
+    toast(`uploading ${file.name} (${mb < 1 ? '<1' : mb.toFixed(0)} MB) — keep this page open…`);
     const url = await upload(file);
-    if (!url) return;
-    const box = document.querySelector(`[name="${input.dataset.attach}"]`);
-    box.value = (box.value.trim() ? box.value.trim() + '\n' : '') + `${file.name} | ${url}`;
     input.value = '';
-    toast('attached');
+    if (!url) return;
+    const form = input.closest('form');
+    const box = (form || document).querySelector(`[name="${input.dataset.attach}"]`);
+    const name = file.name.replace(/\.[^.]+$/, '').replace(/[_|]+/g, ' ').trim() || 'document';
+    box.value = (box.value.trim() ? box.value.trim() + '\n' : '') + `${name} | ${url}`;
+    if (pdf && form) {
+      const kind = form.querySelector('[name=kind]'), title = form.querySelector('[name=title]');
+      const reading = kind && kind.value === 'article' && !form.querySelector('[name=video_url]').value.trim();
+      if (title && !title.value.trim()) title.value = name.toLowerCase();
+      const note = form.querySelector('[data-pdf-status]');
+      if (note) note.textContent = reading ? `uploaded “${name}”. learners will read it inside this lesson — with zoom, full screen and a download button. save the lesson to publish it.`
+        : `uploaded “${name}”. because this lesson is a ${kind ? kind.options[kind.selectedIndex].text : 'different type'}, the pdf appears under its “resources” tab for download. to have learners read it on the lesson page itself, set the type to “reading” and leave the video box empty.`;
+    }
+    toast(pdf ? 'pdf uploaded' : 'attached');
   });
   document.addEventListener('input', (e) => {
     if (!e.target.matches('[data-image]')) return;
@@ -566,9 +580,9 @@
         <label class="field field--wide"><span>quiz questions — for quiz lessons</span><textarea name="quiz" rows="8" placeholder="? what does html describe?&#10;- how a page looks&#10;* what is on a page&#10;- how a page behaves&#10;> html is content and structure.">${esc(quizToText(content && content.quiz))}</textarea>
           <small class="hint">? starts a question · - is a wrong option · * is the correct option · > is the explanation shown after answering. learners pass at 70%.</small></label>
       </div>
-      <div class="field"><div class="field-top"><span>files and links for this lesson — one per line, as: name | link</span><label class="linkish" style="cursor:pointer;">attach a file<input type="file" hidden data-attach="resources"></label></div>
+      <div class="field"><div class="field-top"><span>files and links for this lesson — one per line, as: name | link</span><span style="display:flex;gap:16px;flex-wrap:wrap;"><label class="linkish" style="cursor:pointer;color:var(--green);">upload a pdf<input type="file" accept="application/pdf,.pdf" hidden data-attach="resources" data-pdf></label><label class="linkish" style="cursor:pointer;">attach another file<input type="file" hidden data-attach="resources"></label></span></div>
         <textarea name="resources" rows="3" placeholder="lecture slides | https://…">${esc(((content && content.resources) || []).map((r) => `${r.label} | ${r.url}`).join('\n'))}</textarea>
-        <small class="hint">a pdf attached to a <b>reading</b> lesson opens inside the lesson itself, page by page, the way a video does — learners read it there without downloading. everything else listed here appears under the lesson’s “resources” tab.</small></div>
+        <small class="hint" data-pdf-status>a pdf in a <b>reading</b> lesson opens on the lesson page itself, page by page — learners can zoom, go full screen, and download it. in any other type of lesson, and for every other kind of file, it is listed under the lesson’s “resources” tab to download. up to 50 MB each.</small></div>
       <label class="check"><input type="checkbox" name="is_preview"${l.is_preview ? ' checked' : ''}> free preview — readable without an account (free entries only: in a paid entry every lesson stays locked until payment is confirmed)</label>
       <label class="check"><input type="checkbox" name="is_hidden"${l.is_hidden ? ' checked' : ''}> hidden — keep this lesson out of the course for now</label>
       <div class="editor-foot"><button class="btn btn--solid" type="submit">${l.id ? 'save lesson' : 'add lesson'}</button><button class="btn" type="button" data-cancel>cancel</button></div>
