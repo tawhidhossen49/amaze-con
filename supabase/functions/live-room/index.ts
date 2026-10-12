@@ -14,7 +14,10 @@
 //                     confirmed), and only from 15 minutes before the class until it is over
 //   anyone else     — refused
 //
-// Needs one secret in Supabase → Edge Functions → Secrets:  DAILY_API_KEY
+// Needs two secrets in Supabase → Edge Functions → Secrets:
+//   DAILY_API_KEY   the key from the Daily dashboard
+//   DAILY_READY     yes — only once a payment method is on the Daily account
+// Without both, the website uses its own built-in room instead (see js/lms.js).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const cors = {
@@ -65,8 +68,11 @@ Deno.serve(async (req: Request) => {
       if (now > end + STAYS_AFTER_MIN * 60_000) return answer({ error: "ended", message: "this class has ended." }, 409);
     }
 
+    // Daily refuses every call ("missing payment method") until a card is on its account, so
+    // the key alone is not enough: DAILY_READY = yes says the account can really hold a class.
     const key = Deno.env.get("DAILY_API_KEY");
-    if (!key) return answer({ error: "not_configured", message: "live rooms are not switched on yet." }, 503);
+    const ready = (Deno.env.get("DAILY_READY") ?? "").trim().toLowerCase() === "yes";
+    if (!key || !ready) return answer({ error: "not_configured", message: "live rooms are not switched on yet." }, 503);
     const daily = (path: string, init: RequestInit = {}) =>
       fetch(DAILY + path, { ...init, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" } });
 

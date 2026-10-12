@@ -1256,7 +1256,7 @@
           pc.ontrack = (e) => { p.stream.addTrack(e.track); const el = $(`[data-peer="${id}"] video`, grid); if (el && el.srcObject !== p.stream) el.srcObject = p.stream; };
           // ice candidates are sent a few at a time, not one message each
           pc.onicecandidate = (e) => { if (!e.candidate) return; p.out.push(e.candidate.toJSON()); clearTimeout(p.timer); p.timer = setTimeout(() => { net.send('sig', { from: me, to: id, cands: p.out.splice(0) }); }, 120); };
-          pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && me < id) pc.restartIce(); };
+          pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && me < id) pc.restartIce(); if (pc.connectionState === 'connected') tune(p); };
           pc.onnegotiationneeded = async () => { if (me > id) return; try { await pc.setLocalDescription(); net.send('sig', { from: me, to: id, desc: pc.localDescription.toJSON() }); } catch (e) {} };
           return p;
         }
@@ -1296,7 +1296,9 @@
           layout();
         }
         const publish = () => { tile(me, my, true); layout(); net.update(my); };
-        const sendAll = () => peers.forEach((p) => { if (p.a) p.a.sender.replaceTrack(micTrack); if (p.v) p.v.sender.replaceTrack(videoOut()); });
+        // a shared screen is mostly text: keep it sharp and let it go slower, where a camera does the opposite
+        const tune = (p) => { if (!p.v) return; try { const s = p.v.sender, q = s.getParameters(); if (!q.encodings || !q.encodings.length) return; q.degradationPreference = my.screen ? 'maintain-resolution' : 'balanced'; if (my.screen) q.encodings[0].maxBitrate = 2500000; else delete q.encodings[0].maxBitrate; s.setParameters(q).catch(() => {}); } catch (e) {} };
+        const sendAll = () => peers.forEach((p) => { if (p.a) p.a.sender.replaceTrack(micTrack); if (p.v) { p.v.sender.replaceTrack(videoOut()); tune(p); } });
         const showMine = () => { const v = $(`[data-peer="${me}"] video`, grid); const t = videoOut(); if (v) v.srcObject = t ? new MediaStream([t]) : null; };
         const why = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'your browser blocked it — allow the camera and microphone for this site (the padlock beside the address), then try again.' : e && e.name === 'NotFoundError' ? 'no camera or microphone was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and try again.' : 'that could not be started.');
 
@@ -1315,7 +1317,7 @@
         async function toggleScreen() {
           if (my.screen) { screenTrack.stop(); screenTrack = null; my.screen = false; }
           else {
-            try { screenTrack = (await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 12, max: 15 } }, audio: false })).getVideoTracks()[0]; } catch (e) { return e && e.name === 'NotAllowedError' ? null : say('screen share: ' + why(e), true); }
+            try { screenTrack = (await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 12, max: 15 } }, audio: false })).getVideoTracks()[0]; try { screenTrack.contentHint = 'detail'; } catch (e) {} } catch (e) { return e && e.name === 'NotAllowedError' ? null : say('screen share: ' + why(e), true); }
             my.screen = true;
             // the browser's own "stop sharing" bar ends it too
             screenTrack.addEventListener('ended', () => { if (my.screen) toggleScreen(); });
