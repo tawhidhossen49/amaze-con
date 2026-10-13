@@ -86,9 +86,11 @@
     if (!el || el.closest('[data-notrack]')) return;
     var words = (el.getAttribute('data-track') || el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (!words && el.querySelector && el.querySelector('img[alt]')) words = el.querySelector('img[alt]').alt.trim().toLowerCase();
-    // words written by a visitor or a name (a comment, an account) are not button names
-    if (!words || el.closest('.comment, .thread, [data-private]')) return;
-    if (el.id === 'lms-account' || el.closest('#lms-account, .nav-signin.is-in')) words = 'my account';
+    // a person's name or words are never counted: the account link shows a first name once signed in,
+    // and questions, reviews and notes are written by learners
+    if (el.closest('.nav-signin, #lms-account, .account-list, .account, a[href$="academy/my-learning"]')) words = 'sign in / my account';
+    else if (el.closest('.qa-item, .qa-thread, .qa-replies, .reviews, .review, .notes, [data-private]')) words = el.closest('.reviews, .review') ? '(a button on a review)' : '(a button on a question or note)';
+    if (!words || /@/.test(words) || /\d{6,}/.test(words)) return;   // nothing that looks like an email or a phone number
     count('click', words.slice(0, 60) + '  ·  ' + page);
   }, true);
 
