@@ -193,9 +193,6 @@
     });
   }
 
-  if (document.querySelector('.scroll-progress')) {
-    gsap.to('.scroll-progress', { scaleX: 1, ease: 'none', scrollTrigger: { start: 0, end: 'max', scrub: 0.3 } });
-  }
 
   // ── headings: line-mask reveal ─────────────────────────────────────────────
   gsap.utils.toArray('[data-lines]').forEach((el) => {

@@ -441,3 +441,11 @@ body.admin .quiz-opt.is-right input[data-otext] { border-color: var(--green); }
   .ranks li .meter { grid-column: 1 / -1; grid-row: 2; }
   .ranks li > span { white-space: normal; flex-wrap: wrap; }
 }
+
+/* questions & answers */
+.faq-row { grid-template-columns: 30px minmax(0, 1fr) auto; align-items: start; }
+.faq-n { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.faq-row .sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
+.faq-row .btn[disabled] { opacity: 0.3; pointer-events: none; }
+.faq-box .choice button.is-on { border-color: var(--green); background: rgba(46,242,162,0.08); }
+@media (max-width: 640px) { .faq-row { grid-template-columns: minmax(0, 1fr); } .faq-n { display: none; } }

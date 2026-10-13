@@ -78,6 +78,7 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest && e.target.closest('.choice button'); if (!b) return;
     const box = b.parentElement, sel = box.nextElementSibling, form = b.closest('form');
+    if (!sel || !sel.matches('select')) return;   // cards that act by themselves (no hidden select beside them)
     if (b.dataset.ui && form) form.dataset.ui = b.dataset.ui;
     sel.value = b.dataset.value;
     sel.dispatchEvent(new Event('change', { bubbles: true }));
@@ -424,7 +425,7 @@
 
   function go(view, arg) {
     if (!can(view)) { view = 'home'; arg = undefined; }   // a part this admin was not given
-    teacherEdit = null; teacherOpen = false;
+    teacherEdit = null; teacherOpen = false; faqOpen = false; faqEdit = -1;
     if (dirtyGuard() && !confirm('you have unsaved changes on this screen. leave without saving?')) return;
     dirtyGuard = () => false;
     main.onclick = null; main.oninput = null; main.onsubmit = null; main.onchange = null; savebar.onclick = null;
@@ -632,11 +633,12 @@
   // and what an admin decided — are rows in the payments table (seed/website-backend-07-bkash-payments.sql).
   async function payLoad() {
     const rows = await run(sb.from('site_text').select('key,value').like('key', 'pay.%'));
-    const out = { settings: {}, course: {}, teachers: [] };
+    const out = { settings: {}, course: {}, teachers: [], faq: {} };
     (rows && rows !== true ? rows : []).forEach((r) => {
       let v; try { v = JSON.parse(r.value); } catch (e) { return; }
       if (r.key === 'pay.settings') out.settings = v || {};
       else if (r.key === 'pay.teachers') out.teachers = Array.isArray(v) ? v.filter((t) => t && t.name) : [];
+      else if (r.key === 'pay.faq') out.faq = v && typeof v === 'object' ? v : {};
       else if (r.key.startsWith('pay.course.')) out.course[r.key.slice(11)] = v || {};
     });
     return out;
@@ -653,6 +655,57 @@
   };
 
   let madeCoupon = '';   // the code just made, shown large once
+  // ── questions & answers (faq) ──────────────────────────────────────────────
+  // Two lists: the one on the academy page, and the one on a learner's own page. They are kept
+  // together in site_text as  pay.faq = { academy: [{q, a}], my: [{q, a}] }.  A list that has
+  // never been saved shows the questions the website came with (the same words as in
+  // academy/index.html and js/lms.js).
+  const FAQ_PLACES = [['academy', 'the academy page', 'everyone sees these, under “frequently asked”'], ['my', 'the learner’s own page', 'signed-in learners see these, under “questions people ask”']];
+  const FAQ_BUILT_IN = {
+    academy: [
+      ['do i need any prior experience?', 'most courses are built for beginners, and every course is marked by level — check it on the course page before you start.'],
+      ['is it live or self-paced?', 'both. courses are self-paced — short modules you work through in your own time. programs and webinars include live classes on set dates, shown in your own time zone, with a recording afterwards where one is offered.'],
+      ['how do i enrol?', 'open a course and press enrol. you will need a free account, which takes a minute to create — some courses and every preview lesson are open without one.'],
+      ['do you offer certificates?', 'yes. finish every lesson and pass the quizzes in a course and you can download a completion certificate with your name on it.'],
+      ['can international learners join?', 'yes — the courses are online and open to learners anywhere.'],
+    ],
+    my: [
+      ['how do i join a course?', 'open it from the academy page and press “enrol”. a free one starts straight away. for a paid one you are taken to the payment page.'],
+      ['how do i pay?', 'by bkash. the payment page shows our number and the amount. send it from your bkash app, then type two things on that page: the number you paid from and the transaction id (trxid) from the bkash message.'],
+      ['i paid — why are my lessons still locked?', 'we check each payment by hand, usually within a day. you do not need to do anything: when it is confirmed, the lessons open by themselves and this page shows it.'],
+      ['how do i join a live class?', 'open the class from this page or from the course. the room opens 15 minutes before the start: press “enter the live class”. it happens on this website — there is nothing to install.'],
+      ['my camera or microphone does not work', 'on the class page press “test my camera & microphone” before the class. if the browser blocked it, press the padlock beside the website address and allow both. you can always join without them and use the chat.'],
+      ['will i lose my place if i change phone?', 'no. sign in with the same google account on any phone or laptop and your lessons, notes and certificates are there.'],
+      ['how do i get my certificate?', 'finish every lesson of a course. the certificate then appears on this page under “completed”, with a link you can share.'],
+    ],
+  };
+  const faqList = (pay, place) => (Array.isArray((pay.faq || {})[place]) ? pay.faq[place].filter((x) => x && x.q) : FAQ_BUILT_IN[place].map(([q, a]) => ({ q, a })));
+  let faqOpen = false, faqPlace = 'academy', faqEdit = -1;   // the box stays open after a save; which list; which question is being changed
+  function faqBox(pay) {
+    const list = faqList(pay, faqPlace), editing = list[faqEdit];
+    return `<details class="group faq-box" id="faq-box"${faqOpen ? ' open' : ''}><summary>questions &amp; answers (faq)<small><b>${faqList(pay, 'academy').length}</b> on the academy page · <b>${faqList(pay, 'my').length}</b> on the learner’s page · press to add or change</small></summary>
+      <div style="padding:4px 20px 22px;">
+        <p class="lede" style="margin-top:16px;">the questions people can open and read. choose which list, then add, change, remove or move them.</p>
+        <div class="field"><span>which list?</span><div class="choice choice--2">${FAQ_PLACES.map(([k, t, s]) => `<button type="button" data-faq-place="${k}"${k === faqPlace ? ' class="is-on" aria-pressed="true"' : ' aria-pressed="false"'}><b>${t}</b><small>${s}</small></button>`).join('')}</div></div>
+        <form id="faq-form" class="card" style="margin-top:14px;"><h2 class="card-title">${editing ? 'change this question' : 'add a question'}</h2>
+          <label class="field"><span>the question</span><input name="q" required maxlength="160" autocomplete="off" value="${esc(editing ? editing.q : '')}" placeholder="e.g. can i pay in two parts?"></label>
+          <label class="field"><span>the answer</span><textarea name="a" required rows="3" maxlength="1200" placeholder="write the answer in plain words">${esc(editing ? editing.a : '')}</textarea></label>
+          <div class="editor-foot"><button class="btn btn--solid" type="submit">${editing ? 'save changes' : 'add this question'}</button>${editing ? '<button class="btn" type="button" data-faq-cancel>cancel</button>' : ''}</div>
+        </form>
+        <div class="h2" style="margin-top:28px;"><span>on ${FAQ_PLACES.find(([k]) => k === faqPlace)[1]} <small>${list.length}</small></span></div>
+        <div class="rows">${list.map((x, i) => `<div class="row faq-row" data-faq="${i}">
+            <div class="faq-n">${i + 1}</div>
+            <div><strong style="text-transform:none;">${esc(x.q)}</strong><span class="sub" style="text-transform:none;">${esc(x.a)}</span></div>
+            <div class="row-actions"><button class="btn btn--sm" data-faq-up title="move up" aria-label="move up"${i ? '' : ' disabled'}>↑</button><button class="btn btn--sm" data-faq-down title="move down" aria-label="move down"${i < list.length - 1 ? '' : ' disabled'}>↓</button><button class="btn btn--sm btn--solid" data-faq-edit>change</button><button class="btn btn--sm btn--danger" data-faq-del>remove</button></div>
+          </div>`).join('') || '<p class="empty">no questions in this list, so this part is left out of the page. add one above to bring it back.</p>'}</div>
+      </div></details>`;
+  }
+  // every change is one save of the whole list, read fresh first so nothing saved elsewhere is lost
+  async function faqChange(change, okText) {
+    const pay = await payLoad(), list = faqList(pay, faqPlace).map((x) => ({ q: x.q, a: x.a }));
+    const next = change(list); if (!next) return false;
+    return paySave('pay.faq', { ...(pay.faq || {}), [faqPlace]: next }, okText);
+  }
   let teacherOpen = false, teacherEdit = null;   // the teachers box: kept open after a save, and who is being changed
   async function coursesView(courseId) {
     await checkAcademy();
@@ -712,6 +765,7 @@
             <div class="row-actions"><button class="btn btn--sm btn--solid" data-teacher-edit>change</button><button class="btn btn--sm btn--danger" data-teacher-del>remove</button></div>
           </div>`).join('') || '<p class="empty">no teachers saved yet. fill in the form above and press “save this teacher”.</p>'}</div>
       </div></details>`
+      + faqBox(pay)
       + (coupons ? `<details class="group coupon-box" id="coupon-box"${madeCoupon ? ' open' : ''}><summary>coupons — discount codes<small>${coupons.filter((k) => couponState(k)[1] === 'on').length ? `<b>${coupons.filter((k) => couponState(k)[1] === 'on').length} working now</b>` : coupons.length ? 'none working now' : 'none yet — press to make one'}</small></summary>
       <div style="padding:4px 20px 22px;">
         <p class="lede" style="margin-top:16px;">a coupon is a code a learner types on the payment page to pay less. you choose what it is worth and when it works — the code itself is made for you.</p>
@@ -767,6 +821,28 @@
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, whatsapp: n }, n ? `saved — learners now see a whatsapp button for +${n}` : 'saved — the whatsapp button is gone; learners are told to email')) coursesView();
     });
+    // ── questions & answers: add, change, remove, move ──
+    $('#faq-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(e.target)), q = v.q.trim(), a = v.a.trim(), at = faqEdit;
+      if (!q || !a) return toast('type both the question and its answer', true);
+      if (await faqChange((list) => { if (at >= 0 && list[at]) list[at] = { q, a }; else list.push({ q, a }); return list; }, at >= 0 ? 'question saved' : 'question added — it is on the website now')) { faqOpen = true; faqEdit = -1; coursesView(); }
+    });
+    $('#faq-box', main).addEventListener('click', async (e) => {
+      const place = e.target.closest('[data-faq-place]');
+      if (place) { faqPlace = place.dataset.faqPlace; faqEdit = -1; faqOpen = true; return coursesView(); }
+      if (e.target.closest('[data-faq-cancel]')) { faqEdit = -1; faqOpen = true; return coursesView(); }
+      const row = e.target.closest('[data-faq]'); if (!row) return;
+      const i = +row.dataset.faq, x = faqList(pay, faqPlace)[i]; if (!x) return;
+      if (e.target.closest('[data-faq-edit]')) { faqEdit = i; faqOpen = true; await coursesView(); const f = $('#faq-form', main); if (f) { f.scrollIntoView({ block: 'center' }); f.q.focus(); } return; }
+      const move = e.target.closest('[data-faq-up]') ? -1 : e.target.closest('[data-faq-down]') ? 1 : 0;
+      if (move) { if (await faqChange((list) => { const j = i + move; if (j < 0 || j >= list.length) return null; [list[i], list[j]] = [list[j], list[i]]; return list; }, 'moved')) { faqOpen = true; faqEdit = -1; coursesView(); } return; }
+      if (e.target.closest('[data-faq-del]')) {
+        if (!confirm(`remove the question “${x.q}”?`)) return;
+        if (await faqChange((list) => { list.splice(i, 1); return list; }, 'question removed')) { faqOpen = true; faqEdit = -1; coursesView(); }
+      }
+    });
+
     // ── teachers: add, change, remove ──
     const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
     $('#teacher-form', main).addEventListener('submit', async (e) => {

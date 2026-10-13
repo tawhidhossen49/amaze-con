@@ -99,6 +99,7 @@
       (await soft(sb.from('site_text').select('key,value').like('key', 'pay.%'))).forEach((r) => {
         let v; try { v = JSON.parse(r.value); } catch (e) { return; }
         if (r.key === 'pay.settings') S.pay.settings = v || {};
+        else if (r.key === 'pay.faq') S.pay.faq = v && typeof v === 'object' ? v : {};
         else if (r.key.startsWith('pay.course.')) S.pay.course[r.key.slice(11)] = v || {};
       });
     } catch (e) {
@@ -217,6 +218,8 @@
   // The WhatsApp number learners can write to is set in the admin panel (academy → help for
   // learners) and kept with the payment settings. Without one, help falls back to email.
   const HELP_MAIL = 'learn@amazeconsortium.org';
+  // a list of questions saved in the admin panel, or null when that list was never changed
+  const savedFaq = (place) => { const l = S.pay.faq && S.pay.faq[place]; return Array.isArray(l) ? l.filter((x) => x && x.q) : null; };
   const waNumber = () => { let n = String(S.pay.settings.whatsapp || '').replace(/[^0-9]/g, ''); if (/^01\d{9}$/.test(n)) n = '88' + n; return n.length >= 10 && n.length <= 15 ? n : ''; };
   const WA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2a8.7 8.7 0 0 0-7.5 13.2L3.3 20.8l4.500-1.200A8.700 8.700 0 1 0 12 3.200z"/><path d="M9 8.200c-.3.700-.4 1.600.300 2.800.9 1.500 2.200 2.700 3.800 3.400 1 .4 1.800.2 2.400-.5l.3-.700-1.900-.900-.700.800c-1-.4-1.900-1.300-2.400-2.300l.7-.700-.800-1.900z"/></svg>';
   // a link to get help about something: whatsapp when a number is set, otherwise email
@@ -842,6 +845,13 @@
     draw();
     if (hashType) { const b = $(`.aca-block[data-kind="${hashType}"]`); if (b) setTimeout(() => b.scrollIntoView({ block: 'start' }), 400); }
 
+    // questions & answers: the list saved in the admin panel replaces the one the page came with;
+    // an empty list leaves the whole part out
+    const asked = savedFaq('academy'), faqEl = $('.faq');
+    if (asked && faqEl) {
+      faqEl.innerHTML = asked.map((x) => `<div class="faq-item"><button class="faq-q" type="button" aria-expanded="false"><span>${esc(x.q)}</span><i aria-hidden="true">+</i></button><div class="faq-a"><div><p>${esc(x.a)}</p></div></div></div>`).join('');
+      const part = faqEl.closest('section'); if (part) part.hidden = !asked.length;
+    }
     $$('.faq-q').forEach((q) => q.addEventListener('click', () => {
       const item = q.closest('.faq-item'), open = item.classList.contains('is-open');
       $$('.faq-item.is-open').forEach((x) => x.classList.remove('is-open'));
@@ -2240,7 +2250,7 @@
     const open = S.courses.filter((c) => fee(c).paid && ['pending', 'rejected'].includes(payState(c)));
     const payRows = open.length ? `<div class="dash-pay rise rise-3">${open.map((c) => { const bad = payState(c) === 'rejected'; return `<a href="${U.pay(c.id)}" class="${bad ? 'is-bad' : ''}"><div><strong>${bad ? 'we could not confirm your payment' : 'your payment is being checked'}</strong><span>${esc(c.title)} — ${bad ? 'open it to see why and try again' : 'usually within a day; the lessons then open by themselves'}</span></div><i aria-hidden="true">→</i></a>`; }).join('')}</div>` : '';
 
-    const faq = [
+    const faq = savedFaq('my') ? savedFaq('my').map((x) => [esc(x.q), esc(x.a)]) : [
       ['how do i join a course?', 'open it from the academy page and press “enrol”. a free one starts straight away. for a paid one you are taken to the payment page.'],
       ['how do i pay?', 'by bkash. the payment page shows our number and the amount. send it from your bkash app, then type two things on that page: the number you paid from and the transaction id (trxid) from the bkash message.'],
       ['i paid — why are my lessons still locked?', 'we check each payment by hand, usually within a day. you do not need to do anything: when it is confirmed, the lessons open by themselves and this page shows it.'],
@@ -2284,7 +2294,7 @@
             <p>stuck on a payment, a class or anything else? ${waNumber() ? 'send us a message and a person from the team will answer.' : 'send us an email and a person from the team will answer.'}</p>
             ${waNumber() ? `<a class="btn-wa" href="${esc(helpUrl('i need help with my learning'))}" target="_blank" rel="noopener noreferrer">${WA}<span>message us on whatsapp</span></a><small>+${esc(waNumber())}</small>` : `<a class="btn-outline" href="${esc(helpUrl('i need help with my learning'))}">email ${HELP_MAIL} <span class="btn-arrow" aria-hidden="true">→</span></a>`}
           </div>
-          <div><span class="lesson-kicker">questions people ask</span>
+          <div${faq.length ? '' : ' hidden'}><span class="lesson-kicker">questions people ask</span>
             <div class="faq">${faq.map(([q, a]) => `<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</div>
           </div>
         </div>

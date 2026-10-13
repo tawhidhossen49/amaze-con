@@ -222,11 +222,8 @@
         [`courses.sec.${id}.empty`, 'shown while there is nothing in it', `#${id} .aca-empty`],
       ] })),
       { name: 'why learn here', fields: [...sectHead('courses.why', 3), ...cells('courses.why', 3, 4, 'reason')] },
-      { name: 'questions', fields: [...sectHead('courses.faq', 4),
-        ...range(5).flatMap((i) => [
-          [`courses.faq.${i}.q`, `question ${i}`, `.faq-item:nth-child(${i}) .faq-q span`],
-          [`courses.faq.${i}.a`, `answer ${i}`, `.faq-item:nth-child(${i}) .faq-a p`],
-        ])] },
+      // the questions themselves are a list: add, change, remove and move them on the academy screen, under “questions & answers (faq)”
+      { name: 'questions — the heading (the questions are on the academy screen)', fields: [...sectHead('courses.faq', 4)] },
       cta('courses'),
     ],
   };
