@@ -93,14 +93,15 @@
   // a row's “more ▾” list closes when anything else is pressed
   document.addEventListener('click', (e) => { $$('details.menu[open]').forEach((m) => { if (!m.contains(e.target) || e.target.closest('.menu-in')) m.open = false; }); });
   // parts of a form that belong to one answer only:  data-when="pay_paid=1"  or  data-when="kind=program,webinar"
-  // (several answers: separate them with |, as in  data-when="pay_paid=1|where=out")
+  // (several answers: separate them with |, as in  data-when="pay_paid=1|where=out";
+  //  two things at once: join them with &, as in  data-when="where=out&filled=0")
   function syncShown(form) {
     $$('[data-when]', form).forEach((el) => {
-      el.hidden = !el.dataset.when.split('|').some((rule) => {
+      el.hidden = !el.dataset.when.split('|').some((rules) => rules.split('&').every((rule) => {
         const [name, list] = rule.split('=');
         const field = form.querySelector(`[name="${name}"]`);
         return !!field && list.split(',').includes(field.value);
-      });
+      }));
     });
   }
 
@@ -973,16 +974,18 @@
           <div class="field"><span>what is it?${needs}</span>${choice('kind', [['course', 'course', 'lessons people take at their own pace', '▤'], ['program', 'program', 'a longer guided track with a start date', '◈'], ['webinar', 'webinar', 'one live session on a date', '◉']], noun, 'choice--cards choice--3')}</div>
           <div class="field"><span>where do people take it?</span>${choice('where', [['here', 'on this website', 'you add the lessons, prices and live classes here', '⌂'], ['out', 'on another website', 'a partner’s or subsidiary’s — the card sends people there', '↗']], own.external ? 'out' : 'here', 'choice--2')}</div>
           <label class="field" data-when="where=out"><span>the link to it on the other website</span><input name="external" inputmode="url" autocomplete="off" value="${esc(own.external || '')}" placeholder="https://their-website.com/the-course">
-            <small class="hint">open their course in your browser, copy the address from the top, and paste it here. when someone presses this ${noun} on your academy page, that address opens beside your site.</small></label>
-          <label class="field" data-when="where=out"><span>whose is it? — shown on its card (optional)</span><input name="external_by" autocomplete="off" maxlength="60" value="${esc(own.external_by || '')}" placeholder="e.g. simplespeek"></label>
-          <label class="field"><span>its name</span><input name="title" required value="${esc(course.title)}" placeholder="e.g. canva for beginners"></label>
-          <label class="field"><span>one sentence about it — shown on its card</span><input name="tagline" value="${esc(course.tagline || '')}" placeholder="e.g. design posts, posters and slides from zero"></label>
+            <small class="hint">open their course in your browser, copy the address from the top, and paste it here. the name, picture and price are read from their website for you.</small></label>
+          <input type="hidden" name="filled" value="0">
+          <div class="ext-read" id="ext-read" data-when="where=out" aria-live="polite">${own.external ? `<button class="btn btn--sm" type="button" data-read-link>read it again from their website</button><small class="hint">use this when they change the name, picture or price on their side.</small>` : ''}</div>
+          <label class="field" data-when="where=out&filled=0"><span>whose is it? — shown on its card (optional)</span><input name="external_by" autocomplete="off" maxlength="60" value="${esc(own.external_by || '')}" placeholder="e.g. simplespeek"></label>
+          <label class="field" data-when="where=here|filled=0"><span>its name</span><input name="title" required value="${esc(course.title)}" placeholder="e.g. canva for beginners"></label>
+          <label class="field" data-when="where=here|filled=0"><span>one sentence about it — shown on its card</span><input name="tagline" value="${esc(course.tagline || '')}" placeholder="e.g. design posts, posters and slides from zero"></label>
           <label class="field" data-when="kind=program,webinar"><span>when does it start?${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
             <small class="hint">use your own clock — each visitor sees it in their own time. leave it empty if there is no date yet.</small></label>
-          <div class="field"><span>the picture on its card (a wide picture works best)</span>${imageField('cover', course.cover)}</div>
+          <div class="field" data-when="where=here|filled=0"><span>the picture on its card (a wide picture works best)</span>${imageField('cover', course.cover)}</div>
         </section>
 
-        <section class="card">
+        <section class="card" data-when="where=here|filled=0">
           <h2 class="card-title">the price</h2>
           <div class="field" data-when="where=here"><span>is it free or paid?</span>${choice('pay_paid', [['1', 'paid', 'learners pay by bkash and you confirm it', '৳'], ['0', 'free', 'anyone with an account can enrol', '✓']], own.paid === false && !own.external ? '0' : '1', 'choice--2')}</div>
           <p class="lede" data-when="where=out" style="margin:14px 0 0;">people pay on the other website, not here. if you type a price it is only shown on the card, so visitors know what to expect. leave both boxes empty to show no price.</p>
@@ -1075,6 +1078,48 @@
 
     $('[data-back]', main).addEventListener('click', () => go('courses'));
     syncShown($('#course-form', main));
+
+    // ── on another website: paste the link, and its card is read from their website ──
+    {
+      const form = $('#course-form', main), box = $('#ext-read', main), link = form.elements.external, unit = String(pay.settings.currency || '৳').trim();
+      const isLink = (x) => /^https?:\/\/[^\s.]+\.[^\s]+$/i.test(x);
+      const put = (name, value) => { const el = form.elements[name]; el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); };
+      const byHand = (note) => {
+        form.elements.filled.value = '0'; syncShown(form);
+        box.innerHTML = `${note ? `<p class="ext-note">${esc(note)}</p>` : ''}<button class="btn btn--sm" type="button" data-read-link>read it from their website</button>`;
+      };
+      let last = own.external || '', turn = 0;
+      const read = async () => {
+        const url = link.value.trim();
+        if (!isLink(url)) return;
+        last = url; const mine = ++turn;
+        box.innerHTML = `<p class="ext-note ext-note--busy">reading their website…</p>`;
+        let found = null;
+        try { const { data } = await sb.functions.invoke('read-link', { body: { url } }); found = data; } catch (e) {}
+        if (mine !== turn) return;
+        if (!found || found.error || !found.title) return byHand('we could not read that page by ourselves — fill in the boxes below instead.');
+        const about = String(found.about || ''), short = about.length > 150 ? about.slice(0, 150).replace(/\s+\S*$/, '') + '…' : about;
+        put('title', found.title); put('tagline', short); put('cover', found.image || '');
+        put('pay_price', found.free ? '' : found.price || ''); put('pay_was', found.free ? '' : found.was || '');
+        if (found.by) put('external_by', found.by);
+        if (about) put('description', about);
+        if (found.duration) put('duration', found.duration);
+        form.elements.filled.value = '1'; syncShown(form);
+        const price = found.free ? 'free' : found.price ? `${esc(unit)}${esc(found.price)}${found.was ? ` <s>${esc(unit)}${esc(found.was)}</s>` : ''}` : '';
+        box.innerHTML = `<p class="ext-note ext-note--ok">✓ read from their website — this is the card people will see</p>
+          <div class="ext-card"><div class="ext-pic">${found.image ? `<img src="${esc(found.image)}" alt="">` : 'no picture'}</div>
+            <div class="ext-body"><b>${esc(found.title)}</b>${short ? `<span>${esc(short)}</span>` : ''}<small>${[price, found.duration && esc(found.duration), found.by && 'by ' + esc(found.by)].filter(Boolean).join(' · ')}</small></div></div>
+          <div class="ext-acts"><button class="btn btn--sm" type="button" data-by-hand>change something by hand</button><button class="btn btn--sm" type="button" data-read-link>read it again</button></div>`;
+      };
+      box.addEventListener('click', (e) => {
+        if (e.target.closest('[data-read-link]')) { if (isLink(link.value.trim())) read(); else toast('paste the link first — it starts with https://', true); }
+        if (e.target.closest('[data-by-hand]')) byHand('');
+      });
+      // a pasted or changed link is read straight away
+      const changed = () => { const url = link.value.trim(); if (form.elements.where.value === 'out' && isLink(url) && url !== last) read(); };
+      link.addEventListener('change', changed);
+      link.addEventListener('paste', () => setTimeout(changed, 50));
+    }
 
     // ── saved teachers: press one and the three boxes are filled in ──
     const cf = $('#course-form', main);
