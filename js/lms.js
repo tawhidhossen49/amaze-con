@@ -605,7 +605,7 @@
       +n.learners > 0 ? `<span class="b">${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}</span>` : '',
     ].join('');
     const foot = out
-      ? `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : 'opens on their website'}</small></div><span class="ucard-btn">visit ↗</span>`
+      ? `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : 'opens on their website'}</small></div><span class="ucard-btn">view ${type} ↗</span>`
       : going
       ? `<div class="ucard-price"><strong>${st.pct === 100 ? 'completed' : st.pct + '%'}</strong><small>${st.done} of ${st.count} lessons</small></div><span class="ucard-btn">${st.pct === 100 ? 'review' : 'continue'}</span>`
       : `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : `${st.count} lesson${st.count === 1 ? '' : 's'} · ${length(st.minutes)}`}</small></div><span class="ucard-btn">view ${type}</span>`;
@@ -809,7 +809,7 @@
             ${c.tagline ? `<p class="feat-tag">${esc(c.tagline)}</p>` : ''}
             <ul class="feat-facts">${facts.map(([k, v]) => `<li><small>${k}</small><span>${v}</span></li>`).join('')}</ul>
             <div class="feat-foot">
-              <a class="btn-primary" ${link}>${out ? 'visit on ' + esc(out.host) : started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">${out ? '↗' : '→'}</span></a>
+              <a class="btn-primary" ${link}>${out ? 'view ' + type + ' on ' + esc(out.host) : started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">${out ? '↗' : '→'}</span></a>
               <span class="feat-by">${out && out.by ? 'by' : 'with'} <b>${esc((out && out.by) || c.instructor_name || 'amaze consortium')}</b></span>
             </div>
           </div>
@@ -996,7 +996,7 @@
           </aside>
         </div>
       </section>
-      ${st.count || out ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${out ? 'on ' + esc(out.host) : going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${out ? 'visit' : going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
+      ${st.count || out ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${out ? 'on ' + esc(out.host) : going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${out ? 'view ' + noun + ' ↗' : going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
 
     // on a phone the main button stays in reach once the one at the top has scrolled away
     const sticky = $('#sticky-cta', root), cta = $('#course-cta', root);
