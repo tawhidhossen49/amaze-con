@@ -102,7 +102,7 @@
         </div>
       </div>
 
-      <!-- browsing: three sections, filled by js/lms.js. their headings and "nothing yet" lines are editable in the admin panel -->
+      <!-- browsing: one section each, filled by js/lms.js. their headings and "nothing yet" lines are editable in the admin panel -->
       <div id="academy-browse">
         <div id="rail-top"></div>
         <div class="aca-block" id="courses" data-kind="course">
@@ -114,6 +114,17 @@
           </div>
           <div class="aca-cards" hidden></div>
           <p class="aca-empty">the first courses are being prepared — check back soon.</p>
+        </div>
+        <!-- entries that live on another website (a subsidiary's or a partner's); left out of the page while there are none -->
+        <div class="aca-block" id="subsidiaries" data-kind="out">
+          <div class="aca-head">
+            <div>
+              <h3 class="aca-title">From our subsidiaries</h3>
+            </div>
+            <a class="aca-all" href="#catalogue" hidden>all from our subsidiaries <span class="aca-arrow" aria-hidden="true">→</span></a>
+          </div>
+          <div class="aca-cards" hidden></div>
+          <p class="aca-empty">courses from our subsidiaries will be listed here.</p>
         </div>
         <div class="aca-block" id="programs" data-kind="program">
           <div class="aca-head">

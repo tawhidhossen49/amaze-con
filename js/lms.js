@@ -699,7 +699,9 @@
     const SHOWN = 6;   // cards per section before "all …" takes over
     $('#lms-notice').innerHTML = notice();
 
-    const of = (type) => S.courses.filter((c) => typeOf(c) === type);
+    // entries on another website have a section of their own ("out"); they are never mixed in with ours
+    const of = (type) => S.courses.filter((c) => (type === 'out' ? !!outside(c) : !outside(c) && typeOf(c) === type));
+    const OUT = (($('.aca-block[data-kind="out"] .aca-title') || {}).textContent || 'from our subsidiaries').trim().toLowerCase();
     const num = (c, k) => +((S.numbers[c.id] || {})[k] || 0);
     const SORTS = {
       recommended: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || a.sort_order - b.sort_order,
@@ -715,7 +717,7 @@
     };
 
     let active = 'all';
-    chips.innerHTML = [['all', 'all', S.courses.length], ...Object.keys(TYPES).map((t) => [t, TYPES[t], of(t).length])]
+    chips.innerHTML = [['all', 'all', S.courses.length], ...Object.keys(TYPES).map((t) => [t, TYPES[t], of(t).length]), ...(of('out').length ? [['out', OUT, of('out').length]] : [])]
       .map(([t, label, n]) => `<button class="chip${t === 'all' ? ' is-active' : ''}" data-type="${t}">${label}<span>${n}</span></button>`).join('');
     category.innerHTML = '<option value="">any category</option>' + [...new Set(S.courses.map((c) => c.category))].map((c) => `<option>${esc(c)}</option>`).join('');
     level.innerHTML = '<option value="">any level</option>' + [...new Set(S.courses.map((c) => c.level))].map((l) => `<option>${esc(l)}</option>`).join('');
@@ -737,16 +739,17 @@
           $('.aca-cards', block).hidden = !list.length;
           $('.aca-empty', block).hidden = !!list.length;
           $('.aca-all', block).hidden = !list.length;
+          block.classList.toggle('is-empty', type === 'out' && !list.length);
         });
         return;
       }
       const term = search.value.trim().toLowerCase();
-      let list = S.courses.filter((c) => (active === 'all' || typeOf(c) === active)
+      let list = (active === 'all' ? S.courses : of(active)).filter((c) => true
         && (!category.value || c.category === category.value)
         && (!level.value || c.level === level.value)
         && (!term || `${c.title} ${c.tagline} ${c.category} ${c.description} ${c.instructor_name} ${typeOf(c)} ${(c.tags || []).join(' ')}`.toLowerCase().includes(term)));
       list = sort.value === 'recommended' ? schedule(list.sort(SORTS.recommended)) : list.sort(SORTS[sort.value] || SORTS.recommended);
-      const what = active === 'all' ? ['result', 'results'] : [active, TYPES[active]];
+      const what = active === 'all' ? ['result', 'results'] : active === 'out' ? [OUT, OUT] : [active, TYPES[active]];
       results.innerHTML = list.length
         ? `<h3 class="rail-title">${list.length} ${list.length === 1 ? what[0] : what[1]}</h3><div class="ugrid">${list.map((c, i) => card(c, i)).join('')}</div>`
         : `<p class="lms-empty">${active !== 'all' && !of(active).length ? esc(($(`.aca-block[data-kind="${active}"] .aca-empty`) || {}).textContent || 'nothing here yet.') : 'nothing matches that — try another word, level or category.'}</p>`;
@@ -769,7 +772,7 @@
     wireSaves(browse, () => { if (browsing()) draw(); });
     wireSaves(results);
     // a link such as academy/index.html#webinars opens the page at that section
-    const hashType = { '#courses': 'course', '#programs': 'program', '#webinars': 'webinar' }[location.hash];
+    const hashType = { '#courses': 'course', '#programs': 'program', '#webinars': 'webinar', '#subsidiaries': 'out' }[location.hash];
 
     // ── the featured card ────────────────────────────────────────────────────
     // Whatever is marked "featured" in the admin panel is shown above everything

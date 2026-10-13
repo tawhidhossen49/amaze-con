@@ -214,8 +214,8 @@
         ['courses.feat.show', 'show the featured card at the top of the page', '#aca-feature-wrap', 'visible'],
         ['courses.feat.label', 'small label above the card', '#aca-feature .feat-label'],
       ] },
-      // the three sections of the academy; what is listed in each comes from the courses screen
-      ...[['courses', 'courses'], ['programs', 'programs'], ['webinars', 'webinars']].map(([id, name]) => ({ name: `section — ${name}`, fields: [
+      // the sections of the academy; what is listed in each comes from the courses screen
+      ...[['courses', 'courses'], ['subsidiaries', 'from other websites'], ['programs', 'programs'], ['webinars', 'webinars']].map(([id, name]) => ({ name: `section — ${name}`, fields: [
         [`courses.sec.${id}.show`, 'show this section', `#${id}`, 'visible'],
         [`courses.sec.${id}.title`, 'heading', `#${id} .aca-title`],
         [`courses.sec.${id}.all`, '“all …” link text', `#${id} .aca-all`],

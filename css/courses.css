@@ -1241,4 +1241,5 @@ html.vp-open, html.vp-open body { overflow: hidden; }
 
 /* an entry that lives on another website */
 .course-block[hidden], .side-card[hidden] { display: none; }
+.aca-block.is-empty { display: none; }
 .b.b--out { border-color: rgba(46,242,162,0.5); color: var(--green); text-transform: none; }
