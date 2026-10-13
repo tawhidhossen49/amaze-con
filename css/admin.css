@@ -413,3 +413,31 @@ body.admin .quiz-opt.is-right input[data-otext] { border-color: var(--green); }
 .ext-body small s { color: var(--faint); }
 .ext-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 640px) { .ext-card { grid-template-columns: 1fr; } }
+
+/* reports: the academy / the website */
+.rtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+.rtab { display: grid; gap: 4px; padding: 16px 18px; text-align: left; background: none; border: 1px solid var(--line); color: var(--muted); font: inherit; cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.rtab b { font-size: 17px; color: var(--fg); }
+.rtab small { font-size: 12.5px; color: var(--faint); }
+.rtab:hover { border-color: rgba(46,242,162,0.45); }
+.rtab.is-active { border-color: var(--green); background: rgba(46,242,162,0.08); }
+.rtab.is-active b { color: var(--green); }
+.ranks li > span { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.ranks li > span > small { flex: none; min-width: 20px; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ranks li > small { text-align: right; font-variant-numeric: tabular-nums; }
+.ranks li { grid-template-columns: minmax(180px, 1.3fr) minmax(0, 1.4fr) 64px 48px; }
+.ranks .on-page { margin-left: 4px; font-style: normal; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.ranks .flag { font-style: normal; font-size: 16px; }
+.ranks--tight li { grid-template-columns: minmax(150px, 1.2fr) minmax(0, 1fr) 52px 42px; gap: 10px; }
+.rank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 34px; }
+.rank-grid section { min-width: 0; padding: 0; margin: 0; max-width: none; }
+.kpi strong { overflow-wrap: anywhere; }
+.how-counted { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line); }
+.how-counted b { color: var(--fg); }
+@media (max-width: 900px) { .rank-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .rtabs { grid-template-columns: minmax(0, 1fr); }
+  .ranks li, .ranks--tight li { grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 12px; }
+  .ranks li .meter { grid-column: 1 / -1; grid-row: 2; }
+  .ranks li > span { white-space: normal; flex-wrap: wrap; }
+}

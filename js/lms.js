@@ -701,7 +701,7 @@
 
     // entries on another website have a section of their own ("out"); they are never mixed in with ours
     const of = (type) => S.courses.filter((c) => (type === 'out' ? !!outside(c) : !outside(c) && typeOf(c) === type));
-    const OUT = (($('.aca-block[data-kind="out"] .aca-title') || {}).textContent || 'from our subsidiaries').trim().toLowerCase();
+    const OUT = (($('.aca-block[data-kind="out"] .aca-title') || {}).textContent || 'from our subsidiaries and partners').trim().toLowerCase();
     const num = (c, k) => +((S.numbers[c.id] || {})[k] || 0);
     const SORTS = {
       recommended: (a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || a.sort_order - b.sort_order,

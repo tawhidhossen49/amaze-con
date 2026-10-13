@@ -375,7 +375,7 @@
     lists: ['people & logos', listsView, '☺', 'executives, advisors, schools, subsidiaries and partners'],
     courses: ['academy', coursesView, '▤', 'courses, programs and webinars — their lessons, prices and live classes'],
     learners: ['learners & payments', learnersView, '৳', 'check bkash payments and see who is enrolled'],
-    reports: ['reports', reportsView, '▥', 'how the academy is doing: money, enrolments, visits — and a log of everything that happened'],
+    reports: ['reports', reportsView, '▥', 'how the academy and the website are doing: money, enrolments, visitors, countries, popular pages — and a log of everything that happened'],
     admins: ['admins', adminsView, '⚿', 'who is allowed to use this panel'],
   };
   let main, savebar, dirtyGuard = () => false;
@@ -1226,8 +1226,9 @@
       if (clash) return toast('there is already a course with that title — choose a different one', true);
       if ((await run(sb.from('courses').insert({ ...row, id: newId }))) && (await paySave('pay.course.' + newId, fee, 'created — now add a module'))) go('courses', newId);
     });
-    if (!id || own.external) return;
-    courseExtras($('#course-extras', main), id, lessons);
+    if (!id) return;
+    // an entry on another website has no lessons, reviews or questions here — but it can still be deleted
+    if (!own.external) courseExtras($('#course-extras', main), id, lessons);
 
     main.onsubmit = async (e) => {
       const f = e.target; if (!f.matches('[data-mform]')) return;
@@ -1242,8 +1243,14 @@
       const t = e.target;
       if (t.closest('[data-cancel]')) return reload();
       if (t.closest('[data-delete-course]')) {
-        if (!confirm(`delete “${course.title}” with all its lessons and every learner's progress in it? this cannot be undone.`)) return;
-        if (await run(sb.from('courses').delete().eq('id', id), 'course deleted')) go('courses');
+        if (!confirm(own.external
+          ? `remove “${course.title}” from your academy? it stays on the other website — only its card here is deleted.`
+          : `delete “${course.title}” with all its lessons and every learner's progress in it? this cannot be undone.`)) return;
+        if (await run(sb.from('courses').delete().eq('id', id), noun + ' deleted')) {
+          // its price and link go with it, so a new entry with the same name starts clean
+          await sb.from('site_text').delete().eq('key', 'pay.course.' + id);
+          go('courses');
+        }
         return;
       }
       if (t.closest('[data-add-module]')) {
@@ -1540,7 +1547,7 @@
   // course, coupons, and a log of everything that happened. All of it is worked out by the
   // database (academy_report); this only draws it.
   const PERIODS = [['7', 'last 7 days'], ['30', 'last 30 days'], ['month', 'this month'], ['90', 'last 90 days'], ['year', 'this year'], ['all', 'all time']];
-  let reportPeriod = '30', reportCourse = '', logKind = '', logShown = 30;
+  let reportPeriod = '30', reportCourse = '', logKind = '', logShown = 30, reportTab = 'academy';
   function periodRange(key) {
     const now = new Date(), start = new Date(now); start.setHours(0, 0, 0, 0);
     if (key === 'all') return [null, null];
@@ -1586,7 +1593,132 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
 
+
+  // ── reports: the website ───────────────────────────────────────────────────
+  // Visitors, countries, popular pages and the buttons people press, on every page of the
+  // website. js/track.js counts, the database adds up (site_report); this only draws it.
+  const REPORT_TABS = [['academy', 'the academy', 'money, enrolments, learners'], ['site', 'the website', 'visitors, countries, pages, buttons']];
+  const reportTabs = () => `<div class="rtabs" role="tablist">${REPORT_TABS.map(([k, t, s]) => `<button type="button" role="tab" class="rtab${k === reportTab ? ' is-active' : ''}" data-rtab="${k}" aria-selected="${k === reportTab}"><b>${t}</b><small>${s}</small></button>`).join('')}</div>`;
+  const PAGE_NAMES = { '/': 'home page', '/academy': 'academy — all courses', '/academy/my-learning': 'my learning', '/academy/certificate': 'a certificate', '/apprenticeship': 'apprenticeship', '/structure': 'structure', '/tos': 'terms of service', '/privacy': 'privacy', '/code': 'code of conduct' };
+  function pageName(p) {
+    if (PAGE_NAMES[p]) return PAGE_NAMES[p];
+    const m = /^\/academy\/([^/]+)(?:\/(learn|pay))?$/.exec(p);
+    if (m) return `${m[1].replace(/-/g, ' ')} — ${m[2] === 'learn' ? 'lessons' : m[2] === 'pay' ? 'payment page' : 'course page'}`;
+    return p.replace(/^\//, '').replace(/[-_]/g, ' ').replace(/\//g, ' › ') || p;
+  }
+  function countryName(code) {
+    if (!/^[A-Z]{2}$/.test(code)) return ['', 'unknown'];
+    let name = code; try { name = new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code; } catch (e) {}
+    return [String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)), name.toLowerCase()];
+  }
+  async function siteReportView() {
+    const [from, to] = periodRange(reportPeriod);
+    const ymd = (iso) => { const d = new Date(iso), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+    const old = $('.reports', main); if (old) old.classList.add('is-loading');
+    const rep = await sb.rpc('site_report', { p_from: from ? ymd(from) : null, p_to: to ? ymd(to) : null });
+    const wire = (extra) => { main.onchange = null; main.onclick = (e) => {
+      const t = e.target.closest('[data-period], [data-rtab], [data-csv]'); if (!t) return;
+      if (t.dataset.rtab) { reportTab = t.dataset.rtab; return reportsView(); }
+      if (t.dataset.period) { reportPeriod = t.dataset.period; return reportsView(); }
+      if (t.dataset.csv && extra) extra();
+    }; };
+    if (rep.error || !rep.data || !rep.data.now) {
+      const missing = /does not exist|schema cache|could not find|404/i.test((rep.error && rep.error.message) || '');
+      main.innerHTML = head('reports', 'how the website is doing.') + `<div class="reports">${reportTabs()}<p class="empty">${missing ? 'one step left to switch website statistics on: open supabase → sql editor, paste the file <b>seed/website-backend-12-site-stats.sql</b> and press run (once). counting starts the moment it is done.' : esc(plain((rep.error && rep.error.message) || 'the report could not be loaded — try again.'))}</p></div>`;
+      return wire();
+    }
+    const S = rep.data, now = S.now, was = S.before;
+    const periodName = (PERIODS.find(([k]) => k === reportPeriod) || [])[1];
+    const beforeName = { 7: 'the 7 days before', 30: 'the 30 days before', 90: 'the 90 days before', month: 'the same stretch before', year: 'the same stretch before' }[reportPeriod];
+    const byMonth = S.step === 'month', stepName = byMonth ? 'month' : 'day';
+    const label = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', byMonth ? { month: 'short', year: '2-digit' } : { day: 'numeric', month: 'short' }).toLowerCase();
+    const full = (d) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', byMonth ? { month: 'long', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase();
+    const pts = (key) => S.series.map((x) => ({ label: label(x.d), full: full(x.d), value: +x[key] || 0 }));
+    const delta = (key) => {
+      if (!was) return `<em class="delta">${S.since ? 'no earlier period to compare with' : ''}</em>`;
+      const a = +now[key] || 0, b = +was[key] || 0;
+      if (a === b) return `<em class="delta">the same as ${beforeName}</em>`;
+      if (!b) return `<em class="delta is-up"><i aria-hidden="true">▲</i> up from none in ${beforeName}</em>`;
+      const pct = Math.round(((a - b) / b) * 100), up = a > b;
+      return `<em class="delta ${up ? 'is-up' : 'is-down'}"><i aria-hidden="true">${up ? '▲' : '▼'}</i> ${Math.abs(pct)}% ${up ? 'more' : 'less'} than ${beforeName}</em>`;
+    };
+    const tile = (label, value, key, hint) => `<div class="kpi"><span>${label}</span><strong>${value}</strong>${key ? delta(key) : ''}${key ? spark(S.series.map((x) => +x[key] || 0)) : ''}${hint ? `<small>${hint}</small>` : ''}</div>`;
+    // a list from most to least: the name, a bar, the count and its share of the whole
+    const rank = (rows, name, o = {}) => {
+      const total = rows.reduce((a, r) => a + (+r.n || 0), 0), top = Math.max(...rows.map((r) => +r.n || 0), 1);
+      return rows.length ? `<ol class="funnel ranks${o.tight ? ' ranks--tight' : ''}">${rows.slice(0, o.max || rows.length).map((r, i) => `<li><span title="${esc(o.title ? o.title(r.key) : r.key)}">${o.numbered ? `<small>${i + 1}</small>` : ''}${name(r.key)}</span><div class="meter"><i style="width:${(r.n / top) * 100}%"></i></div><b>${num(r.n)}</b><small>${total ? Math.round((r.n / total) * 100) : 0}%</small></li>`).join('')}</ol>` : `<p class="empty">${o.none || 'nothing counted in this period yet.'}</p>`;
+    };
+    const sinceText = S.since ? new Date(S.since + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).toLowerCase() : '';
+    const quiet = !(+now.views || +now.visitors);
+    const click = (key) => { const [words, where] = key.split('  ·  '); return [words || key, where || '']; };
+    const best = S.pages[0], land = S.countries[0];
+
+    main.innerHTML = head('reports', 'how the website is doing. choose a period — every number, chart and list below follows it.',
+      '<button class="btn" data-csv="site">download as a spreadsheet</button>')
+      + `<div class="reports">
+        ${reportTabs()}
+        <div class="period" role="group" aria-label="period">${PERIODS.map(([k, t]) => `<button type="button" class="chip${k === reportPeriod ? ' is-active' : ''}" data-period="${k}" aria-pressed="${k === reportPeriod}">${t}</button>`).join('')}</div>
+        ${quiet ? `<p class="notice-soft"><b>${S.since ? `nobody was counted in ${periodName}.` : 'counting has just been switched on.'}</b> every visitor from now on is counted by itself — there is nothing to set up. your own visits are left out on the browser where you use this admin panel.</p>` : ''}
+
+        <div class="kpis">
+          ${tile('visitors', num(now.visitors), 'visitors', `people, counted once a day each${+now.visitors ? ` · ${Math.round((now.fresh / now.visitors) * 100)}% here for the first time` : ''}`)}
+          ${tile('visits', num(now.visits), 'visits', +now.visitors ? `${num(now.visits / now.visitors)} visit${now.visits / now.visitors === 1 ? '' : 's'} per visitor` : 'each time someone opens the website')}
+          ${tile('pages opened', num(now.views), 'views', +now.visits ? `${num(now.views / now.visits)} pages in a visit, on average` : 'every page, every time')}
+          ${tile('buttons and links pressed', num(now.clicks), 'clicks', +now.views ? `${num(now.clicks / now.views)} for every page opened` : 'every press, on every page')}
+          ${tile('most popular page', best ? esc(pageName(best.key)) : '—', '', best ? `opened ${num(best.n)} time${best.n === 1 ? '' : 's'}` : 'no page opened yet')}
+          ${tile('most visitors are from', land ? `${countryName(land.key)[0]} ${esc(countryName(land.key)[1])}` : '—', '', land ? `${num(land.n)} of ${num(S.countries.reduce((a, r) => a + r.n, 0))} visitors` : 'no visitor counted yet')}
+        </div>
+
+        <div class="charts">
+          ${columnChart(pts('visitors'), { title: 'visitors', sub: `people on the website, per ${stepName}`, fmt: num, stepName, none: 'no visitors counted in this period.' })}
+          ${columnChart(pts('views'), { title: 'pages opened', sub: `how much was looked at, per ${stepName}`, fmt: num, stepName, none: 'no pages opened in this period.' })}
+          ${columnChart(pts('visits'), { title: 'visits', sub: `times the website was opened, per ${stepName}`, fmt: num, stepName, none: 'no visits counted in this period.' })}
+          ${columnChart(pts('clicks'), { title: 'buttons and links pressed', sub: `how much people did, per ${stepName}`, fmt: num, stepName, none: 'nothing was pressed in this period.' })}
+        </div>
+
+        <div class="h2"><span>most popular pages <small>${S.pages.length}</small></span></div>
+        <p class="lede">every page of the website, from the most opened to the least. the percentage is its share of all pages opened.</p>
+        ${rank(S.pages, (k) => esc(pageName(k)), { numbered: true, title: (k) => k, none: 'no page has been opened in this period.' })}
+
+        <div class="h2"><span>buttons and links people press <small>${S.clicks.length}</small></span></div>
+        <p class="lede">the words on the button or link, and the page it is on. this shows what people actually want from each page.</p>
+        ${rank(S.clicks, (k) => { const [w, p] = click(k); return `“${esc(w)}”<em class="on-page">on ${esc(pageName(p))}</em>`; }, { numbered: true, none: 'nothing has been pressed in this period.' })}
+
+        <div class="rank-grid">
+          <section><div class="h2"><span>where visitors are <small>${S.countries.length}</small></span></div>
+            ${rank(S.countries, (k) => { const [flag, name] = countryName(k); return `${flag ? `<i class="flag" aria-hidden="true">${flag}</i>` : ''}${esc(name)}`; }, { tight: true, none: 'no visitor counted yet.' })}</section>
+          <section><div class="h2"><span>how they found the website <small>${S.refs.length}</small></span></div>
+            ${rank(S.refs, (k) => esc(k), { tight: true, none: 'no visit counted yet.' })}</section>
+          <section><div class="h2"><span>phone or computer</span></div>
+            ${rank(S.devices, (k) => esc(k), { tight: true, none: 'no visit counted yet.' })}</section>
+          <section><div class="h2"><span>browser</span></div>
+            ${rank(S.browsers, (k) => esc(k), { tight: true, none: 'no visit counted yet.' })}</section>
+        </div>
+
+        <div class="h2"><span>the first page people land on</span></div>
+        <p class="lede">where a visit begins — the page a link, a search or a post brought them to.</p>
+        ${rank(S.entries, (k) => esc(pageName(k)), { numbered: true, title: (k) => k, none: 'no visit counted yet.' })}
+
+        <p class="lede how-counted"><b>how this is counted.</b> ${sinceText ? `counting started on ${sinceText}. ` : ''}a visitor is one browser, counted once a day; a visit is one time the website is opened. only totals are kept — no names, no ip addresses, no cookies — so nobody is followed around, and this cannot show what one particular person did. the admin panel is never counted, and neither is the browser you use it from. the academy tab has the detail for learners, enrolments and money.</p>
+      </div>`;
+    wire(() => {
+      const list = (title, rows, f = (k) => [k]) => [[title], ...rows.map((r) => [...f(r.key), r.n]), []];
+      downloadCsv(`website-report-${reportPeriod === 'all' ? 'all-time' : reportPeriod}-${new Date().toISOString().slice(0, 10)}.csv`, [
+        ['amaze consortium website — ' + periodName], [],
+        ['visitors', now.visitors], ['first-time visitors', now.fresh], ['visits', now.visits], ['pages opened', now.views], ['buttons and links pressed', now.clicks], [],
+        [stepName, 'visitors', 'visits', 'pages opened', 'buttons pressed'], ...S.series.map((x) => [x.d, x.visitors, x.visits, x.views, x.clicks]), [],
+        ...list('page, address, times opened', S.pages, (k) => [pageName(k), k]),
+        ...list('button or link, page, times pressed', S.clicks, (k) => { const [w, p] = click(k); return [w, pageName(p)]; }),
+        ...list('country, code, visitors', S.countries, (k) => [countryName(k)[1], k]),
+        ...list('found the website through, visits', S.refs), ...list('device, visits', S.devices), ...list('browser, visits', S.browsers),
+        ...list('first page of a visit, address, visits', S.entries, (k) => [pageName(k), k]),
+      ]);
+      toast('the spreadsheet was saved to your downloads');
+    });
+  }
+
   async function reportsView() {
+    if (reportTab === 'site') return siteReportView();
     const [from, to] = periodRange(reportPeriod);
     let tz = 'Asia/Dhaka'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (e) {}
     // while a new period loads, what is on screen stays (dimmed) instead of jumping
@@ -1596,7 +1728,8 @@
       (logKind ? sb.from('activity_log').select('*').eq('kind', logKind) : sb.from('activity_log').select('*')).order('at', { ascending: false }).limit(logShown + 1),
     ]);
     if (rep.error || !rep.data || !rep.data.now) {
-      main.innerHTML = head('reports', 'how the academy is doing.') + `<p class="empty">${/does not exist|schema cache|404/i.test((rep.error && rep.error.message) || '') ? 'one step left to switch reports on: open supabase → sql editor, paste the file <b>seed/website-backend-11-reports.sql</b> and press run (once).' : esc(plain((rep.error && rep.error.message) || 'the report could not be loaded — try again.'))}</p>`;
+      main.onclick = (e) => { const t = e.target.closest('[data-rtab]'); if (t) { reportTab = t.dataset.rtab; reportsView(); } };
+      main.innerHTML = head('reports', 'how the academy is doing.') + reportTabs() + `<p class="empty">${/does not exist|schema cache|404/i.test((rep.error && rep.error.message) || '') ? 'one step left to switch reports on: open supabase → sql editor, paste the file <b>seed/website-backend-11-reports.sql</b> and press run (once).' : esc(plain((rep.error && rep.error.message) || 'the report could not be loaded — try again.'))}</p>`;
       return;
     }
     const R = rep.data, now = R.now, was = R.before, cur = R.currency || '৳';
@@ -1645,6 +1778,7 @@
     main.innerHTML = head('reports', 'how the academy is doing. choose a period — every number, chart and table below follows it.',
       '<button class="btn" data-csv="courses">download as a spreadsheet</button>')
       + `<div class="reports">
+        ${reportTabs()}
         <div class="period" role="group" aria-label="period">${PERIODS.map(([k, t]) => `<button type="button" class="chip${k === reportPeriod ? ' is-active' : ''}" data-period="${k}" aria-pressed="${k === reportPeriod}">${t}</button>`).join('')}</div>
         ${quiet ? `<p class="notice-soft"><b>nothing has happened in ${periodName} yet.</b> once learners visit, enrol and pay, this screen fills in by itself — there is nothing to set up.</p>` : ''}
 
@@ -1707,7 +1841,8 @@
 
     main.onchange = (e) => { if (e.target.id === 'rep-course') { reportCourse = e.target.value; reportsView(); } };
     main.onclick = (e) => {
-      const t = e.target.closest('[data-period], [data-log], [data-log-more], [data-csv], [data-go]'); if (!t) return;
+      const t = e.target.closest('[data-period], [data-log], [data-log-more], [data-csv], [data-go], [data-rtab]'); if (!t) return;
+      if (t.dataset.rtab) { reportTab = t.dataset.rtab; return reportsView(); }
       if (t.dataset.go) return go(t.dataset.go);
       if (t.dataset.period) { reportPeriod = t.dataset.period; return reportsView(); }
       if (t.dataset.log !== undefined && !t.dataset.csv && !t.hasAttribute('data-log-more')) { logKind = t.dataset.log; logShown = 30; return reportsView(); }

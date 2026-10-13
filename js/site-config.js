@@ -85,3 +85,6 @@ window.AMAZE.get = async function (path) {
   window.addEventListener('storage', function (e) { if (e.key && /^sb-.*-auth-token$/.test(e.key)) show(); });
   window.addEventListener('pageshow', show);
 })();
+
+// website statistics (counts only — see js/track.js)
+(function () { var s = document.createElement('script'); s.src = '/js/track.js'; s.async = true; document.head.appendChild(s); })();
