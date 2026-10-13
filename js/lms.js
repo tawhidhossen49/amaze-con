@@ -161,24 +161,38 @@
   // entry's own, or the general one from the payment settings. A learner has
   // access to a paid entry once an admin has confirmed their bKash payment
   // (the payments table; the database enforces the same rule).
+  // An entry can be a course that lives on another website (a partner's or a subsidiary's).
+  // Its card and page here are a signpost: pressing it opens that website. Nothing is enrolled,
+  // paid or taught here. Returns { url, host, by } for such an entry, otherwise null.
+  function outside(course) {
+    const own = (!S.preview && S.pay.course[course.id]) || {};
+    const url = String(own.external || '').trim();
+    if (!/^https?:\/\/[^\s]+$/i.test(url)) return null;
+    let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return null; }
+    return { url, host, by: String(own.external_by || '').trim() };
+  }
+  // the attributes of a link that leaves for that website (it opens beside this one, and is counted as a visit)
+  const outLink = (course) => { const o = outside(course); return o ? `href="${esc(o.url)}" target="_blank" rel="noopener noreferrer" data-out="${esc(course.id)}"` : ''; };
   function fee(course) {
     if (S.preview) return { paid: false, label: 'free', amount: '', link: '', was: '', off: 0, saved: '' };
     const own = S.pay.course[course.id] || {}, all = S.pay.settings;
-    const paid = own.paid !== false;
-    const amount = String(own.price || all.price || '').trim();
+    // an entry on another website is never paid for here; a price, if one was typed, is only shown
+    const away = !!outside(course);
+    const paid = !away && own.paid !== false;
+    const amount = String(own.price || (away ? '' : all.price) || '').trim();
     const unit = String(all.currency || '৳').trim();
     const money = (v) => (/^[a-z]/i.test(unit) ? `${unit} ${v}` : unit + v).toLowerCase();
-    const label = !paid ? 'free' : amount ? money(amount) : 'paid';
+    const label = away ? (amount ? money(amount) : '') : !paid ? 'free' : amount ? money(amount) : 'paid';
     // an entry can carry the price it used to be; it is shown crossed out beside the price to pay,
     // but only when it really is higher
     const n = (v) => parseFloat(String(v).replace(/[^0-9.]/g, ''));
     const before = String(own.was || '').trim();
-    const cut = paid && !!amount && !!before && n(before) > n(amount);
+    const cut = (paid || away) && !!amount && !!before && n(before) > n(amount);
     return { paid, amount, label, link: String(own.link || all.link || '').trim(),
       was: cut ? money(before) : '', off: cut ? Math.round((1 - n(amount) / n(before)) * 100) : 0, saved: cut ? money(+(n(before) - n(amount)).toFixed(2)) : '' };
   }
   // the price as it is written on a card or a page: what you pay, with the earlier price crossed out after it
-  const priceTag = (course) => { const f = fee(course); return `<strong>${esc(f.label)}</strong>${f.was ? `<s>${esc(f.was)}</s>` : ''}`; };
+  const priceTag = (course) => { const f = fee(course), o = outside(course); return `<strong>${esc(f.label || (o ? 'on ' + o.host : ''))}</strong>${f.was ? `<s>${esc(f.was)}</s>` : ''}`; };
   // '' (nothing sent) | 'pending' (being checked) | 'rejected' | 'confirmed'
   const payState = (course) => (S.payments[course.id] || {}).status || '';
   const paidUp = (course) => !fee(course).paid || S.admin || payState(course) === 'confirmed';
@@ -572,7 +586,8 @@
     const st = stats(course);
     const going = started(course);
     const n = S.numbers[course.id] || {};
-    const href = opts.resume && st.next ? `${U.learn(course.id, st.next.id)}` : `${U.course(course.id)}`;
+    const out = outside(course);
+    const link = out ? outLink(course) : `href="${opts.resume && st.next ? U.learn(course.id, st.next.id) : U.course(course.id)}"`;
     const isSaved = !!saved()[course.id];
     const media = course.cover
       ? `<img src="${esc(imageUrl(course.cover))}" alt="" loading="lazy">`
@@ -582,22 +597,25 @@
     const badges = [
       state === 'live' ? '<span class="b b--live">live now</span>' : state === 'upcoming' ? '<span class="b b--hot">upcoming</span>' : state === 'ended' && type === 'webinar' ? '<span class="b">recording</span>' : '',
       course.featured ? '<span class="b b--hot">featured</span>' : '',
+      out ? `<span class="b b--out">on ${esc(out.host)} ↗</span>` : '',
       !going && fee(course).off ? `<span class="b b--off">${fee(course).off}% off</span>` : '',
       `<span class="b">${esc(course.level)}</span>`,
       +n.reviews > 0 ? `<span class="b"><i class="star">★</i> ${(+n.rating).toFixed(1)}</span>` : '',
       +n.reviews > 0 ? `<span class="b">${(+n.reviews).toLocaleString()} rating${+n.reviews === 1 ? '' : 's'}</span>` : '',
       +n.learners > 0 ? `<span class="b">${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}</span>` : '',
     ].join('');
-    const foot = going
+    const foot = out
+      ? `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : 'opens on their website'}</small></div><span class="ucard-btn">visit ↗</span>`
+      : going
       ? `<div class="ucard-price"><strong>${st.pct === 100 ? 'completed' : st.pct + '%'}</strong><small>${st.done} of ${st.count} lessons</small></div><span class="ucard-btn">${st.pct === 100 ? 'review' : 'continue'}</span>`
       : `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : `${st.count} lesson${st.count === 1 ? '' : 's'} · ${length(st.minutes)}`}</small></div><span class="ucard-btn">view ${type}</span>`;
     return `<article class="ucard rise" style="animation-delay:${Math.min(i, 6) * 0.05}s">
       <div class="ucard-media">${media}<span class="ucard-flag">${esc(course.category)}</span></div>
       <button class="ucard-save${isSaved ? ' is-on' : ''}" type="button" data-save="${esc(course.id)}" aria-pressed="${isSaved}" aria-label="${isSaved ? 'remove from saved' : 'save for later'}">${HEART}</button>
-      <h3 class="ucard-title"><a href="${href}">${esc(course.title)}</a></h3>
-      <p class="ucard-by">${esc(course.instructor_name || 'amaze consortium')}</p>
+      <h3 class="ucard-title"><a ${link}>${esc(course.title)}</a></h3>
+      <p class="ucard-by">${esc((out && out.by) || course.instructor_name || 'amaze consortium')}</p>
       <div class="ucard-badges">${badges}</div>
-      ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div>` : ''}
+      ${going && !out ? `<div class="progress"><i style="width:${st.pct}%"></i></div>` : ''}
       <div class="ucard-foot">${foot}</div>
     </article>`;
   }
@@ -771,27 +789,28 @@
       featAt = i;
       const c = featured[i], st = stats(c), type = typeOf(c), n = S.numbers[c.id] || {};
       const state = c.starts_at ? liveState(c.starts_at, st.minutes) : '';
-      const href = started(c) && st.next ? `${U.learn(c.id, st.next.id)}` : `${U.course(c.id)}`;
+      const out = outside(c);
+      const link = out ? outLink(c) : `href="${started(c) && st.next ? U.learn(c.id, st.next.id) : U.course(c.id)}"`;
       const media = c.cover ? `<img src="${esc(imageUrl(c.cover))}" alt="">`
         : `<span class="feat-blank"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg><b>${esc(c.category)}</b></span>`;
       const facts = [
         c.starts_at ? [type === 'webinar' ? 'date' : 'starts', when(c.starts_at)] : ['pace', 'start any time'],
-        ['lessons', `${st.count} · ${length(st.minutes)}`],
+        out ? ['where', esc(out.host)] : ['lessons', `${st.count} · ${length(st.minutes)}`],
         ['level', esc(c.level)],
-        +n.reviews > 0 ? ['rating', `★ ${(+n.rating).toFixed(1)} (${n.reviews})`] : ['fee', priceTag(c)],
+        out ? ['fee', priceTag(c)] : +n.reviews > 0 ? ['rating', `★ ${(+n.rating).toFixed(1)} (${n.reviews})`] : ['fee', priceTag(c)],
       ];
       const soon = state === 'upcoming' ? startsIn(c.starts_at) : '';
       $('.feat-stage', feat).innerHTML = `<article class="feat${animate ? ' is-new' : ''}">
         <div class="feat-in">
-          <a class="feat-media" href="${href}" tabindex="-1" aria-hidden="true">${media}<span class="feat-sheen"></span></a>
+          <a class="feat-media" ${link} tabindex="-1" aria-hidden="true">${media}<span class="feat-sheen"></span></a>
           <div class="feat-body">
             <div class="feat-kicker"><span class="feat-star"><i aria-hidden="true">★</i>featured ${type}</span>${state === 'live' ? '<span class="feat-state is-live">live now</span>' : soon ? `<span class="feat-state">${soon}</span>` : ''}</div>
-            <h2 class="feat-title"><a href="${href}">${esc(c.title)}</a></h2>
+            <h2 class="feat-title"><a ${link}>${esc(c.title)}</a></h2>
             ${c.tagline ? `<p class="feat-tag">${esc(c.tagline)}</p>` : ''}
             <ul class="feat-facts">${facts.map(([k, v]) => `<li><small>${k}</small><span>${v}</span></li>`).join('')}</ul>
             <div class="feat-foot">
-              <a class="btn-primary" href="${href}">${started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">→</span></a>
-              <span class="feat-by">with <b>${esc(c.instructor_name || 'amaze consortium')}</b></span>
+              <a class="btn-primary" ${link}>${out ? 'visit on ' + esc(out.host) : started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">${out ? '↗' : '→'}</span></a>
+              <span class="feat-by">${out && out.by ? 'by' : 'with'} <b>${esc((out && out.by) || c.instructor_name || 'amaze consortium')}</b></span>
             </div>
           </div>
         </div>
@@ -851,18 +870,20 @@
     const lessonUrl = (l) => `${U.learn(course.id, l.id)}`;
     const preview = st.lessons.find((l) => l.is_preview);
     let action;
+    const out = outside(course);
     const price = fee(course), mustPay = price.paid && !paidUp(course);
-    if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
+    if (out) action = `<a class="btn-primary" ${outLink(course)}>go to the ${noun} on ${esc(out.host)} <span class="btn-arrow" aria-hidden="true">↗</span></a>${price.label ? `<span class="was-note"><b style="color:var(--fg)">${esc(price.label)}</b>${price.was ? ` <s>${esc(price.was)}</s> ${price.off}% off` : ''}</span>` : ''}`;
+    else if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
     // a paid entry: "enrol now" leads to the payment page; while a payment is being checked it says so
     else if (mustPay) action = `<a class="btn-primary" href="${U.pay(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
     else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the ' + noun : noun === 'webinar' ? 'open the webinar' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
     else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enrol — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enrol'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
-    const second = !going && preview && !open && !mustPay ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
+    const second = !out && !going && preview && !open && !mustPay ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
     const initials = (course.instructor_name || 'a').trim()[0];
     // for someone who has not started: the whole path in four short steps
-    const steps = going || S.admin || !st.count ? [] : price.paid ? [
+    const steps = out || going || S.admin || !st.count ? [] : price.paid ? [
       ['sign in with google', 'one click — no password to make or remember.'],
       [`pay ${price.label} by bkash`, 'send the fee from your bkash app, then type the transaction id here.'],
       ['we confirm it', 'usually within a day. the lessons then open by themselves.'],
@@ -873,7 +894,7 @@
       [noun === 'webinar' ? 'join the session' : 'learn at your own pace', noun === 'webinar' ? 'it happens on this website — nothing to install.' : 'on your phone or laptop. your place is saved.'],
       ['get your certificate', 'when you finish every lesson.'],
     ];
-    const live = nextLive(course);
+    const live = out ? null : nextLive(course);
     const liveNow = live && liveState(live.live_at, live.duration_min) === 'live';
     const liveCard = live ? `<div class="next-live rise${liveNow ? ' is-now' : ''}"><div><span class="live-flag">${liveNow ? 'live now' : 'next live class'}</span><strong>${esc(live.title)}</strong>
         <p>${when(live.live_at)} — ${liveNow ? 'it has started' : `in <b data-until="${esc(live.live_at)}">${until(live.live_at)}</b>`}. the class happens on this website; nothing to install.</p></div>
@@ -931,15 +952,16 @@
               <p class="page-sub">${esc(course.tagline || '')}</p>
               <div class="course-actions" style="margin-top:28px;">
                 <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}</div>
-                ${going || S.admin ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
+                ${out ? `<p class="ask">this ${noun} is run by ${esc(out.by || out.host)} on their own website — you enrol, pay and learn there. the button opens it beside this page.</p>` : ''}
+                ${going || S.admin || out ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
                 ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="${U.cert({ c: course.id })}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
               </div>
             </div>
             <ul class="course-facts">
               <li><small>level</small><span>${esc(course.level)}</span></li>
               ${course.starts_at ? `<li><small>${noun === 'webinar' ? 'date' : 'starts'}</small><span>${when(course.starts_at)}</span></li>` : `<li><small>duration</small><span>${esc(course.duration || 'self-paced')}</span></li>`}
-              <li><small>lessons</small><span>${st.count}</span></li>
-              <li><small>study time</small><span>${length(st.minutes)}</span></li>
+              ${out ? `<li><small>where</small><span style="text-transform:none;">${esc(out.host)}</span></li><li><small>run by</small><span>${esc(out.by || course.instructor_name || out.host)}</span></li>` : `<li><small>lessons</small><span>${st.count}</span></li>
+              <li><small>study time</small><span>${length(st.minutes)}</span></li>`}
             </ul>
           </div>
         </div>
@@ -954,7 +976,10 @@
             ${course.description ? `<div class="course-block rise"><h2>about this ${noun}</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
             ${bullets('what you will be able to do', course.outcomes)}
             ${(course.tags || []).length ? `<div class="course-block rise"><h2>skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
-            <div class="course-block rise"><h2>curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
+            ${out ? `<div class="course-block rise"><h2>where it happens</h2><div class="cur-lock"><div><strong>on ${esc(out.host)}.</strong>
+                <p>the lessons, the enrolment and any fee are on ${esc(out.by || 'their')} website, not here. we list it because we think it is worth your time.</p></div>
+                <a class="btn-primary" ${outLink(course)}>go to the ${noun} <span class="btn-arrow" aria-hidden="true">↗</span></a></div></div>` : ''}
+            <div class="course-block rise"${out ? ' hidden' : ''}><h2>curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
               ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${payState(course) === 'pending' ? 'your payment is being checked.' : payState(course) === 'rejected' ? 'we could not confirm your payment.' : `the lessons open once you have enrolled and paid.`}</strong>
                 <p>${payState(course) === 'pending' ? 'as soon as we confirm it, every lesson below unlocks for your account.' : payState(course) === 'rejected' ? 'open the payment page to see why, and enter your transaction id again.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
                 <a class="btn-primary" href="${U.pay(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
@@ -965,13 +990,13 @@
           </div>
           <aside class="course-side rise rise-2">
             ${course.instructor_name ? `<div class="side-card"><h3>taught by</h3><div class="instructor"><div class="instructor-photo">${course.instructor_img ? `<img src="${esc(course.instructor_img)}" alt="">` : esc(initials)}</div><div><strong>${esc(course.instructor_name)}</strong><span>${esc(course.instructor_role || '')}</span></div></div></div>` : ''}
-            <div class="side-card"><h3>this ${noun} includes</h3><ul class="includes">
+            <div class="side-card"${out && !(course.includes || []).length ? ' hidden' : ''}><h3>this ${noun} includes</h3><ul class="includes">
               ${includes.map(([label, value]) => `<li>${esc(label)} <b>${esc(value)}</b></li>`).join('')}
             </ul></div>
           </aside>
         </div>
       </section>
-      ${st.count ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
+      ${st.count || out ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${out ? 'on ' + esc(out.host) : going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${out ? 'visit' : going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
 
     // on a phone the main button stays in reach once the one at the top has scrolled away
     const sticky = $('#sticky-cta', root), cta = $('#course-cta', root);
@@ -1002,6 +1027,7 @@
     const root = $('#player-root');
     const course = S.courses.find((c) => c.id === Q.c);
     if (!course) { location.replace(U.catalog()); return; }
+    if (outside(course)) { location.replace(U.course(course.id)); return; }
     const all = lessonsOf(course.id);
     const lesson = all.find((l) => l.id === Q.l) || stats(course).next;
     if (!lesson) { location.replace(`${U.course(course.id)}`); return; }
@@ -1954,7 +1980,7 @@
     if (!course) { location.replace(U.catalog()); return; }
     const f = fee(course), type = typeOf(course), st = stats(course);
     const back = `${U.course(course.id)}`;
-    if (!f.paid) { location.replace(back); return; }
+    if (!f.paid || outside(course)) { location.replace(back); return; }
     document.title = `enrol — ${course.title} — amaze consortium`;
     const set = S.pay.settings;
     const number = String(set.bkash || '').replace(/[^0-9+]/g, '');
@@ -2365,6 +2391,10 @@
       let counted = false; try { counted = !!sessionStorage.getItem(key); if (!counted) sessionStorage.setItem(key, '1'); } catch (e) {}
       if (kind && !counted && (kind === 'catalog_view' || Q.c)) sb.rpc('academy_seen', { p_kind: kind, p_course: Q.c || '' }).then(() => {}, () => {});
     }
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest && e.target.closest('a[data-out]');
+      if (a && sb && !S.preview && !S.admin) sb.rpc('academy_seen', { p_kind: 'course_view', p_course: a.dataset.out }).then(() => {}, () => {});
+    });
     if (view === 'catalog') catalog();
     else if (view === 'course') await coursePage();
     else if (view === 'learn') await player();

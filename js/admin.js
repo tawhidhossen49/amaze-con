@@ -93,11 +93,14 @@
   // a row's “more ▾” list closes when anything else is pressed
   document.addEventListener('click', (e) => { $$('details.menu[open]').forEach((m) => { if (!m.contains(e.target) || e.target.closest('.menu-in')) m.open = false; }); });
   // parts of a form that belong to one answer only:  data-when="pay_paid=1"  or  data-when="kind=program,webinar"
+  // (several answers: separate them with |, as in  data-when="pay_paid=1|where=out")
   function syncShown(form) {
     $$('[data-when]', form).forEach((el) => {
-      const [name, list] = el.dataset.when.split('=');
-      const field = form.querySelector(`[name="${name}"]`);
-      el.hidden = !field || !list.split(',').includes(field.value);
+      el.hidden = !el.dataset.when.split('|').some((rule) => {
+        const [name, list] = rule.split('=');
+        const field = form.querySelector(`[name="${name}"]`);
+        return !!field && list.split(',').includes(field.value);
+      });
     });
   }
 
@@ -619,6 +622,7 @@
   // ── payment ────────────────────────────────────────────────────────────────
   // Prices and the bKash number are kept with the site's other saved text (site_text):
   //   pay.course.<id>   { paid, price, was }                    one entry: free or paid, price, previous price
+//                     { external, external_by }               …or: it lives on another website (its link, and whose it is)
   //   pay.settings      { bkash, bkash_type, note, price, … }   where the fee is sent, and the older general price
 //   pay.teachers      [{ name, role, img }]                   teachers saved once, to fill in on any course with one press
 // Coupons are rows in the coupons table (seed/website-backend-10-coupons.sql): only admins can read them, and
@@ -638,9 +642,12 @@
   }
   const paySave = (key, value, okText) => run(sb.from('site_text').upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }), okText);
   const feeOf = (pay, id) => {
-    const own = pay.course[id] || {}, unit = String(pay.settings.currency || '৳').trim(), amount = String(own.price || pay.settings.price || '').trim();
+    const own = pay.course[id] || {}, unit = String(pay.settings.currency || '৳').trim(), away = !!own.external, amount = String(own.price || (away ? '' : pay.settings.price) || '').trim();
     const money = (v) => (/^[a-z]/i.test(unit) ? `${unit} ${v}` : unit + v);
-    const paid = own.paid !== false;
+    const paid = !away && own.paid !== false;
+    let host = ''; try { host = away ? new URL(own.external).hostname.replace(/^www\./, '') : ''; } catch (e) {}
+    // an entry on another website: nothing is paid here; a price, if typed, is only shown
+    if (away) return { paid: false, away: true, host, priced: true, label: amount ? money(amount) + ' on their site' : 'price on their site' };
     return { paid, priced: !paid || !!amount, label: !paid ? 'free' : amount ? money(amount) + (own.was ? ` · was ${money(own.was)}` : '') : 'paid — no price set' };
   };
 
@@ -729,12 +736,12 @@
       + Object.keys(TYPES).map((type) => `<div class="h2"><span>${TYPES[type]} <small>${rowsOf(type).length}</small></span></div>
       <div class="rows">${rowsOf(type).map((c) => { const f = feeOf(pay, c.id); return `<div class="row row--plain row--entry" data-id="${esc(c.id)}">
           <div><strong>${esc(c.title)}</strong>
-            <span class="pills"><span class="badge${c.status === 'published' ? ' badge--on' : ''}">${c.status === 'published' ? 'on the website' : 'draft'}</span><span class="badge${f.priced ? ' badge--on' : ''}"${f.priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(f.label)}</span>${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}</span>
-            <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${count(c.id)} lesson${count(c.id) === 1 ? '' : 's'} · ${esc(c.category)} · ${esc(c.level)}</span></div>
+            <span class="pills"><span class="badge${c.status === 'published' ? ' badge--on' : ''}">${c.status === 'published' ? 'on the website' : 'draft'}</span><span class="badge${f.priced ? ' badge--on' : ''}"${f.priced ? '' : ' style="border-color:#f2b42e;color:#f2b42e;"'}>${esc(f.label)}</span>${f.away ? `<span class="badge badge--on" style="text-transform:none;">↗ on ${esc(f.host)}</span>` : ''}${c.featured ? '<span class="badge badge--on">★ featured</span>' : ''}</span>
+            <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${f.away ? 'on another website' : `${count(c.id)} lesson${count(c.id) === 1 ? '' : 's'}`} · ${esc(c.category)} · ${esc(c.level)}</span></div>
           <div class="row-actions"><button class="btn btn--sm btn--solid" data-open>edit</button><button class="btn btn--sm" data-toggle title="${c.status === 'published' ? 'take it off the website (it stays here as a draft)' : 'put it on the academy page'}">${c.status === 'published' ? 'unpublish' : 'publish'}</button>
             <details class="menu"><summary class="btn btn--sm" aria-label="more actions">more ▾</summary><div class="menu-in">
               <a href="${A.root}academy/${encodeURIComponent(c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
-              <button type="button" data-fee title="${f.paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${f.paid ? 'make free' : 'make paid'}</button>
+              ${f.away ? '' : `<button type="button" data-fee title="${f.paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${f.paid ? 'make free' : 'make paid'}</button>`}
               <button type="button" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button>
             </div></details></div>
         </div>`; }).join('') || `<p class="empty">no ${TYPES[type]} yet — press “+ new ${one[type]}” at the top to make the first one.</p>`}</div>`).join('');
@@ -964,6 +971,10 @@
         <section class="card">
           <h2 class="card-title">the basics</h2>
           <div class="field"><span>what is it?${needs}</span>${choice('kind', [['course', 'course', 'lessons people take at their own pace', '▤'], ['program', 'program', 'a longer guided track with a start date', '◈'], ['webinar', 'webinar', 'one live session on a date', '◉']], noun, 'choice--cards choice--3')}</div>
+          <div class="field"><span>where do people take it?</span>${choice('where', [['here', 'on this website', 'you add the lessons, prices and live classes here', '⌂'], ['out', 'on another website', 'a partner’s or subsidiary’s — the card sends people there', '↗']], own.external ? 'out' : 'here', 'choice--2')}</div>
+          <label class="field" data-when="where=out"><span>the link to it on the other website</span><input name="external" inputmode="url" autocomplete="off" value="${esc(own.external || '')}" placeholder="https://their-website.com/the-course">
+            <small class="hint">open their course in your browser, copy the address from the top, and paste it here. when someone presses this ${noun} on your academy page, that address opens beside your site.</small></label>
+          <label class="field" data-when="where=out"><span>whose is it? — shown on its card (optional)</span><input name="external_by" autocomplete="off" maxlength="60" value="${esc(own.external_by || '')}" placeholder="e.g. simplespeek"></label>
           <label class="field"><span>its name</span><input name="title" required value="${esc(course.title)}" placeholder="e.g. canva for beginners"></label>
           <label class="field"><span>one sentence about it — shown on its card</span><input name="tagline" value="${esc(course.tagline || '')}" placeholder="e.g. design posts, posters and slides from zero"></label>
           <label class="field" data-when="kind=program,webinar"><span>when does it start?${needs}</span><input name="starts_at" type="datetime-local" value="${toLocalInput(course.starts_at)}">
@@ -973,9 +984,10 @@
 
         <section class="card">
           <h2 class="card-title">the price</h2>
-          <div class="field"><span>is it free or paid?</span>${choice('pay_paid', [['1', 'paid', 'learners pay by bkash and you confirm it', '৳'], ['0', 'free', 'anyone with an account can enrol', '✓']], own.paid === false ? '0' : '1', 'choice--2')}</div>
-          <div class="form-grid" data-when="pay_paid=1">
-            <label class="field"><span>the price learners pay</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
+          <div class="field" data-when="where=here"><span>is it free or paid?</span>${choice('pay_paid', [['1', 'paid', 'learners pay by bkash and you confirm it', '৳'], ['0', 'free', 'anyone with an account can enrol', '✓']], own.paid === false && !own.external ? '0' : '1', 'choice--2')}</div>
+          <p class="lede" data-when="where=out" style="margin:14px 0 0;">people pay on the other website, not here. if you type a price it is only shown on the card, so visitors know what to expect. leave both boxes empty to show no price.</p>
+          <div class="form-grid" data-when="pay_paid=1|where=out">
+            <label class="field"><span data-when="where=here">the price learners pay</span><span data-when="where=out">the price on their website (optional)</span><input name="pay_price" inputmode="decimal" value="${esc(own.price || '')}" placeholder="${esc(pay.settings.price || '500')}">
               <small class="hint">type the number only — “${esc(pay.settings.currency || '৳')}” is added for you.${pay.settings.price ? ` empty means ${esc(pay.settings.currency || '৳')}${esc(pay.settings.price)}.` : ''}</small></label>
             <label class="field"><span>the old price, to show a discount (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
               <small class="hint">shown crossed out beside the price, with “% off”. it must be higher than the price. leave it empty for no discount.</small></label>
@@ -1025,7 +1037,8 @@
         </div></details>
 
         <div class="editor-foot editor-foot--stick"><button class="btn btn--solid btn--lg" type="submit">${id ? 'save' : 'create this ' + noun}</button>${id ? `<button class="btn btn--danger" type="button" data-delete-course>delete this ${noun}</button>` : '<span class="foot-note">you can fill in the rest and add lessons after it is created.</span>'}</div></form>`
-      + (id ? `<div class="h2"><span>lessons <small>${lessons.length} in ${modules.length} section${modules.length === 1 ? '' : 's'}</small></span><button class="btn btn--sm btn--solid" data-add-module>+ add a section</button></div>
+      + (id && own.external ? `<div class="h2"><span>lessons</span></div><p class="empty">this ${noun} is on another website, so there are no lessons to add here. people press its card and go to <b style="color:var(--fg);text-transform:none;">${esc(own.external)}</b>.${lessons.length ? ` the ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} it had here are kept, and come back if you switch it to “on this website”.` : ''}</p>` : '')
+      + (id && !own.external ? `<div class="h2"><span>lessons <small>${lessons.length} in ${modules.length} section${modules.length === 1 ? '' : 's'}</small></span><button class="btn btn--sm btn--solid" data-add-module>+ add a section</button></div>
         <p class="lede">lessons are grouped into sections, like chapters in a book. add a section first, then put lessons inside it.</p>
         <div id="module-new"></div>
         ${modules.map((m, mi) => {
@@ -1146,8 +1159,13 @@
       else if (v.kind !== 'course' || v.starts_at) toast('saved as a course without a date — run seed/website-backend-05-academy.sql in supabase to switch programs, webinars and dates on', true);
       const num = (x) => parseFloat(String(x).replace(/[^0-9.]/g, ''));
       const nowPrice = v.pay_price.trim(), wasPrice = v.pay_was.trim();
-      if (wasPrice && !(num(wasPrice) > num(nowPrice || pay.settings.price))) return toast('the previous price has to be higher than the price learners pay now — or leave it empty', true);
-      const fee = { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice };
+      if (wasPrice && !(num(wasPrice) > num(nowPrice || (v.where === 'out' ? '' : pay.settings.price)))) return toast('the previous price has to be higher than the price learners pay now — or leave it empty', true);
+      // on another website: the link has to be a real address, and nothing is paid for here
+      const away = v.where === 'out', link = (v.external || '').trim();
+      if (away && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(link)) return toast('paste the full link to it on the other website — it starts with https://', true);
+      if (away && wasPrice && !nowPrice) return toast('to show an old price, type the price it costs now as well', true);
+      if (away && id && lessons.length && own.external === undefined && !confirm(`this ${noun} has ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} here. once it points to another website, learners can no longer open them (they are kept, and come back if you switch it to “on this website” again). continue?`)) return;
+      const fee = away ? { paid: false, price: nowPrice, was: wasPrice, external: link, external_by: (v.external_by || '').trim() } : { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice };
       // remember the teacher for next time (a new one is added; a known one gets the new role and photo)
       if (row.instructor_name && v.remember_teacher && !$('#teacher-keep', main).hidden) {
         const list = (await payLoad()).teachers.filter((t) => !same(t.name, row.instructor_name));
@@ -1163,7 +1181,7 @@
       if (clash) return toast('there is already a course with that title — choose a different one', true);
       if ((await run(sb.from('courses').insert({ ...row, id: newId }))) && (await paySave('pay.course.' + newId, fee, 'created — now add a module'))) go('courses', newId);
     });
-    if (!id) return;
+    if (!id || own.external) return;
     courseExtras($('#course-extras', main), id, lessons);
 
     main.onsubmit = async (e) => {
