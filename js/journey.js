@@ -81,7 +81,7 @@
       const nowTitle = ($('.jr-now-title', track) || {}).textContent || 'the line keeps going.';
       const nowSub = ($('.jr-now-sub', track) || {}).textContent || '';
       years.innerHTML = [...byYear.keys()].map((y) => `<div class="jy-year reveal" data-year="${y}"><div class="jy-num">${y}</div><ul class="jy-items">${byYear.get(y).map(desc).join('')}</ul></div>`).join('')
-        + `<div class="jy-year jy-year--now reveal"><div class="jy-num">${NOW}<span>and on</span></div><div class="jy-items jy-next"><h3>${esc(nowTitle)}</h3>${nowSub ? `<p>${esc(nowSub)}</p>` : ''}</div></div>`;
+        + `<div class="jy-year jy-year--now reveal"><div class="jy-num">next<span>after ${NOW}</span></div><div class="jy-items jy-next"><h3>${esc(nowTitle)}</h3>${nowSub ? `<p>${esc(nowSub)}</p>` : ''}</div></div>`;
       $$('.reveal', years).forEach((el) => {
         if (!('IntersectionObserver' in window)) return el.classList.add('visible');
         new IntersectionObserver((es, ob) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); ob.disconnect(); } }), { threshold: 0.1 }).observe(el);
