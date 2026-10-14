@@ -542,23 +542,12 @@
     const tab = (k, t) => `<button type="button" class="auth-tab${(k === 'up') === fresh ? ' is-on' : ''}" data-auth-tab="${k}" aria-pressed="${(k === 'up') === fresh}">${t}</button>`;
     const SHIELD = '<svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg>';
     const body = $('.auth-main', openDialog(`
-      <div class="auth-stage" aria-hidden="true">
-        <i class="auth-grid"></i><i class="auth-orb"></i><i class="auth-sheen"></i>
-        <div class="auth-mark">${SHIELD}<b>amaze academy</b></div>
-        <p class="auth-big">learn it.<br><em>keep it.</em></p>
-        <ul class="auth-perks">
-          <li><i></i>your progress, on every phone and laptop</li>
-          <li><i></i>certificates with your name on them</li>
-          <li><i></i>live classes, right inside the website</li>
-        </ul>
-        <small class="auth-foot">amaze consortium · since 2020</small>
-      </div>
       <div class="auth-main">
-      <span class="lesson-kicker">${fresh ? 'create a free account' : 'welcome'}</span>
-      <h2>${fresh ? 'start learning' : 'sign in'}</h2>
-      <p>${emailOn() ? 'your account keeps your progress, notes and certificates, on any device.' : 'use your google account — one click, nothing to remember. it keeps your progress, notes and certificates, on any device.'}</p>
+      <div class="auth-brand">${SHIELD}<b>amaze academy</b></div>
+      <h2>${fresh ? 'create your account' : 'welcome back'}</h2>
+      <p class="auth-sub">${emailOn() ? 'your progress, notes and certificates, on every device.' : 'one click with google. your progress, notes and certificates, on every device.'}</p>
       <button class="btn-google" type="button" id="google-go">${GOOGLE}<span>continue with google</span></button>
-      ${emailOn() ? `<div class="auth-or"><span>or with your email</span></div>
+      ${emailOn() ? `<div class="auth-or"><span>or use your email</span></div>
       <div class="auth-tabs" data-mode="${fresh ? 'up' : 'in'}" role="group" aria-label="sign in or create an account">${tab('in', 'sign in')}${tab('up', 'create account')}</div>
       <form class="auth-form" id="auth-form" novalidate>
         <label class="field" data-for="up"${fresh ? '' : ' hidden'}><span>your name</span><input name="name" autocomplete="name" maxlength="80" placeholder="as it should appear on your certificate"></label>
@@ -567,7 +556,7 @@
         <button class="btn-primary" type="submit"><span>${fresh ? 'create my account' : 'sign in'}</span><span class="btn-arrow" aria-hidden="true">→</span></button>
         <button type="button" class="auth-link" data-auth-forgot${fresh ? ' hidden' : ''}>forgot your password?</button>
       </form>` : ''}
-      <p class="dialog-small">${emailOn() ? 'the name on your account is printed on your certificates — you can change it, and add a phone number, from your page after signing in.' : 'the name on your google account is printed on your certificates — you can change it, and add a phone number, from your page after signing in. we only receive your name, email address and profile picture.'}</p>
+      <p class="dialog-small">${emailOn() ? 'the name on your account goes on your certificates. you can change it, and add a phone number, once you are signed in.' : 'the name on your google account goes on your certificates. you can change it once you are signed in. we only receive your name, email address and picture.'}</p>
       </div>`, 'dialog--auth'));
     $('#google-go', body).addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
@@ -578,6 +567,11 @@
       const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0], queryParams: { prompt: 'select_account' } } });
       if (error) { e.currentTarget.disabled = false; say(body, /not enabled|unsupported provider/i.test(error.message) ? 'google sign-in is not switched on yet — please try again later.' : error.message, true); }
     });
+    const card = body.closest('.dialog-box');
+    if (card && matchMedia('(hover: hover)').matches) {
+      let raf = 0;
+      card.onpointermove = (e) => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const r = card.getBoundingClientRect(); card.style.setProperty('--mx', `${e.clientX - r.left}px`); card.style.setProperty('--my', `${e.clientY - r.top}px`); }); };
+    }
     const form = $('#auth-form', body); if (!form) return;
     let up = fresh, forgot = false;
     const draw = () => {
@@ -589,8 +583,8 @@
       form.password.autocomplete = up ? 'new-password' : 'current-password';
       form.password.placeholder = up ? 'at least 8 characters' : 'your password';
       $('button[type=submit] span', form).textContent = forgot ? 'send me a reset link' : up ? 'create my account' : 'sign in';
-      $('.lesson-kicker', body).textContent = forgot ? 'forgot your password' : up ? 'create a free account' : 'welcome';
-      $('h2', body).textContent = forgot ? 'reset it by email' : up ? 'start learning' : 'sign in';
+      $('h2', body).textContent = forgot ? 'reset your password' : up ? 'create your account' : 'welcome back';
+      $('.auth-sub', body).textContent = forgot ? 'type your email and we will send you a link to choose a new one.' : 'your progress, notes and certificates, on every device.';
       const msg = $('.dialog-msg', body); if (msg) msg.remove();
     };
     $$('.auth-tab', body).forEach((b) => b.addEventListener('click', () => { up = b.dataset.authTab === 'up'; forgot = false; draw(); }));
