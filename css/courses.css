@@ -1243,3 +1243,90 @@ html.vp-open, html.vp-open body { overflow: hidden; }
 .course-block[hidden], .side-card[hidden] { display: none; }
 .aca-block.is-empty { display: none; }
 .b.b--out { border-color: rgba(46,242,162,0.5); color: var(--green); text-transform: none; }
+
+/* --------------------------------------------------------------------------
+   sign in with an email, and "my profile"
+   -------------------------------------------------------------------------- */
+.auth-or { display: flex; align-items: center; gap: 14px; margin: 24px 0 4px; font: 400 12px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--faint); }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 16px; border: 1px solid var(--line); }
+.auth-tab { min-height: 44px; background: none; border: 0; color: var(--muted); font: 700 14px/1 var(--font-sans); text-transform: lowercase; cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+.auth-tab + .auth-tab { border-left: 1px solid var(--line); }
+.auth-tab.is-on { background: var(--surface); color: var(--fg); box-shadow: inset 0 -2px 0 var(--green); }
+.auth-form .field[hidden], .auth-form [hidden] { display: none; }
+.pw { position: relative; }
+.pw input { padding-right: 68px; }
+.pw-show { position: absolute; top: 1px; right: 1px; bottom: 1px; width: 60px; background: var(--bg); border: 0; border-left: 1px solid var(--line); color: var(--muted); font: 400 12px/1 var(--font-sans); text-transform: lowercase; cursor: pointer; }
+.pw-show:hover { color: var(--green); }
+.auth-link { display: block; margin: 16px auto 0; background: none; border: 0; padding: 4px 0; color: var(--muted); font: 400 13px/1.4 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; text-transform: lowercase; cursor: pointer; }
+.auth-link:hover { color: var(--green); }
+.field input:disabled { color: var(--faint); background: transparent; }
+.me-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 16px; font-size: 14px; color: var(--muted); text-transform: lowercase; }
+.me-line span { overflow-wrap: anywhere; }
+.me-edit { min-height: 36px; padding: 0 14px; background: none; border: 1px solid rgba(255,255,255,0.24); color: var(--fg); font: 700 13px/1 var(--font-sans); text-transform: lowercase; cursor: pointer; transition: border-color 0.2s ease, color 0.2s ease; }
+.me-edit:hover { border-color: var(--green); color: var(--green); }
+
+/* --------------------------------------------------------------------------
+   phones: calmer spacing, full-width buttons, lists that read top to bottom
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  /* every academy page: shorter gaps between parts */
+  body[data-view] section:not(.course-hero) { padding-top: 52px; padding-bottom: 52px; }
+  .course-hero { padding-top: calc(var(--nav-h) + 22px); }
+  .crumb { margin-bottom: 22px; }
+  .course-h1 { font-size: clamp(34px, 10.5vw, 44px); line-height: 0.98; }
+  .course-hero-foot { gap: 22px; margin-top: 22px; padding: 22px 0 34px; }
+  .page-sub { font-size: 16px; line-height: 1.55; }
+
+  /* the main button fills the width; the old price sits under it, on the left */
+  .course-actions { margin-top: 20px !important; }
+  /* home.css keeps hero buttons at 320px on phones; on academy pages they use the full width */
+  body[data-view] .hero-buttons { max-width: none; }
+  .gate .hero-buttons > .btn-primary, .gate .hero-buttons > .btn-outline { width: 100%; justify-content: space-between; }
+  .course-actions .hero-buttons { flex-direction: column; align-items: stretch; gap: 10px; }
+  .course-actions .hero-buttons > .btn-primary, .course-actions .hero-buttons > .btn-outline { width: 100%; justify-content: space-between; min-height: 56px; }
+  .course-actions .was-note { align-self: flex-start; margin-top: 2px; }
+  .ask { font-size: 13.5px; }
+  .ask .btn-wa, .ask + .btn-wa { width: 100%; }
+
+  /* facts: two calm columns */
+  .course-facts li { padding: 14px 14px 16px; }
+  .course-facts small { margin-bottom: 8px; font-size: 11px; letter-spacing: 0.12em; white-space: nowrap; }
+  .course-facts span { font-size: 17px; line-height: 1.25; }
+
+  /* curriculum: the title gets the whole width, the details go underneath */
+  .course-block + .course-block { margin-top: 48px; }
+  .module-head { grid-template-columns: 30px minmax(0, 1fr); gap: 4px 10px; padding: 18px 0; }
+  .module-head strong { font-size: 19px; }
+  .module-head em { font-size: 13.5px; line-height: 1.45; }
+  .module-head > span { grid-column: 2; margin-top: 8px; font-size: 11.5px; letter-spacing: 0.1em; white-space: normal; }
+  .lesson-row { grid-template-columns: 22px minmax(0, 1fr); gap: 4px 10px; padding: 12px 0; font-size: 14.5px; line-height: 1.4; }
+  .lesson-row small { grid-column: 2; font-size: 11.5px; letter-spacing: 0.08em; white-space: normal; line-height: 1.5; }
+  .lesson-name { align-items: flex-start; }
+  .lesson-name .kind-icon { margin-top: 2px; flex: none; }
+  .how li { padding: 16px; }
+  .course-side .side-card { flex: 1 1 100%; }
+
+  /* my learning */
+  .me-line { margin-top: 12px; font-size: 13.5px; }
+  .me-edit { width: 100%; min-height: 44px; }
+  .dash-continue { padding: 20px; }
+  .dash-continue strong { font-size: 24px; }
+  .dash-help-card .btn-outline, .dash-help-card .btn-wa { width: 100%; justify-content: space-between; text-transform: none; }
+  .dash-help-card .btn-outline { white-space: normal; text-align: left; line-height: 1.35; }
+  .faq summary { padding: 16px 0; font-size: 15.5px; line-height: 1.3; }
+  .rows-plain > div { padding: 18px 0; }
+  .rows-plain .hero-buttons { width: 100%; }
+  .rows-plain .hero-buttons > * { flex: 1 1 140px; justify-content: space-between; }
+
+  /* payment page: room between the coupon box and the steps under it */
+  .pay-coupon { margin-bottom: 26px; }
+  /* a locked lesson: the arrows beside it would sit on top of the message */
+  .lp-stage--gate .lp-nav { display: none; }
+
+  /* dialogs open from the bottom, like a phone app; typing never zooms the page */
+  .dialog { place-items: end center; padding: 0; }
+  .dialog-box { width: 100%; max-height: 92vh; padding: 28px 20px calc(24px + env(safe-area-inset-bottom)); border-left: 0; border-right: 0; border-bottom: 0; transform: translateY(40px); }
+  .dialog h2 { font-size: 28px; }
+  .field input, .field textarea, .field select { font-size: 16px; }
+}

@@ -742,6 +742,19 @@
           <small class="hint">the wrong one makes payments fail in the bkash app.</small></div>
         <label class="field field--wide"><span>anything else to tell learners on the payment page (optional)</span><textarea name="note" rows="2" placeholder="e.g. payments are checked every evening.">${esc(ps.note || '')}</textarea></label>
       </div><div class="editor-foot"><button class="btn btn--solid" type="submit">save bkash details</button></div></form></details>
+      <details class="group signin-box"><summary>how learners sign in<small>${ps.email_login ? '<b>google, or email and password</b> · press to change' : '<b>google only</b> · press to change'}</small></summary>
+      <form id="signin-form" style="padding:4px 20px 22px;">
+        <div class="field"><span>which ways can learners sign in?</span>${choice('email_login', [['0', 'google only', 'one click with a google account — nothing to set up', 'G'], ['1', 'google, or email and password', 'for learners without google. needs an email sender — see below', '@']], ps.email_login ? '1' : '0', 'choice--2')}</div>
+        <div class="note-box" data-when="email_login=1">
+          <b>before you switch this on:</b> a learner who signs up with an email gets a message to confirm it, and one to reset a forgotten password. supabase’s own sender only delivers to your supabase team, so connect a free email sender first:
+          <ol>
+            <li>make a free account at <b>brevo.com</b> (no card) and, under <b>senders</b>, add and confirm the email address the messages should come from.</li>
+            <li>in brevo open <b>smtp &amp; api</b> and make an <b>smtp key</b>.</li>
+            <li>in supabase open <b>authentication → emails → smtp settings</b>, switch on <b>custom smtp</b> and fill in: host <code>smtp-relay.brevo.com</code>, port <code>587</code>, username = your brevo login, password = the smtp key, and the sender email from step 1.</li>
+            <li>press save, then on the website press “sign in” → “create account” with a test email of yours. if the message arrives, it all works. if it does not, come back and choose “google only” again.</li>
+          </ol>
+        </div>
+        <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button></div></form></details>
       <details class="group help-box"${ps.whatsapp ? '' : ' open'}><summary>help for learners — your whatsapp number<small>${ps.whatsapp ? `<b>+${esc(ps.whatsapp)}</b> · press to change` : '<b style="color:#f2b42e;">not set yet — learners are told to email instead</b>'}</small></summary>
       <form id="help-form" style="padding:4px 20px 22px;">
         <label class="field field--short" style="max-width:420px;"><span>the whatsapp number learners can message</span><input name="whatsapp" inputmode="tel" value="${esc(ps.whatsapp ? '+' + ps.whatsapp : '')}" placeholder="017XXXXXXXX" maxlength="20">
@@ -810,6 +823,13 @@
       // read the settings again first, so nothing saved elsewhere in the meantime is lost
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, bkash: n, bkash_type: v.bkash_type === 'merchant' ? 'merchant' : 'personal', note: v.note.trim() }, n ? 'bkash details saved' : 'saved — without a number, paid entries say “payment opens soon”')) coursesView();
+    });
+    syncShown($('#signin-form', main));
+    $('#signin-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const on = new FormData(e.target).get('email_login') === '1';
+      const fresh = (await payLoad()).settings;
+      if (await paySave('pay.settings', { ...fresh, email_login: on }, on ? 'saved — learners can now also create an account with their email' : 'saved — learners sign in with google only')) coursesView();
     });
     $('#help-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1522,7 +1542,7 @@
   }
 
   async function learnersView() {
-    const [en, pr, courses, lessons, mods, pay, pm] = await Promise.all([
+    const [en, pr, courses, lessons, mods, pay, pm, profs] = await Promise.all([
       run(sb.from('enrollments').select('*').order('enrolled_at', { ascending: false })),
       run(sb.from('lesson_progress').select('user_id,course_id,lesson_id')),
       run(sb.from('courses').select('id,title')),
@@ -1530,8 +1550,14 @@
       run(sb.from('course_modules').select('id,is_hidden')),
       payLoad(),
       run(sb.from('payments').select('*').order('created_at', { ascending: false })),
+      // names and phone numbers learners keep on their page; the screen works without them
+      (async () => { try { const r = await sb.from('profiles').select('id,full_name,phone'); return r && !r.error && Array.isArray(r.data) ? r.data : []; } catch (e) { return []; } })(),
     ]);
     if (!en || !pr || !courses || !lessons || !mods) return;
+    // the name and phone number a learner keeps on their own page
+    const profile = Object.fromEntries(profs.map((x) => [x.id, x]));
+    const phoneOf = (u) => (profile[u] && profile[u].phone ? ` · <a href="tel:${esc(profile[u].phone)}" style="color:var(--green)">${esc(profile[u].phone)}</a>` : '');
+    const nameOf = (u, fallback) => (profile[u] && profile[u].full_name) || fallback;
     const list = (x) => (x === true || !x ? [] : x);
     const payments = list(pm);
     const title = Object.fromEntries(list(courses).map((c) => [c.id, c.title]));
@@ -1547,7 +1573,7 @@
     const waiting = payments.filter((p) => p.status === 'pending').reverse();   // oldest first: first come, first checked
     const decided = payments.filter((p) => p.status !== 'pending').slice(0, 40);
     const rows = list(en);
-    const who = (p) => `<strong style="text-transform:none;">${esc(p.learner_name || '—')}</strong><span class="sub" style="text-transform:none;">${esc(p.learner_email || '')}</span>`;
+    const who = (p) => `<strong style="text-transform:none;">${esc(nameOf(p.user_id, p.learner_name) || '—')}</strong><span class="sub" style="text-transform:none;">${esc(p.learner_email || '')}${phoneOf(p.user_id)}</span>`;
     const what = (p) => `${esc(title[p.course_id] || p.course_id)}${p.amount ? ` · <b style="color:var(--fg)">${esc(p.amount)}</b>` : ''}${p.coupon ? ` · <b style="color:var(--green)">coupon ${esc(p.coupon)}</b>${p.list_amount ? ` (full fee ${esc(p.list_amount)})` : ''}` : ''}`;
     const paidOpts = list(courses).filter((c) => isPaid(c.id)).map((c) => `<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('');
 
@@ -1581,7 +1607,7 @@
         const t = total(r.course_id), d = Math.min(done(r.user_id, r.course_id), t), pct = t ? Math.round((d / t) * 100) : 0;
         const p = payOf(r.user_id, r.course_id);
         const state = !isPaid(r.course_id) ? '<span class="badge">free</span>' : !p ? '<span class="badge">no payment</span>' : `<span class="badge${p.status === 'confirmed' ? ' badge--on' : ''}">${p.status === 'confirmed' ? (p.method === 'manual' ? 'given by hand' : 'paid') : p.status === 'pending' ? 'to check' : 'rejected'}</span>`;
-        return `<tr><td><strong>${esc(r.learner_name || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}</span></td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${state}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
+        return `<tr><td><strong>${esc(nameOf(r.user_id, r.learner_name) || '—')}</strong><br><span style="color:var(--muted)">${esc(r.learner_email || '')}${phoneOf(r.user_id)}</span></td><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${state}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td><button class="btn btn--sm btn--danger" data-unenrol="${r.user_id}|${esc(r.course_id)}">remove</button></td></tr>`;
       }).join('')}</tbody></table></div>` : '<p class="empty">no one has enrolled yet.</p>');
 
     $('#grant-form', main).addEventListener('submit', async (e) => {

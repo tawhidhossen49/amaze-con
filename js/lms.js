@@ -116,7 +116,10 @@
     const { data } = await sb.auth.getSession();
     S.user = data.session ? data.session.user : null;
     if (!S.user) return;
-    S.name = (S.user.user_metadata && S.user.user_metadata.full_name) || '';
+    const meta = S.user.user_metadata || {};
+    S.profile = await soft(sb.from('profiles').select('full_name,phone').eq('id', S.user.id).maybeSingle(), null);
+    S.name = (S.profile && S.profile.full_name) || meta.full_name || meta.name || '';
+    nameKeep();
     S.admin = (await soft(sb.rpc('is_admin'), false)) === true;
     // Admin logins are kept apart from learner accounts: an admin can open any
     // lesson to check it, but nothing is recorded against them (the database
@@ -514,21 +517,43 @@
     el.textContent = text;
   }
 
-  // Learners sign in with their Google account — there is no password to make or forget and
-  // no confirmation email. (Admin logins are separate and stay email + password, on the admin page.)
+  // Learners sign in with their Google account, or — once an admin switches it on (it needs an
+  // email sender, see the admin panel) — with an email address and a password. Admin logins
+  // are separate and stay on the admin page.
+  const emailOn = () => S.pay.settings && S.pay.settings.email_login === true;
+  const signInWords = () => (emailOn() ? 'sign in' : 'sign in with google');
   const GOOGLE = '<svg viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>';
+  // what the sign-in service says, in plain words
+  const authProblem = (m) => (/invalid login credentials/i.test(m) ? 'that email and password do not match. check both, or press “forgot your password?”.'
+    : /email not confirmed/i.test(m) ? 'your email is not confirmed yet. open the message we sent you and press the link in it — then sign in here.'
+    : /already registered|already been registered|user already exists/i.test(m) ? 'there is already an account with this email. sign in instead — or press “forgot your password?”.'
+    : /not authori[sz]ed|sending.*email|smtp|error sending/i.test(m) ? 'we could not send the email just now. please use “continue with google” for the moment, or try again later.'
+    : /rate limit|too many|security purposes/i.test(m) ? 'too many tries in a short time. wait a minute, then try again.'
+    : /password.*(at least|short|weak|characters)/i.test(m) ? 'choose a longer password — at least 8 characters.'
+    : /valid email|invalid.*email/i.test(m) ? 'that email address does not look right.'
+    : m);
   function authDialog(mode = 'signin') {
     if (S.preview) {
       openDialog('<span class="lesson-kicker">accounts</span><h2>not connected yet</h2><p>learner accounts switch on once the course database is set up. until then every lesson is open and your progress is kept on this device.</p>');
       return;
     }
     const fresh = mode === 'signup';
+    const tab = (k, t) => `<button type="button" class="auth-tab${(k === 'up') === fresh ? ' is-on' : ''}" data-auth-tab="${k}" aria-pressed="${(k === 'up') === fresh}">${t}</button>`;
     const body = openDialog(`
       <span class="lesson-kicker">${fresh ? 'create a free account' : 'welcome'}</span>
       <h2>${fresh ? 'start learning' : 'sign in'}</h2>
-      <p>use your google account — one click, nothing to remember. it keeps your progress, notes and certificates, on any device.</p>
+      <p>${emailOn() ? 'your account keeps your progress, notes and certificates, on any device.' : 'use your google account — one click, nothing to remember. it keeps your progress, notes and certificates, on any device.'}</p>
       <button class="btn-google" type="button" id="google-go">${GOOGLE}<span>continue with google</span></button>
-      <p class="dialog-small">the name on your google account is the name printed on your certificates. we only receive your name, email address and profile picture.</p>`);
+      ${emailOn() ? `<div class="auth-or"><span>or with your email</span></div>
+      <div class="auth-tabs" role="group" aria-label="sign in or create an account">${tab('in', 'sign in')}${tab('up', 'create account')}</div>
+      <form class="auth-form" id="auth-form" novalidate>
+        <label class="field" data-for="up"${fresh ? '' : ' hidden'}><span>your name</span><input name="name" autocomplete="name" maxlength="80" placeholder="as it should appear on your certificate"></label>
+        <label class="field"><span>email</span><input name="email" type="email" autocomplete="email" inputmode="email" required placeholder="you@example.com"></label>
+        <label class="field" data-for="in up"><span>password</span><div class="pw"><input name="password" type="password" autocomplete="${fresh ? 'new-password' : 'current-password'}" minlength="8" required placeholder="${fresh ? 'at least 8 characters' : 'your password'}"><button type="button" class="pw-show" aria-label="show the password">show</button></div></label>
+        <button class="btn-primary" type="submit"><span>${fresh ? 'create my account' : 'sign in'}</span><span class="btn-arrow" aria-hidden="true">→</span></button>
+        <button type="button" class="auth-link" data-auth-forgot${fresh ? ' hidden' : ''}>forgot your password?</button>
+      </form>` : ''}
+      <p class="dialog-small">${emailOn() ? 'the name on your account is printed on your certificates — you can change it, and add a phone number, from your page after signing in.' : 'the name on your google account is printed on your certificates — you can change it, and add a phone number, from your page after signing in. we only receive your name, email address and profile picture.'}</p>`);
     $('#google-go', body).addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
       say(body, 'taking you to google…');
@@ -538,6 +563,88 @@
       const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0], queryParams: { prompt: 'select_account' } } });
       if (error) { e.currentTarget.disabled = false; say(body, /not enabled|unsupported provider/i.test(error.message) ? 'google sign-in is not switched on yet — please try again later.' : error.message, true); }
     });
+    const form = $('#auth-form', body); if (!form) return;
+    let up = fresh, forgot = false;
+    const draw = () => {
+      $$('.auth-tab', body).forEach((b) => { const on = (b.dataset.authTab === 'up') === up && !forgot; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+      $('[data-for="up"]', form).hidden = !up || forgot;
+      $('[data-for="in up"]', form).hidden = forgot;
+      $('[data-auth-forgot]', form).hidden = up || forgot;
+      form.password.autocomplete = up ? 'new-password' : 'current-password';
+      form.password.placeholder = up ? 'at least 8 characters' : 'your password';
+      $('button[type=submit] span', form).textContent = forgot ? 'send me a reset link' : up ? 'create my account' : 'sign in';
+      $('.lesson-kicker', body).textContent = forgot ? 'forgot your password' : up ? 'create a free account' : 'welcome';
+      $('h2', body).textContent = forgot ? 'reset it by email' : up ? 'start learning' : 'sign in';
+      const msg = $('.dialog-msg', body); if (msg) msg.remove();
+    };
+    $$('.auth-tab', body).forEach((b) => b.addEventListener('click', () => { up = b.dataset.authTab === 'up'; forgot = false; draw(); }));
+    $('[data-auth-forgot]', form).addEventListener('click', () => { forgot = true; draw(); form.email.focus(); });
+    $('.pw-show', form).addEventListener('click', (e) => { const show = form.password.type === 'password'; form.password.type = show ? 'text' : 'password'; e.currentTarget.textContent = show ? 'hide' : 'show'; e.currentTarget.setAttribute('aria-label', show ? 'hide the password' : 'show the password'); });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = form.email.value.trim().toLowerCase(), password = form.password.value, name = form.name.value.trim().replace(/\s+/g, ' ');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return say(body, 'type your email address, like you@example.com.', true);
+      const go = $('button[type=submit]', form); go.disabled = true;
+      const back = location.href.split('#')[0];
+      try {
+        if (forgot) {
+          const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: back });
+          if (error) return say(body, authProblem(error.message), true);
+          return say(body, `if there is an account for ${email}, a link to choose a new password is on its way. open it on this device.`);
+        }
+        if (password.length < 8) return say(body, up ? 'choose a password of at least 8 characters.' : 'type your password.', true);
+        if (up) {
+          if (name.length < 2) return say(body, 'type your name — it goes on your certificates.', true);
+          const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: back } });
+          if (error) return say(body, authProblem(error.message), true);
+          // an address that already has an account comes back with no identities, and no email is sent
+          if (data && data.user && Array.isArray(data.user.identities) && !data.user.identities.length) return say(body, authProblem('already registered'), true);
+          if (data && data.session) { location.reload(); return; }
+          form.hidden = true; $$('.auth-or, .auth-tabs, #google-go', body).forEach((x) => { x.hidden = true; });
+          return say(body, `almost done — we sent a message to ${email}. open it and press the link to confirm your email; you are then signed in. nothing there? look in spam, or wait a minute.`);
+        }
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) return say(body, authProblem(error.message), true);
+        location.reload();
+      } catch (err) { say(body, authProblem(String(err && err.message || err)), true); }
+      finally { go.disabled = false; }
+    });
+  }
+
+  // ── my profile: the name to be called (and printed on new certificates), and a phone number ──
+  // a phone number written the bangladesh way (017…) is kept with its country code
+  const phoneOf = (v) => { let n = String(v || '').replace(/[^0-9+]/g, ''); if (/^01\d{9}$/.test(n)) n = '+88' + n; else if (/^8801\d{9}$/.test(n)) n = '+' + n; else if (n.startsWith('00')) n = '+' + n.slice(2); return n; };
+  const nameKeep = () => { try { localStorage.setItem('amaze.name', JSON.stringify({ id: S.user.id, name: S.name })); } catch (e) {} };
+  function profileDialog() {
+    const viaEmail = ((S.user.app_metadata || {}).provider || 'email') === 'email';
+    const body = openDialog(`
+      <span class="lesson-kicker">my profile</span>
+      <h2>your details</h2>
+      <p>your name is printed on the certificates you get from now on. your phone number is only seen by our team — we use it if we need to reach you about a payment or a class.</p>
+      <form id="profile-form" novalidate>
+        <label class="field"><span>your name</span><input name="name" autocomplete="name" maxlength="80" required value="${esc(S.name)}"></label>
+        <label class="field"><span>phone number (optional)</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc((S.profile && S.profile.phone) || '')}" placeholder="017XXXXXXXX"></label>
+        <label class="field"><span>email</span><input value="${esc(S.user.email || '')}" disabled></label>
+        <button class="btn-primary" type="submit"><span>save my details</span><span class="btn-arrow" aria-hidden="true">→</span></button>
+      </form>
+      ${viaEmail ? '<button type="button" class="auth-link" data-new-password>change my password</button>' : '<p class="dialog-small">you sign in with google, so your password is managed by google.</p>'}`);
+    const form = $('#profile-form', body);
+    const pw = $('[data-new-password]', body); if (pw) pw.addEventListener('click', () => newPasswordDialog(true));
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = form.name.value.trim().replace(/\s+/g, ' '), phone = phoneOf(form.phone.value);
+      if (name.length < 2) return say(body, 'type your name — at least 2 letters.', true);
+      if (phone && !/^\+?[0-9]{8,15}$/.test(phone)) return say(body, 'that phone number does not look right. type it the way you would dial it, like 01712345678.', true);
+      const go = $('button[type=submit]', form); go.disabled = true;
+      const { error } = await sb.from('profiles').upsert({ id: S.user.id, full_name: name, phone: phone || null });
+      go.disabled = false;
+      if (error) return say(body, /relation|does not exist|schema cache/i.test(error.message) ? 'saving details is not switched on yet — please try again later.' : plain(error.message), true);
+      S.name = name; S.profile = { full_name: name, phone: phone || null }; nameKeep();
+      // the courses already joined show the new name to the team too
+      sb.from('enrollments').update({ learner_name: name }).eq('user_id', S.user.id).then(() => {}, () => {});
+      say(body, 'saved.');
+      setTimeout(() => location.reload(), 700);
+    });
   }
 
   function accountDialog() {
@@ -546,23 +653,25 @@
       <h2>${esc(S.name || (S.admin ? 'admin' : 'learner'))}</h2>
       <p>${esc(S.user.email)}</p>
       <ul class="account-list">
+        ${S.admin ? '' : '<li><button data-act="profile">my profile — name &amp; phone <span>→</span></button></li>'}
         <li><a href="${U.my()}">my learning <span>→</span></a></li>
         <li><a href="${U.catalog()}">all courses <span>→</span></a></li>
         ${S.admin ? `<li><a href="${A.root}admin/">admin panel <span>→</span></a></li>` : ''}
         <li><button data-act="out">sign out <span>→</span></button></li>
       </ul>`);
-    $('[data-act="out"]', body).addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
+    $('[data-act="out"]', body).addEventListener('click', async () => { try { localStorage.removeItem('amaze.name'); } catch (e) {} await sb.auth.signOut(); location.reload(); });
+    const prof = $('[data-act="profile"]', body); if (prof) prof.addEventListener('click', profileDialog);
   }
 
-  function newPasswordDialog() {
+  function newPasswordDialog(change) {
     const body = openDialog(`
-      <span class="lesson-kicker">reset password</span><h2>new password</h2><p>choose a new password for your account.</p>
+      <span class="lesson-kicker">${change ? 'my profile' : 'reset password'}</span><h2>new password</h2><p>choose a new password for your account — at least 8 characters.</p>
       <form><label class="field"><span>new password</span><input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
       <button class="btn-primary" type="submit">save password <span class="btn-arrow" aria-hidden="true">→</span></button></form>`);
     $('form', body).addEventListener('submit', async (e) => {
       e.preventDefault();
       const { error } = await sb.auth.updateUser({ password: new FormData(e.target).get('password') });
-      if (error) return say(body, error.message, true);
+      if (error) return say(body, authProblem(error.message), true);
       say(body, 'password updated.'); setTimeout(() => location.reload(), 900);
     });
   }
@@ -897,12 +1006,12 @@
     const initials = (course.instructor_name || 'a').trim()[0];
     // for someone who has not started: the whole path in four short steps
     const steps = out || going || S.admin || !st.count ? [] : price.paid ? [
-      ['sign in with google', 'one click — no password to make or remember.'],
+      [signInWords(), emailOn() ? 'with google in one click, or with your email.' : 'one click — no password to make or remember.'],
       [`pay ${price.label} by bkash`, 'send the fee from your bkash app, then type the transaction id here.'],
       ['we confirm it', 'usually within a day. the lessons then open by themselves.'],
       [noun === 'webinar' ? 'join the session' : 'learn, then get your certificate', noun === 'webinar' ? 'it happens on this website — nothing to install.' : 'at your own pace, on your phone or laptop.'],
     ] : [
-      ['sign in with google', 'one click — no password to make or remember.'],
+      [signInWords(), emailOn() ? 'with google in one click, or with your email.' : 'one click — no password to make or remember.'],
       [noun === 'webinar' ? 'press “register”' : 'press “enrol”', 'it is free. nothing to pay.'],
       [noun === 'webinar' ? 'join the session' : 'learn at your own pace', noun === 'webinar' ? 'it happens on this website — nothing to install.' : 'on your phone or laptop. your place is saved.'],
       ['get your certificate', 'when you finish every lesson.'],
@@ -2034,7 +2143,7 @@
       const mine = S.payments[course.id];
       const state = !S.user ? 'guest' : S.admin ? 'admin' : paidUp(course) ? 'paid' : mine && mine.status === 'pending' ? 'pending' : mine && mine.status === 'rejected' ? 'rejected' : 'new';
       const step = { guest: 1, new: 2, rejected: 2, admin: 2, pending: 3, paid: 4 }[state];
-      const steps = [['account', 'sign in with google'], ['payment', 'send the fee by bkash'], ['confirmation', 'we check it and unlock']]
+      const steps = [['account', signInWords()], ['payment', 'send the fee by bkash'], ['confirmation', 'we check it and unlock']]
         .map(([name, sub], i) => `<li class="${i + 1 < step ? 'is-done' : i + 1 === step ? 'is-on' : ''}"><b>${i + 1 < step ? '✓' : pad2(i + 1)}</b><div><strong>${name}</strong><span>${sub}</span></div></li>`).join('');
       const open = !!number;   // the admin has said where the money goes
 
@@ -2057,7 +2166,7 @@
 
       const account = state === 'guest'
         ? `<p class="pay-lead">sign in first, so the ${type} can be unlocked for you and your progress and certificate have somewhere to live. it takes one click.</p>
-           <div class="hero-buttons" style="justify-content:flex-start;"><button class="btn-primary" type="button" data-auth="signin">continue with google <span class="btn-arrow" aria-hidden="true">→</span></button></div>`
+           <div class="hero-buttons" style="justify-content:flex-start;"><button class="btn-primary" type="button" data-auth="signin">${emailOn() ? 'sign in' : 'continue with google'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>`
         : `<dl class="pay-who pay-who--2"><div><dt>name</dt><dd>${esc(S.name || '—')}</dd></div><div><dt>email</dt><dd style="text-transform:none;">${esc(S.user.email)}</dd></div></dl>
            <p class="hint">the ${type} is unlocked for this account. not you? use the button at the top right to sign out.</p>`;
 
@@ -2167,7 +2276,7 @@
                 : '';
         if (problem) { draw(); return; }
         // not signed in yet: sign in first — what was typed is waiting when google brings them back
-        if (!S.user) { problem = 'one more step: sign in with google, and you will come straight back here with these two boxes still filled in — then press submit.'; draw(); authDialog('signin'); return; }
+        if (!S.user) { problem = 'one more step: ' + signInWords() + ', and you will come straight back here with these two boxes still filled in — then press submit.'; draw(); authDialog('signin'); return; }
         busy = true; draw();
         const { data, error } = await sb.from('payments').insert({ user_id: S.user.id, course_id: course.id, learner_name: S.name || null, learner_email: S.user.email, amount: due(), sender, trx_id: trx, ...(cut ? { coupon: cut.code } : {}) }).select().single();
         busy = false;
@@ -2256,7 +2365,7 @@
       ['i paid — why are my lessons still locked?', 'we check each payment by hand, usually within a day. you do not need to do anything: when it is confirmed, the lessons open by themselves and this page shows it.'],
       ['how do i join a live class?', 'open the class from this page or from the course. the room opens 15 minutes before the start: press “enter the live class”. it happens on this website — there is nothing to install.'],
       ['my camera or microphone does not work', 'on the class page press “test my camera & microphone” before the class. if the browser blocked it, press the padlock beside the website address and allow both. you can always join without them and use the chat.'],
-      ['will i lose my place if i change phone?', 'no. sign in with the same google account on any phone or laptop and your lessons, notes and certificates are there.'],
+      ['will i lose my place if i change phone?', 'no. sign in with the same account on any phone or laptop and your lessons, notes and certificates are there.'],
       ['how do i get my certificate?', 'finish every lesson of a course. the certificate then appears on this page under “completed”, with a link you can share.'],
     ];
 
@@ -2266,10 +2375,11 @@
         <a class="crumb rise" href="${U.catalog()}">← academy</a>
         <div class="hero-tag rise"><i></i>my learning</div>
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
+        ${S.user && !S.admin ? `<div class="me-line rise rise-2"><span>${esc(S.user.email || '')}${S.profile && S.profile.phone ? ` · ${esc(S.profile.phone)}` : ''}</span><button type="button" class="me-edit" data-profile>${S.profile && S.profile.phone ? 'edit profile' : 'edit name · add phone'}</button></div>` : ''}
         ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">
           <strong>sign in to keep your place.</strong>
-          <p>one click with your google account. it saves the courses you join, every lesson you finish, your notes and your certificates — so you can stop anywhere and carry on later, on any phone or laptop.</p>
-          <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signin">continue with google <span class="btn-arrow" aria-hidden="true">→</span></button></div>
+          <p>${emailOn() ? 'with google or your email.' : 'one click with your google account.'} it saves the courses you join, every lesson you finish, your notes and your certificates — so you can stop anywhere and carry on later, on any phone or laptop.</p>
+          <div class="hero-buttons"><button class="btn-primary" type="button" data-auth="signin">${emailOn() ? 'sign in' : 'continue with google'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>
           ${mine.length ? '<p style="margin:22px 0 0;font-size:13px;">the progress below is saved on this device only. it moves into your account as soon as you sign in.</p>' : ''}
         </div>`}
         <div class="dash">${resume}${liveCard}${payRows}</div>
@@ -2300,6 +2410,7 @@
         </div>
       </div></section>`;
     $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
+    $$('[data-profile]', root).forEach((b) => b.addEventListener('click', profileDialog));
     setInterval(() => $$('[data-until]', root).forEach((b) => { b.textContent = until(b.dataset.until); }), 30000);
     wireSaves(root);
   }

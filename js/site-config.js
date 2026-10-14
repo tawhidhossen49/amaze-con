@@ -57,7 +57,9 @@ window.AMAZE.get = async function (path) {
       const user = kept && kept.refresh_token && kept.user;
       if (!user) return '';
       const meta = user.user_metadata || {};
-      return String(meta.full_name || meta.name || user.email || '').trim().split(/[\s@]/)[0].toLowerCase().slice(0, 18) || 'account';
+      // the name the learner chose on their profile, kept by the academy pages
+      let chosen = ''; try { const n = JSON.parse(localStorage.getItem('amaze.name') || 'null'); if (n && n.id === user.id) chosen = n.name; } catch (e) {}
+      return String(chosen || meta.full_name || meta.name || user.email || '').trim().split(/[\s@]/)[0].toLowerCase().slice(0, 18) || 'account';
     } catch (e) { return ''; }
   }
   function show() {
