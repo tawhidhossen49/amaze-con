@@ -38,8 +38,9 @@
   let user = null;
   // what the signed-in admin may open: a main admin everything, a limited admin the parts ticked for them
   let me = { role: 'main', access: [] };
-  const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled']];
-  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view === 'reports' ? 'learners' : view));
+  const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners, and the journey timeline'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled']];
+  // the journey timeline belongs to whoever looks after people & logos
+  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view === 'reports' ? 'learners' : view === 'journey' ? 'lists' : view));
 
   // ── feedback ───────────────────────────────────────────────────────────────
   let toastEl, toastTimer;
@@ -368,12 +369,108 @@
     shell();
   }
 
+  // ── our journey ────────────────────────────────────────────────────────────
+  // The milestones on the "our journey" page. Each one is a year, what happened and what
+  // kind of step it was; the page draws its timeline, its year list and its counts from
+  // them. A milestone without a year is a draft: it waits here and is not on the website.
+  const JOURNEY_KINDS = [
+    ['partnership', 'partnership', 'a new partner organisation', '⇄'],
+    ['subsidiary', 'new subsidiary', 'a new wing of the consortium', '▣'],
+    ['program', 'program or event', 'a tournament, a camp, a course', '◎'],
+    ['launch', 'launch', 'a newsletter, a website, a product', '↗'],
+    ['recognition', 'recognition', 'an award or a mention', '★'],
+    ['milestone', 'other milestone', 'anything else worth marking', '◆'],
+  ];
+  const JOURNEY_NAME = Object.fromEntries(JOURNEY_KINDS.map(([k, t]) => [k, t]));
+  const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  let journeyEdit = null;   // the row being changed ('new' for a new one)
+  async function journeyView() {
+    const { data: rows, error } = await sb.from('journey').select('*').order('year', { ascending: false, nullsFirst: true }).order('month', { ascending: false, nullsFirst: false }).order('sort_order').order('created_at');
+    if (error) {
+      main.innerHTML = head('our journey', 'the timeline on the “our journey” page.') + `<p class="empty">${/does not exist|schema cache|could not find/i.test(error.message) ? 'one step left: open supabase → sql editor, paste the file <b>seed/website-backend-15-journey.sql</b> and press run (once).' : esc(plain(error.message))}</p>`;
+      return;
+    }
+    const list = rows || [], drafts = list.filter((r) => !r.year), shown = list.filter((r) => r.year && !r.hidden);
+    const now = new Date().getFullYear();
+    const editing = journeyEdit === 'new' ? {} : list.find((r) => r.id === journeyEdit);
+    const years = []; for (let y = now + 1; y >= 1990; y--) years.push(y);
+    const form = (r) => `<form id="journey-form" class="card" data-id="${esc(r.id || '')}">
+        <h2 class="card-title">${r.id ? 'change this milestone' : 'add a milestone'}</h2>
+        <div class="field"><span>what kind of step was it?</span>${choice('kind', JOURNEY_KINDS, r.kind || 'partnership', 'choice--cards choice--k3')}</div>
+        <label class="field"><span>what happened? — this is the title on the page</span><input name="title" required maxlength="90" value="${esc(r.title || '')}" placeholder="e.g. partnership with bangla innovator"></label>
+        <div class="form-grid">
+          <label class="field"><span>the year</span><select name="year"><option value="">no year yet — keep it as a draft</option>${years.map((y) => `<option value="${y}"${(r.year || (r.id ? '' : now)) == y ? ' selected' : ''}>${y}</option>`).join('')}</select></label>
+          <label class="field"><span>the month (optional)</span><select name="month"><option value="">—</option>${MONTHS.map((m, i) => `<option value="${i + 1}"${r.month === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
+        </div>
+        <label class="field"><span>a sentence or two about it (optional)</span><textarea name="body" rows="3" maxlength="400" placeholder="what it means, in plain words">${esc(r.body || '')}</textarea></label>
+        <label class="field"><span>a link to read more (optional)</span><input name="link" type="url" value="${esc(r.link || '')}" placeholder="https://"></label>
+        <label class="check"><input type="checkbox" name="hidden"${r.hidden ? ' checked' : ''}> hide it from the website for now</label>
+        <div class="editor-foot"><button class="btn btn--solid" type="submit">${r.id ? 'save' : 'add to the timeline'}</button><button class="btn" type="button" data-journey-cancel>cancel</button></div>
+      </form>`;
+    const row = (r) => `<div class="row journey-row" data-jid="${esc(r.id)}">
+        <div class="jk" data-kind="${esc(r.kind)}" title="${esc(JOURNEY_NAME[r.kind] || r.kind)}" aria-hidden="true"></div>
+        <div><strong style="text-transform:none;">${esc(r.title)}${r.hidden ? '<span class="badge">hidden</span>' : ''}</strong><span class="sub">${esc(JOURNEY_NAME[r.kind] || r.kind)}${r.month ? ` · ${MONTHS[r.month - 1]}` : ''}${r.body ? ` · ${esc(r.body.slice(0, 80))}${r.body.length > 80 ? '…' : ''}` : ''}</span></div>
+        <div class="row-actions">${r.year ? '' : `<select class="jy-pick" aria-label="the year it happened"><option value="">pick the year</option>${years.map((y) => `<option value="${y}">${y}</option>`).join('')}</select>`}<button class="btn btn--sm btn--solid" data-journey-edit>change</button>${r.year ? `<button class="btn btn--sm" data-journey-hide>${r.hidden ? 'show' : 'hide'}</button>` : ''}<button class="btn btn--sm btn--danger" data-journey-del>delete</button></div>
+      </div>`;
+    const byYear = [...new Set(list.filter((r) => r.year).map((r) => r.year))];
+
+    main.innerHTML = head('our journey', 'the timeline on the “our journey” page. when something happens — a new partner, a new subsidiary, a program, an award — add it here: the page draws it on the line, in the year list and in the counts by itself.',
+      `<button class="btn btn--solid" data-journey-new>+ add a milestone</button><a class="btn" href="${A.root}journey/" target="_blank" rel="noopener">see the page ↗</a>`)
+      + `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));"><div><b>${shown.length}</b><span>on the page</span></div><div><b>${shown.filter((r) => r.kind === 'partnership').length}</b><span>partnerships</span></div><div><b>${byYear.length ? Math.min(...byYear) : '—'}</b><span>the first year</span></div><div><b>${drafts.length}</b><span>drafts waiting for a year</span></div></div>`
+      + (editing ? form(editing) : '')
+      + (drafts.length ? `<div class="h2"><span>waiting for a year <small>${drafts.length}</small></span></div>
+        <p class="lede">these are already written, but not on the website: nobody has said when they happened yet. pick the year beside one and it goes on the timeline straight away. change the words first if you like.</p>
+        <div class="rows">${drafts.map(row).join('')}</div>` : '')
+      + byYear.map((y) => `<div class="h2"><span>${y} <small>${list.filter((r) => r.year === y).length}</small></span></div><div class="rows">${list.filter((r) => r.year === y).map(row).join('')}</div>`).join('')
+      + (list.length ? '' : '<p class="empty">nothing on the timeline yet. press “+ add a milestone”.</p>');
+
+    const f = $('#journey-form', main);
+    if (f) {
+      f.scrollIntoView({ block: 'start' });
+      // a partnership is usually "partnership with …": the start is written for you
+      const title = f.elements.title;
+      const kindChanged = () => { const k = f.elements.kind.value; if (!title.value.trim() && k === 'partnership') { title.value = 'partnership with '; title.focus(); title.setSelectionRange(title.value.length, title.value.length); } };
+      f.addEventListener('change', (e) => { if (e.target.name === 'kind') kindChanged(); });
+      if (!editing.id) kindChanged();
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(f));
+        const t = v.title.trim().replace(/\s+/g, ' ');
+        if (t.length < 2 || /^partnership with$/i.test(t)) return toast('say what happened — for a partnership, who it is with', true);
+        const link = (v.link || '').trim();
+        if (link && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(link)) return toast('the link has to be a full web address, starting with https://', true);
+        const out = { kind: JOURNEY_NAME[v.kind] ? v.kind : 'milestone', title: t, year: v.year ? +v.year : null, month: v.month ? +v.month : null, body: (v.body || '').trim() || null, link: link || null, hidden: !!v.hidden };
+        const id = f.dataset.id;
+        const ok = id ? await run(sb.from('journey').update(out).eq('id', id), out.year ? 'saved — the page shows it now' : 'saved as a draft') : await run(sb.from('journey').insert(out), out.year ? (out.hidden ? 'added, hidden for now' : `added — it is on the timeline in ${out.year}`) : 'saved as a draft — give it a year to show it');
+        if (ok) { journeyEdit = null; journeyView(); }
+      });
+    }
+    main.onchange = async (e) => {
+      const pick = e.target.closest('.jy-pick'); if (!pick || !pick.value) return;
+      const id = pick.closest('[data-jid]').dataset.jid;
+      if (await run(sb.from('journey').update({ year: +pick.value }).eq('id', id), `on the timeline in ${pick.value} now`)) journeyView();
+    };
+    main.onclick = async (e) => {
+      if (e.target.closest('[data-journey-new]')) { journeyEdit = 'new'; return journeyView(); }
+      if (e.target.closest('[data-journey-cancel]')) { journeyEdit = null; return journeyView(); }
+      const r = e.target.closest('[data-jid]'); if (!r) return;
+      const item = list.find((x) => x.id === r.dataset.jid); if (!item) return;
+      if (e.target.closest('[data-journey-edit]')) { journeyEdit = item.id; return journeyView(); }
+      if (e.target.closest('[data-journey-hide]')) { if (await run(sb.from('journey').update({ hidden: !item.hidden }).eq('id', item.id), item.hidden ? 'shown on the page again' : 'hidden from the page')) journeyView(); return; }
+      if (e.target.closest('[data-journey-del]')) {
+        if (!confirm(`delete “${item.title}” from the timeline? this cannot be undone. (to take it off the page for a while, press “hide” instead.)`)) return;
+        if (await run(sb.from('journey').delete().eq('id', item.id), 'deleted')) journeyView();
+      }
+    };
+  }
+
   // ── shell ──────────────────────────────────────────────────────────────────
   // each screen: its name in the menu, what draws it, a small sign, and one line saying what it is for
   const VIEWS = {
     home: ['home', homeView, '⌂', ''],
     pages: ['words & pictures', pagesView, '✎', 'change any text, button or picture on the website’s pages'],
     lists: ['people & logos', listsView, '☺', 'executives, advisors, schools, subsidiaries and partners'],
+    journey: ['our journey', journeyView, '↝', 'the timeline on the “our journey” page: add a partnership, a new subsidiary or any milestone'],
     courses: ['academy', coursesView, '▤', 'courses, programs and webinars — their lessons, prices and live classes'],
     learners: ['learners & payments', learnersView, '৳', 'check bkash payments and see who is enrolled'],
     reports: ['reports', reportsView, '▥', 'how the academy and the website are doing: money, enrolments, visitors, countries, popular pages — and a log of everything that happened'],
@@ -1701,7 +1798,7 @@
   // website. js/track.js counts, the database adds up (site_report); this only draws it.
   const REPORT_TABS = [['academy', 'the academy', 'money, enrolments, learners'], ['site', 'the website', 'visitors, countries, pages, buttons']];
   const reportTabs = () => `<div class="rtabs" role="tablist">${REPORT_TABS.map(([k, t, s]) => `<button type="button" role="tab" class="rtab${k === reportTab ? ' is-active' : ''}" data-rtab="${k}" aria-selected="${k === reportTab}"><b>${t}</b><small>${s}</small></button>`).join('')}</div>`;
-  const PAGE_NAMES = { '/': 'home page', '/academy': 'academy — all courses', '/academy/my-learning': 'my learning', '/academy/certificate': 'a certificate', '/apprenticeship': 'apprenticeship', '/structure': 'structure', '/tos': 'terms of service', '/privacy': 'privacy', '/code': 'code of conduct' };
+  const PAGE_NAMES = { '/': 'home page', '/academy': 'academy — all courses', '/academy/my-learning': 'my learning', '/academy/certificate': 'a certificate', '/apprenticeship': 'apprenticeship', '/structure': 'structure', '/journey': 'our journey', '/tos': 'terms of service', '/privacy': 'privacy', '/code': 'code of conduct' };
   function pageName(p) {
     if (PAGE_NAMES[p]) return PAGE_NAMES[p];
     const m = /^\/academy\/([^/]+)(?:\/(learn|pay))?$/.exec(p);

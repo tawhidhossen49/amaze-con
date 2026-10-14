@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>our journey — amaze consortium</title>
+<meta name="description" content="how amaze consortium has grown since 2020: every partnership, subsidiary and program, year by year, and what comes next.">
+<link rel="icon" href="../amazelogo.ico" type="image/x-icon">
+<link rel="stylesheet" href="../css/home.css">
+<link rel="stylesheet" href="../css/subpage.css">
+<link rel="stylesheet" href="../css/journey.css">
+<script src="../js/site-config.js"></script>
+<script src="../js/site-fields.js"></script>
+<script src="../js/site-text.js" data-page="journey"></script>
+<noscript><style>.reveal { opacity: 1; transform: none; }</style></noscript>
+</head>
+<body>
+
+  <!-- NAV — same bar as the home page, links point back into it -->
+  <nav id="navbar">
+    <a href="../" class="nav-logo">
+      <img src="../img/amazelogo.png" alt="amaze consortium" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+      <span style="display:none;">amaze</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="../#about">about</a></li>
+      <li><a href="../#divisions">initiatives</a></li>
+      <li><a href="../#founder">founder</a></li>
+      <li><a href="../#executives">team</a></li>
+      <li><a href="../academy/">academy</a></li>
+      <li class="nav-dropdown">
+        <span class="nav-more" tabindex="0">more <span class="nav-more-arrow">↓</span></span>
+        <ul class="dropdown-menu">
+          <li><a href="../#advisors">advisors</a></li>
+          <li><a href="../#partners">partners</a></li>
+          <li><a href="../#opportunities">opportunities</a></li>
+          <li><a href="../#contact">contact</a></li>
+          <li><a href="../apprenticeship/">apprenticeship</a></li>
+          <li><a href="../structure/">our structure</a></li>
+          <li><a href="../journey/">our journey</a></li>
+        </ul>
+      </li>
+    </ul>
+    <div class="nav-right">
+      <a class="nav-signin" href="../academy/my-learning">sign in</a>
+      <a class="nav-cta btn-primary" href="../#opportunities">apply now <span class="btn-arrow" aria-hidden="true">↗</span></a>
+      <button type="button" class="hamburger" id="hamburger" onclick="toggleMobileNav()" aria-label="open menu" aria-expanded="false" aria-controls="mobile-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MOBILE NAV -->
+  <div class="mobile-nav" id="mobile-nav">
+    <button class="close-nav" onclick="toggleMobileNav()" aria-label="close menu">✕</button>
+    <a href="../">main site</a>
+    <a href="../#about">about</a>
+    <a href="../#divisions">initiatives</a>
+    <a href="../#executives">team</a>
+    <a href="../academy/">academy</a>
+    <a href="../academy/my-learning">sign in / my learning</a>
+    <a href="../#contact">contact</a>
+    <a href="../apprenticeship/">apprenticeship</a>
+    <a href="../structure/">our structure</a>
+    <a href="../journey/">our journey</a>
+  </div>
+
+  <section class="page-hero">
+    <div class="page-hero-inner">
+      <div class="hero-tag" data-hero-fade><i></i>our journey</div>
+      <h1 class="page-h1" data-lines>
+          <span class="line"><span>we started small.</span></span>
+          <span class="line"><span><em>we are still growing.</em></span></span>
+      </h1>
+      <div class="page-hero-foot" data-hero-fade>
+        <p class="page-sub">every partnership, subsidiary and program since the day amaze consortium began, in the order it happened. the line does not stop at today: new names are added to it every year.</p>
+        <ul class="page-meta">
+          <li><small>since</small><span data-journey="since">2020</span></li>
+          <li><small>milestones</small><span data-journey="count">—</span></li>
+          <li><small>partnerships</small><span data-journey="partners">—</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- the line: every year from the first one to today, read from left to right -->
+  <section class="sect jr-sect" id="the-line">
+    <div class="sect-inner">
+      <div class="sect-head">
+        <div>
+          <span class="section-label reveal">// 01 — the line</span>
+          <h2 class="sect-title" data-lines>
+          <span class="line"><span>every step,</span></span>
+          <span class="line"><span>in the order it happened.</span></span>
+          </h2>
+        </div>
+        <div class="jr-filter reveal reveal-delay-2" id="journey-filter" role="group" aria-label="show one kind of milestone" hidden></div>
+      </div>
+    </div>
+    <div class="jr" id="journey-line" aria-label="timeline of amaze consortium">
+      <div class="jr-stage">
+        <div class="jr-ghost" aria-hidden="true"></div>
+        <div class="jr-track" id="journey-track"><p class="jr-loading">loading the timeline…</p></div>
+      </div>
+    </div>
+    <!-- the open end of the line: written once, placed after the last year by the timeline script -->
+    <div id="journey-now" class="jr-now-src" hidden>
+      <div class="jr-now-in">
+        <small class="jr-now-tag">today</small>
+        <h3 class="jr-now-title">the line keeps going.</h3>
+        <p class="jr-now-sub">new partners, new subsidiaries and new students join every year. the next milestone is already on its way.</p>
+        <a class="btn-primary jr-now-cta" href="../#contact">become a partner <span class="btn-arrow" aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- the same story, one year at a time, for reading at leisure -->
+  <section class="sect theme-light jy-sect" id="year-by-year">
+    <div class="sect-inner">
+      <div class="sect-head sect-head--solo">
+        <div>
+          <span class="section-label reveal">// 02 — year by year</span>
+          <h2 class="sect-title" data-lines>
+          <span class="line"><span>the whole story,</span></span>
+          <span class="line"><span>one year at a time.</span></span>
+          </h2>
+        </div>
+      </div>
+      <div class="jy" id="journey-years"></div>
+    </div>
+  </section>
+
+  <section class="page-cta">
+    <div class="page-cta-inner">
+      <h2 class="page-cta-title" data-lines>
+          <span class="line"><span>the next milestone</span></span>
+          <span class="line"><span><em>could have your name on it.</em></span></span>
+      </h2>
+      <a class="btn-primary reveal" href="../#contact">work with us <span class="btn-arrow" aria-hidden="true">→</span></a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <img src="../img/amazelogo.png" alt="amaze" onerror="this.style.display='none'">
+        <span>amaze consortium — strategic ecosystem</span>
+      </div>
+      <ul class="footer-nav">
+        <li><a href="../apprenticeship/">apprenticeship</a></li>
+        <li><a href="../structure/">our structure</a></li>
+        <li><a href="../#divisions">subsidiaries</a></li>
+        <li><a href="../tos/">terms & conditions</a></li>
+        <li><a href="../privacy/">privacy policy</a></li>
+        <li><a href="../">main site</a></li>
+      </ul>
+      <div class="footer-copy">© 2026 amaze consortium. all rights reserved.</div>
+    </div>
+  </footer>
+
+<script>
+  // Navbar scroll
+  const nav = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+  });
+
+  // Reveal on scroll
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+  reveals.forEach(r => observer.observe(r));
+
+  // Mobile nav
+  function toggleMobileNav(force) {
+    const menu = document.getElementById('mobile-nav'), btn = document.getElementById('hamburger');
+    const open = menu.classList.toggle('open', typeof force === 'boolean' ? force : undefined);
+    btn.setAttribute('aria-expanded', String(open));
+    // the page behind the menu stays put while it is open
+    document.documentElement.style.overflow = open ? 'hidden' : '';
+    if (open) menu.querySelector('.close-nav').focus(); else if (document.activeElement && menu.contains(document.activeElement)) btn.focus();
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.getElementById('mobile-nav').classList.contains('open')) toggleMobileNav(false); });
+</script>
+
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" integrity="sha384-HOvlOYPIs/zjoIkWUGXkVmXsjr8GuZLV+Q+rcPwmJOVZVpvTSXQChiN4t9Euv9Vc" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" integrity="sha384-P8VzCVnT9NBUkMrpcIZrJbA7EBjJvh/fJS6PmP+4nLIM284DtsImIv8D0fFjIkeh" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.3.4/dist/lenis.min.js" integrity="sha384-FKTX0CNJ8ngN1oGMBReVu7mvjTJyjFiD5etb1NKnYxc+8eFI2O0KWnksTN+oTFcu" crossorigin="anonymous"></script>
+<script defer src="../js/home-motion.js"></script>
+<script defer src="../js/journey.js"></script>
+</body>
+</html>

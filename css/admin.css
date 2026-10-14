@@ -456,3 +456,17 @@ body.admin .quiz-opt.is-right input[data-otext] { border-color: var(--green); }
 .note-box b { color: var(--fg); }
 .note-box ol { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 .note-box code { padding: 1px 6px; background: var(--bg); border: 1px solid var(--line); color: var(--green); font-size: 12.5px; }
+
+/* our journey: each row starts with the mark it has on the timeline */
+.journey-row { grid-template-columns: 26px minmax(0, 1fr) auto; }
+.jk { width: 14px; height: 14px; margin: 4px 0 0 6px; background: var(--green); border: 2px solid var(--green); }
+.jk[data-kind="partnership"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--green); }
+.jk[data-kind="subsidiary"] { background: transparent; }
+.jk[data-kind="program"] { background: #ecece6; border-color: #ecece6; }
+.jk[data-kind="recognition"] { background: transparent; border-color: #ecece6; }
+.jk[data-kind="launch"] { transform: rotate(45deg); }
+.jy-pick { min-height: 34px; padding: 0 10px; background: var(--bg); color: var(--fg); border: 1px solid var(--green); font: 400 13px/1 var(--font-sans); }
+.check { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 14px; color: var(--muted); cursor: pointer; }
+@media (max-width: 640px) { .journey-row { grid-template-columns: 26px minmax(0, 1fr); } .journey-row .row-actions { grid-column: 1 / -1; } }
+.choice.choice--k3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .choice.choice--k3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

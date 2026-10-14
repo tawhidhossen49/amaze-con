@@ -17,6 +17,10 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://amazeconsortium.org/journey/</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://amazeconsortium.org/code/</loc>
     <priority>0.4</priority>
   </url>

@@ -196,6 +196,35 @@
     ],
   };
 
+  // our journey: the words of the page. the milestones themselves are a list, on the “our journey” screen;
+  // the three numbers at the top are counted from them, only their labels are written here.
+  const journey = {
+    id: 'journey', title: 'our journey', file: 'journey/index.html',
+    groups: [
+      { name: 'show / hide sections', fields: [
+        ['journey.show.line', 'the timeline', sect(2), 'visible'],
+        ['journey.show.years', 'year by year', sect(3), 'visible'],
+        ['journey.show.cta', 'closing call to action', '.page-cta', 'visible'],
+      ] },
+      { name: 'page top', fields: [
+        ['journey.hero.tag', 'small label', '.page-hero .hero-tag'],
+        ['journey.hero.title1', 'headline — line 1', line('.page-h1', 1), 'html'],
+        ['journey.hero.title2', 'headline — line 2', line('.page-h1', 2), 'html'],
+        ['journey.hero.sub', 'paragraph', '.page-sub'],
+        ...range(3).map((i) => [`journey.hero.meta${i}.label`, `number ${i} — label (the number is counted for you)`, `.page-meta li:nth-child(${i}) small`]),
+      ] },
+      { name: 'the timeline', fields: [...sectHead('journey.line', 2),
+        ['journey.now.tag', 'at the end of the line — small label', '.jr-now-tag'],
+        ['journey.now.title', 'at the end of the line — heading', '.jr-now-title'],
+        ['journey.now.sub', 'at the end of the line — sentence', '.jr-now-sub'],
+        ['journey.now.button', 'at the end of the line — button text', '.jr-now-cta'],
+        ['journey.now.href', 'at the end of the line — button link', '.jr-now-cta', 'href'],
+      ] },
+      { name: 'year by year', fields: sectHead('journey.years', 3) },
+      cta('journey'),
+    ],
+  };
+
   const courses = {
     id: 'courses', title: 'academy', file: 'academy/index.html',
     groups: [
@@ -235,7 +264,7 @@
   });
 
   window.AMAZE_PAGES = [
-    home, academy, structure, courses,
+    home, academy, structure, journey, courses,
     legal('tos', 'terms & conditions', 'tos/index.html'),
     legal('privacy', 'privacy policy', 'privacy/index.html'),
     legal('code', 'code of conduct', 'code/index.html'),
