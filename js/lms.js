@@ -493,7 +493,7 @@
 
   // ── account dialog ─────────────────────────────────────────────────────────
   let dialog;
-  function openDialog(html) {
+  function openDialog(html, look = '') {
     if (!dialog) {
       dialog = document.createElement('div');
       dialog.className = 'dialog';
@@ -503,6 +503,7 @@
       document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDialog(); });
     }
     $('.dialog-body', dialog).innerHTML = html;
+    dialog.className = 'dialog' + (look ? ' ' + look : '') + (dialog.classList.contains('is-open') ? ' is-open' : '');
     requestAnimationFrame(() => dialog.classList.add('is-open'));
     const first = $('input', dialog); if (first) setTimeout(() => first.focus(), 80);
     return $('.dialog-body', dialog);
@@ -539,13 +540,26 @@
     }
     const fresh = mode === 'signup';
     const tab = (k, t) => `<button type="button" class="auth-tab${(k === 'up') === fresh ? ' is-on' : ''}" data-auth-tab="${k}" aria-pressed="${(k === 'up') === fresh}">${t}</button>`;
-    const body = openDialog(`
+    const SHIELD = '<svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z"/></svg>';
+    const body = $('.auth-main', openDialog(`
+      <div class="auth-stage" aria-hidden="true">
+        <i class="auth-grid"></i><i class="auth-orb"></i><i class="auth-sheen"></i>
+        <div class="auth-mark">${SHIELD}<b>amaze academy</b></div>
+        <p class="auth-big">learn it.<br><em>keep it.</em></p>
+        <ul class="auth-perks">
+          <li><i></i>your progress, on every phone and laptop</li>
+          <li><i></i>certificates with your name on them</li>
+          <li><i></i>live classes, right inside the website</li>
+        </ul>
+        <small class="auth-foot">amaze consortium · since 2020</small>
+      </div>
+      <div class="auth-main">
       <span class="lesson-kicker">${fresh ? 'create a free account' : 'welcome'}</span>
       <h2>${fresh ? 'start learning' : 'sign in'}</h2>
       <p>${emailOn() ? 'your account keeps your progress, notes and certificates, on any device.' : 'use your google account — one click, nothing to remember. it keeps your progress, notes and certificates, on any device.'}</p>
       <button class="btn-google" type="button" id="google-go">${GOOGLE}<span>continue with google</span></button>
       ${emailOn() ? `<div class="auth-or"><span>or with your email</span></div>
-      <div class="auth-tabs" role="group" aria-label="sign in or create an account">${tab('in', 'sign in')}${tab('up', 'create account')}</div>
+      <div class="auth-tabs" data-mode="${fresh ? 'up' : 'in'}" role="group" aria-label="sign in or create an account">${tab('in', 'sign in')}${tab('up', 'create account')}</div>
       <form class="auth-form" id="auth-form" novalidate>
         <label class="field" data-for="up"${fresh ? '' : ' hidden'}><span>your name</span><input name="name" autocomplete="name" maxlength="80" placeholder="as it should appear on your certificate"></label>
         <label class="field"><span>email</span><input name="email" type="email" autocomplete="email" inputmode="email" required placeholder="you@example.com"></label>
@@ -553,7 +567,8 @@
         <button class="btn-primary" type="submit"><span>${fresh ? 'create my account' : 'sign in'}</span><span class="btn-arrow" aria-hidden="true">→</span></button>
         <button type="button" class="auth-link" data-auth-forgot${fresh ? ' hidden' : ''}>forgot your password?</button>
       </form>` : ''}
-      <p class="dialog-small">${emailOn() ? 'the name on your account is printed on your certificates — you can change it, and add a phone number, from your page after signing in.' : 'the name on your google account is printed on your certificates — you can change it, and add a phone number, from your page after signing in. we only receive your name, email address and profile picture.'}</p>`);
+      <p class="dialog-small">${emailOn() ? 'the name on your account is printed on your certificates — you can change it, and add a phone number, from your page after signing in.' : 'the name on your google account is printed on your certificates — you can change it, and add a phone number, from your page after signing in. we only receive your name, email address and profile picture.'}</p>
+      </div>`, 'dialog--auth'));
     $('#google-go', body).addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
       say(body, 'taking you to google…');
@@ -567,6 +582,7 @@
     let up = fresh, forgot = false;
     const draw = () => {
       $$('.auth-tab', body).forEach((b) => { const on = (b.dataset.authTab === 'up') === up && !forgot; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+      $('.auth-tabs', body).dataset.mode = forgot ? 'none' : up ? 'up' : 'in';
       $('[data-for="up"]', form).hidden = !up || forgot;
       $('[data-for="in up"]', form).hidden = forgot;
       $('[data-auth-forgot]', form).hidden = up || forgot;
