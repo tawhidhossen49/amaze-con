@@ -852,6 +852,11 @@
           </ol>
         </div>
         <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button></div></form></details>
+      <details class="group aid-box"><summary>financial aid — your google form<small>${ps.aid ? '<b>on</b> · the button shows on every paid course, program and webinar' : 'not set yet — no financial aid button is shown'}</small></summary>
+      <form id="aid-form" style="padding:4px 20px 22px;">
+        <label class="field"><span>the link to your financial aid google form</span><input name="aid" type="url" inputmode="url" autocomplete="off" value="${esc(ps.aid || '')}" placeholder="https://forms.gle/…">
+          <small class="hint">open the form in google forms, press “send”, choose the link tab and copy it here. an “apply for financial aid” button then appears on every paid course, program and webinar, and on its payment page; it opens this form in a new tab. leave it empty to take the button away. one entry can have a different form: set it in that entry’s price, below its price.</small></label>
+        <div class="editor-foot"><button class="btn btn--solid" type="submit">save the form link</button>${ps.aid ? `<a class="btn" href="${esc(ps.aid)}" target="_blank" rel="noopener noreferrer">try it ↗</a>` : ''}</div></form></details>
       <details class="group help-box"${ps.whatsapp ? '' : ' open'}><summary>help for learners — your whatsapp number<small>${ps.whatsapp ? `<b>+${esc(ps.whatsapp)}</b> · press to change` : '<b style="color:#f2b42e;">not set yet — learners are told to email instead</b>'}</small></summary>
       <form id="help-form" style="padding:4px 20px 22px;">
         <label class="field field--short" style="max-width:420px;"><span>the whatsapp number learners can message</span><input name="whatsapp" inputmode="tel" value="${esc(ps.whatsapp ? '+' + ps.whatsapp : '')}" placeholder="017XXXXXXXX" maxlength="20">
@@ -927,6 +932,13 @@
       const on = new FormData(e.target).get('email_login') === '1';
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, email_login: on }, on ? 'saved — learners can now also create an account with their email' : 'saved — learners sign in with google only')) coursesView();
+    });
+    $('#aid-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const link = String(new FormData(e.target).get('aid') || '').trim();
+      if (link && !/^https:\/\/[^\s.]+\.[^\s]+$/i.test(link)) return toast('paste the full link to the form — it starts with https://', true);
+      const fresh = (await payLoad()).settings;
+      if (await paySave('pay.settings', { ...fresh, aid: link }, link ? 'saved — learners now see “apply for financial aid” on every paid entry' : 'saved — the financial aid button is gone')) coursesView();
     });
     $('#help-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1188,6 +1200,8 @@
             <label class="field"><span>the old price, to show a discount (optional)</span><input name="pay_was" inputmode="decimal" value="${esc(own.was || '')}" placeholder="e.g. 800">
               <small class="hint">shown crossed out beside the price, with “% off”. it must be higher than the price. leave it empty for no discount.</small></label>
           </div>
+          <label class="field" data-when="where=here&pay_paid=1"><span>a different financial aid form for this one (optional)</span><input name="pay_aid" type="url" inputmode="url" autocomplete="off" value="${esc(own.aid || '')}" placeholder="${esc(pay.settings.aid || 'https://forms.gle/…')}">
+            <small class="hint">${pay.settings.aid ? 'leave it empty to use the academy’s financial aid form.' : 'no financial aid form is set for the academy yet — add one on the academy screen, under “financial aid”, or put a form just for this one here.'}</small></label>
         </section>
 
         <section class="card">
@@ -1403,7 +1417,9 @@
       if (away && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(link)) return toast('paste the full link to it on the other website — it starts with https://', true);
       if (away && wasPrice && !nowPrice) return toast('to show an old price, type the price it costs now as well', true);
       if (away && id && lessons.length && own.external === undefined && !confirm(`this ${noun} has ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} here. once it points to another website, learners can no longer open them (they are kept, and come back if you switch it to “on this website” again). continue?`)) return;
-      const fee = away ? { paid: false, price: nowPrice, was: wasPrice, external: link, external_by: (v.external_by || '').trim() } : { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice };
+      const aid = away || v.pay_paid === '0' ? '' : (v.pay_aid || '').trim();
+      if (aid && !/^https:\/\/[^\s.]+\.[^\s]+$/i.test(aid)) return toast('the financial aid form has to be a full link, starting with https://', true);
+      const fee = away ? { paid: false, price: nowPrice, was: wasPrice, external: link, external_by: (v.external_by || '').trim() } : { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice, ...(aid ? { aid } : {}) };
       // remember the teacher for next time (a new one is added; a known one gets the new role and photo)
       if (row.instructor_name && v.remember_teacher && !$('#teacher-keep', main).hidden) {
         const list = (await payLoad()).teachers.filter((t) => !same(t.name, row.instructor_name));

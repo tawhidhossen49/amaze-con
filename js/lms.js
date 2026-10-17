@@ -177,6 +177,13 @@
   }
   // the attributes of a link that leaves for that website (it opens beside this one, and is counted as a visit)
   const outLink = (course) => { const o = outside(course); return o ? `href="${esc(o.url)}" target="_blank" rel="noopener noreferrer" data-out="${esc(course.id)}"` : ''; };
+  // financial aid: the entry's own form, or the academy's — only for an entry that is paid for here
+  function aidUrl(course) {
+    if (S.preview || outside(course) || !fee(course).paid) return '';
+    const u = String((S.pay.course[course.id] || {}).aid || S.pay.settings.aid || '').trim();
+    return /^https:\/\/[^\s.]+\.[^\s]+$/i.test(u) ? u : '';
+  }
+  const aidButton = (course) => { const u = aidUrl(course); return u ? `<a class="btn-outline btn-aid" href="${esc(u)}" target="_blank" rel="noopener noreferrer">apply for financial aid <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''; };
   function fee(course) {
     if (S.preview) return { paid: false, label: 'free', amount: '', link: '', was: '', off: 0, saved: '' };
     const own = S.pay.course[course.id] || {}, all = S.pay.settings;
@@ -1182,7 +1189,7 @@
             <div>
               <p class="page-sub">${esc(course.tagline || '')}</p>
               <div class="course-actions" style="margin-top:28px;">
-                <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}</div>
+                <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}${going || S.admin || payState(course) === 'paid' ? '' : aidButton(course)}</div>
                 ${out ? `<p class="ask">this ${noun} is run by ${esc(out.by || out.host)} on their own website — you enrol, pay and learn there. the button opens it beside this page.</p>` : ''}
                 ${going || S.admin || out ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
                 ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="${U.cert({ c: course.id })}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
@@ -1306,6 +1313,7 @@
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
         <p>${waiting ? 'as soon as it is confirmed, every lesson here unlocks for your account by itself.' : `enrol to unlock every lesson, the live classes, your notes and the certificate. the fee is ${fee(course).label}.`}</p>
         <div class="hero-buttons"><a class="btn-primary" href="${U.pay(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
+        ${waiting ? '' : aidButton(course)}
         <a class="btn-outline" href="${courseUrl}">back to the ${typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a></div>
         <p class="ask">${waiting ? 'waiting longer than a day?' : 'not sure how to pay?'} ${helpLink('i need help with my payment for “' + course.title + '”')}</p></div>`;
     } else if (isLocked) {
@@ -2346,6 +2354,7 @@
               ${sideButton}
               ${state === 'paid' ? '' : `<p class="pay-fine">${LOCK}<span>you pay in your own bkash app — we never ask for your pin or password. your place is confirmed once we have checked the payment.</span></p>`}
               ${state === 'paid' || state === 'admin' ? '' : `<div class="pay-help"><strong>stuck on a step?</strong>${helpLink('i need help paying for “' + course.title + '”')}</div>`}
+              ${state === 'paid' || state === 'admin' || !aidUrl(course) ? '' : `<div class="pay-help pay-aid"><strong>cannot afford the fee?</strong><span>tell us about your situation. if financial aid is given, your place is opened for you.</span>${aidButton(course)}</div>`}
             </div>
           </div></aside>
         </div>

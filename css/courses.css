@@ -1426,3 +1426,9 @@ html.vp-open, html.vp-open body { overflow: hidden; }
 .vp.is-tampered .vp-big { display: none; }
 /* the live class, after its watermark was tampered with */
 .live-stage.is-veiled .mr video { visibility: hidden; }
+
+/* financial aid: a quieter button beside the main one, and its own box on the payment page */
+.pay-aid { display: grid; gap: 10px; margin-top: 12px; }
+.pay-aid span { font-size: 13.5px; line-height: 1.55; color: var(--muted); text-transform: lowercase; }
+.pay-aid .btn-aid { justify-self: start; }
+@media (max-width: 640px) { .pay-aid .btn-aid { justify-self: stretch; justify-content: space-between; } }
