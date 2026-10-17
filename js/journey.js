@@ -1,13 +1,11 @@
 // ── OUR JOURNEY ─────────────────────────────────────────────────────────────
-// Draws the "our journey" page from the milestones kept in the admin panel
-// (table: journey). Every year from the first milestone to today gets a slot on
-// the line, empty years included, so the reader feels the time pass; the line
-// then runs on past today. A new row in the admin panel is a new point on the
-// line, the year list and the counts at the top: nothing here needs changing.
-//
-// On a wide screen with motion allowed, the line is pinned and scrolls sideways
-// as the page is scrolled. Otherwise it is a sideways strip you can swipe
-// (or, on a phone, a list that runs down the page).
+// Draws the "our journey" timeline from the milestones kept in the admin panel
+// (table: journey). It reads from top to bottom: one spine down the middle, a
+// station for every year in which something happened (quiet years are left out,
+// so 2021 runs straight on to 2023), and each milestone branching off to the left
+// or the right as it scrolls into view. The spine fills in as the reader goes
+// down; this year is marked live, and past it the spine turns dashed into the
+// years still to come. A new row in the admin panel is a new branch on the line.
 (function () {
   'use strict';
   const $ = (s, r = document) => r.querySelector(s);
@@ -19,7 +17,7 @@
   const NOW = new Date().getFullYear();
   const safeLink = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
 
-  const line = $('#journey-line'), track = $('#journey-track'), years = $('#journey-years'), filter = $('#journey-filter');
+  const line = $('#journey-line'), track = $('#journey-track'), filter = $('#journey-filter');
   if (!line || !track) return;
 
   const parsed = new Promise((res) => (document.readyState !== 'loading' ? res() : document.addEventListener('DOMContentLoaded', res, { once: true })));
@@ -35,58 +33,42 @@
   function draw(list) {
     const byYear = new Map();
     list.forEach((r) => { if (!byYear.has(r.year)) byYear.set(r.year, []); byYear.get(r.year).push(r); });
-    const first = list.length ? list[0].year : NOW;
-    const last = Math.max(NOW, list.length ? list[list.length - 1].year : NOW);
+    // only the years in which something happened, and always this one: the line is live here
+    if (!byYear.has(NOW)) byYear.set(NOW, []);
+    const years = [...byYear.keys()].sort((a, b) => a - b);
+    const last = years[years.length - 1];
 
-    // the numbers at the top of the page
-    const put = (k, v) => { const el = $(`[data-journey="${k}"]`); if (el) el.textContent = v; };
-    put('since', first);
-    put('count', list.length);
-    put('partners', list.filter((r) => r.kind === 'partnership').length);
-
-    // ── the line ──
     let n = 0;
     const item = (r) => {
-      const side = n++ % 2 ? 'down' : 'up', kind = KIND[r.kind] ? r.kind : 'milestone', link = safeLink(r.link);
+      const side = n++ % 2 ? 'right' : 'left', kind = KIND[r.kind] ? r.kind : 'milestone', link = safeLink(r.link);
       return `<li class="jr-item jr-item--${side}" data-kind="${kind}">
           <span class="jr-node" aria-hidden="true"></span><span class="jr-stem" aria-hidden="true"></span>
-          <div class="jr-card">
-            <small>${KIND[kind]}${r.month ? ` <b>${MONTH[r.month - 1]} ${r.year}</b>` : ''}</small>
+          ${r.month ? `<span class="jr-when" aria-hidden="true">${MONTH[r.month - 1]}</span>` : ''}
+          <article class="jr-card">
+            <small>${KIND[kind]}${r.month ? `<b>${MONTH[r.month - 1]} ${r.year}</b>` : ''}${r.year > NOW ? '<em class="jr-soon">coming up</em>' : ''}</small>
             <h3>${esc(r.title)}</h3>
             ${r.body ? `<p>${esc(r.body)}</p>` : ''}
             ${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">read more <span aria-hidden="true">↗</span></a>` : ''}
-          </div>
+          </article>
         </li>`;
     };
     let html = '<span class="jr-rail" aria-hidden="true"><i class="jr-fill"></i></span><ol class="jr-years">';
-    for (let y = first; y <= last; y++) {
-      const here = byYear.get(y) || [], today = y === NOW;
-      // this year is the live end of the line: its milestones, then the open end
-      html += `<li class="jr-year${here.length || today ? '' : ' is-quiet'}${today ? ' jr-today' : ''}" data-year="${y}">
-          <span class="jr-num${today ? ' jr-num--now' : ''}">${y}</span>${today ? '<span class="jr-pulse" aria-hidden="true"></span>' : ''}
+    years.forEach((y) => {
+      const here = byYear.get(y), today = y === NOW;
+      // a year still to come with something already planned sits on the dashed part of the line
+      html += `<li class="jr-year${today ? ' jr-today' : ''}${y > NOW ? ' jr-ahead' : ''}" data-year="${y}">
+          <span class="jr-big" aria-hidden="true"><b>${y}</b></span>
+          <div class="jr-head"><span class="jr-num">${y}</span>${here.length ? `<small class="jr-count">${here.length} ${here.length === 1 ? 'milestone' : 'milestones'}</small>` : ''}</div>
           ${here.length ? `<ul class="jr-items">${here.map(item).join('')}</ul>` : ''}
           ${today ? '<div class="jr-now"></div>' : ''}
         </li>`;
-    }
+    });
     // the years that have not happened yet
-    html += `<li class="jr-year jr-future" aria-hidden="true"><span class="jr-num">${last + 1}</span></li><li class="jr-year jr-future jr-future--far" aria-hidden="true"><span class="jr-num">${last + 2}</span></li></ol>`;
+    html += `<li class="jr-year jr-future" aria-hidden="true"><div class="jr-head"><span class="jr-num">${last + 1}</span></div></li>`;
+    html += `<li class="jr-year jr-future jr-future--far" aria-hidden="true"><div class="jr-head"><span class="jr-num">${last + 2}</span></div></li></ol>`;
     track.innerHTML = html;
     const nowSrc = $('#journey-now');
     if (nowSrc) { const box = $('.jr-now', track); [...nowSrc.childNodes].forEach((c) => box.appendChild(c)); nowSrc.remove(); }
-    line.classList.toggle('is-empty', !list.length);
-
-    // ── year by year ──
-    if (years) {
-      const desc = (r) => { const kind = KIND[r.kind] ? r.kind : 'milestone', link = safeLink(r.link); return `<li data-kind="${kind}"><small>${KIND[kind]}${r.month ? ` · ${MONTH[r.month - 1]}` : ''}</small><h3>${esc(r.title)}</h3>${r.body ? `<p>${esc(r.body)}</p>` : ''}${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">read more ↗</a>` : ''}</li>`; };
-      const nowTitle = ($('.jr-now-title', track) || {}).textContent || 'the line keeps going.';
-      const nowSub = ($('.jr-now-sub', track) || {}).textContent || '';
-      years.innerHTML = [...byYear.keys()].map((y) => `<div class="jy-year reveal" data-year="${y}"><div class="jy-num">${y}</div><ul class="jy-items">${byYear.get(y).map(desc).join('')}</ul></div>`).join('')
-        + `<div class="jy-year jy-year--now reveal"><div class="jy-num">next<span>after ${NOW}</span></div><div class="jy-items jy-next"><h3>${esc(nowTitle)}</h3>${nowSub ? `<p>${esc(nowSub)}</p>` : ''}</div></div>`;
-      $$('.reveal', years).forEach((el) => {
-        if (!('IntersectionObserver' in window)) return el.classList.add('visible');
-        new IntersectionObserver((es, ob) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); ob.disconnect(); } }), { threshold: 0.1 }).observe(el);
-      });
-    }
 
     // ── show one kind at a time ──
     const kinds = Object.keys(KIND).filter((k) => list.some((r) => r.kind === k));
@@ -96,7 +78,7 @@
       filter.addEventListener('click', (e) => {
         const b = e.target.closest('[data-only]'); if (!b) return;
         $$('.jr-chip', filter).forEach((x) => { const on = x === b; x.classList.toggle('is-on', on); x.setAttribute('aria-pressed', String(on)); });
-        [line, years].forEach((el) => { if (el) { if (b.dataset.only === 'all') el.removeAttribute('data-only'); else el.dataset.only = b.dataset.only; } });
+        if (b.dataset.only === 'all') line.removeAttribute('data-only'); else line.dataset.only = b.dataset.only;
       });
     }
 
@@ -105,55 +87,39 @@
 
   // ── movement ──
   function motion() {
-    const stage = $('.jr-stage', line), ghost = $('.jr-ghost', line), fill = $('.jr-fill', track);
-    const slots = $$('.jr-year:not(.jr-future)', track);
-    let active = null;
-    const mark = (y) => {
-      if (y === active) return;
-      active = y;
-      slots.forEach((s) => s.classList.toggle('is-active', s.dataset.year === String(y)));
-      if (ghost) { ghost.classList.remove('is-in'); void ghost.offsetWidth; ghost.textContent = y; ghost.classList.add('is-in'); }
-    };
-    // measured on screen: where something is, from the left edge of the strip
-    const leftOf = (el) => el.getBoundingClientRect().left - stage.getBoundingClientRect().left;
-    // the year whose slot has reached the middle of the screen
-    const yearAt = () => {
-      let y = slots.length ? slots[0].dataset.year : '';
-      slots.forEach((s) => { if (leftOf(s) <= stage.clientWidth * 0.4) y = s.dataset.year; });
-      return y;
-    };
-    // the solid line ends at today; past it the years to come are dashed
-    const today = $('.jr-today', track);
-    const endRail = () => { if (today) track.style.setProperty('--rail-end', `${Math.max(0, track.scrollWidth - (today.offsetLeft + today.offsetWidth) - (today.offsetParent === track ? 0 : today.offsetParent.offsetLeft))}px`); };
-    endRail();
-    const wide = window.matchMedia('(min-width: 901px)').matches;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const gsap = window.gsap, ST = window.ScrollTrigger;
-    const distance = () => Math.max(0, track.scrollWidth - stage.clientWidth);
-
-    if (wide && !reduce && gsap && ST && distance() > 40) {
-      // pinned: scrolling down moves the line sideways
-      gsap.registerPlugin(ST);
-      line.classList.add('is-pinned');
-      // each milestone rises into place once it reaches the screen
-      const items = $$('.jr-item', track);
-      const reveal = () => items.forEach((it) => { if (!it.classList.contains('is-in') && leftOf(it) < stage.clientWidth * 0.9) it.classList.add('is-in'); });
-      // everything that depends on where the line is follows the (smoothed) movement itself
-      const follow = function () { if (fill) fill.style.transform = `scaleX(${this.progress()})`; mark(yearAt()); reveal(); };
-      gsap.to(track, {
-        x: () => -distance(), ease: 'none', onUpdate: follow,
-        scrollTrigger: { trigger: line, start: 'top top', end: () => `+=${distance()}`, pin: true, scrub: 0.8, anticipatePin: 1, invalidateOnRefresh: true, onRefresh: endRail },
-      });
-      ST.refresh();
-      mark(yearAt());
-      reveal();
+    const groups = $$('.jr-year:not(.jr-future)', track), items = $$('.jr-item', track), fill = $('.jr-fill', track), rail = $('.jr-rail', track);
+    // the solid spine ends with this year; below it the years to come are dashed
+    const today = $('.jr-today', track);
+    const endRail = () => { if (today) track.style.setProperty('--rail-end', `${Math.max(0, track.offsetHeight - (today.offsetTop + today.offsetHeight))}px`); };
+    endRail();
+    if ('ResizeObserver' in window) new ResizeObserver(endRail).observe(track);
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach((i) => i.classList.add('is-in'));
+      groups.forEach((g) => g.classList.add('is-reached'));
       return;
     }
-    // not pinned: a strip to swipe (wide screens) or a list down the page (phones)
-    if (wide) {
-      const sync = () => { if (fill) fill.style.transform = `scaleX(${distance() ? stage.scrollLeft / distance() : 1})`; mark(yearAt()); };
-      stage.addEventListener('scroll', sync, { passive: true });
-      sync();
+    line.classList.add('is-moving');
+    // each milestone branches out as it comes up the screen. everything above the point reached is
+    // shown too, so a jump down the page (a link, the End key, a reload half way) leaves nothing hidden
+    const catchUp = () => items.forEach((i) => { if (!i.classList.contains('is-in') && i.getBoundingClientRect().top < innerHeight * 0.86) { i.classList.add('is-in'); pop.unobserve(i); } });
+    const pop = new IntersectionObserver((es) => { es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-in'); pop.unobserve(e.target); } }); catchUp(); }, { rootMargin: '0px 0px -14% 0px', threshold: 0.2 });
+    items.forEach((i) => pop.observe(i));
+    groups.forEach((g) => new IntersectionObserver(catchUp).observe(g));
+    catchUp();
+    // the year at the middle of the screen is the one being read
+    const reading = new IntersectionObserver((es) => es.forEach((e) => {
+      if (!e.isIntersecting) return;
+      groups.forEach((g) => g.classList.toggle('is-active', g === e.target));
+      e.target.classList.add('is-reached');
+    }), { rootMargin: '-48% 0px -48% 0px' });
+    groups.forEach((g) => reading.observe(g));
+    // the spine fills in with the scroll (smoothly, through the page's own scroll engine)
+    const gsap = window.gsap, ST = window.ScrollTrigger;
+    if (gsap && ST && fill) {
+      gsap.registerPlugin(ST);
+      gsap.fromTo(fill, { scaleY: 0 }, { scaleY: 1, ease: 'none', scrollTrigger: { trigger: rail, start: 'top 60%', end: 'bottom 60%', scrub: 0.6, invalidateOnRefresh: true } });
+      ST.refresh();
     } else if (fill) fill.style.transform = 'none';
   }
 })();

@@ -1,93 +1,113 @@
 /* ==========================================================================
-   our journey — the line of years, and the same story year by year.
+   our journey: one spine down the middle, a station for every year something
+   happened, milestones branching left and right as they come into view.
    Loaded after home.css and subpage.css (same tokens, nav, hero and footer).
    Square corners and one accent throughout, like the rest of the site.
    ========================================================================== */
 
+/* the headline leads straight into the line: no block of text and numbers between them */
+.page-hero { padding-bottom: 0; }
+.jr-sect { border-top: 0; padding-top: clamp(28px, 4vw, 56px); }
+
 /* --------------------------------------------------------------------------
-   kinds of milestone: each has its own mark on the line (shape and fill, one accent)
+   kinds of milestone: each has its own mark on the spine (shape and fill, one accent)
    -------------------------------------------------------------------------- */
-.jr-item, .jy-items li { --mark-bg: var(--green); --mark-bd: var(--green); --mark-turn: 0deg; }
+.jr-item { --mark-bg: var(--green); --mark-bd: var(--green); --mark-turn: 0deg; --mark-ring: 0; }
 [data-kind="partnership"] { --mark-ring: 1; }
-[data-kind="subsidiary"]  { --mark-bg: transparent; }
+[data-kind="subsidiary"]  { --mark-bg: var(--bg); }
 [data-kind="program"]     { --mark-bg: var(--bone); --mark-bd: var(--bone); }
-[data-kind="recognition"] { --mark-bg: transparent; --mark-bd: var(--bone); }
+[data-kind="recognition"] { --mark-bg: var(--bg); --mark-bd: var(--bone); }
 [data-kind="launch"]      { --mark-turn: 45deg; }
 
 /* --------------------------------------------------------------------------
    the line
    -------------------------------------------------------------------------- */
-.jr-sect .sect-head { align-items: end; }
-.jr-sect > .sect-inner { padding-bottom: clamp(28px, 4vw, 56px); }
-.jr { position: relative; }
-.jr-stage { position: relative; height: min(78vh, 700px); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: rgba(46,242,162,0.4) transparent; }
-.jr.is-pinned .jr-stage { height: 100vh; height: 100dvh; overflow: hidden; }
-.jr-track { position: relative; display: flex; align-items: stretch; width: max-content; height: 100%; padding: calc(var(--nav-h) * 0.6) var(--gutter) 0; will-change: transform; }
-.jr-loading { align-self: center; padding: 0 var(--gutter); font-size: 15px; color: var(--muted); }
+.jr { position: relative; margin-top: clamp(56px, 7vw, 104px); }
+.jr-track { position: relative; }
+.jr-loading { font-size: 15px; color: var(--muted); }
 
-/* the rail, and its fill that follows the scroll */
-.jr-rail { position: absolute; left: 0; right: var(--rail-end, 0); top: calc(50% + var(--nav-h) * 0.3); height: 2px; background: rgba(255,255,255,0.12); pointer-events: none; }
-.jr-fill { position: absolute; inset: 0; background: var(--green); transform: scaleX(0); transform-origin: left; }
+/* the spine, solid as far as today; it fills in green as the page is read */
+.jr-rail { position: absolute; left: 50%; top: 0; bottom: var(--rail-end, 0); width: 1px; background: rgba(255,255,255,0.14); transform: translateX(-50%); pointer-events: none; }
+.jr-fill { position: absolute; top: 0; bottom: 0; left: -0.5px; width: 2px; background: var(--green); transform-origin: top; }
+.jr.is-moving .jr-fill { transform: scaleY(0); }
 
-/* the big year behind everything: it changes as each year reaches the middle */
-.jr-ghost { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--nav-h) * 0.6); pointer-events: none; font-size: clamp(160px, 30vw, 460px); font-weight: 700; line-height: 1; letter-spacing: -0.06em; color: transparent; -webkit-text-stroke: 1px rgba(46,242,162,0.13); user-select: none; }
-.jr-ghost.is-in { animation: jr-ghost 0.8s var(--ease-out) both; }
-@keyframes jr-ghost { from { opacity: 0; transform: translateY(18px) scale(0.98); } }
+.jr-years { margin: 0; padding: 0; list-style: none; }
+.jr-year { position: relative; padding-bottom: clamp(56px, 7vw, 96px); }
 
-.jr-years { position: relative; display: flex; align-items: stretch; height: 100%; margin: 0; padding: 0; list-style: none; }
-.jr-year { display: flex; align-items: stretch; }
-/* each year is a square station on the rail */
-.jr-num { position: relative; z-index: 1; align-self: center; margin: 0 26px 0 0; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.18); background: var(--bg); font: 700 22px/1 var(--font-sans); letter-spacing: -0.03em; color: var(--muted); transition: background 0.4s var(--ease-out), color 0.4s var(--ease-out), border-color 0.4s var(--ease-out); }
+/* the year behind its own milestones: very large, outlined, staying in view while that year is read */
+.jr-big { position: sticky; top: 52vh; z-index: 0; display: block; height: 0; pointer-events: none; text-align: center; }
+.jr-big b { display: block; font-size: clamp(140px, 21vw, 330px); font-weight: 700; line-height: 0.8; letter-spacing: -0.06em; color: transparent; -webkit-text-stroke: 1px rgba(46,242,162,0.11); transform: translateY(-50%); opacity: 0; transition: opacity 0.8s ease; user-select: none; }
+.jr-year.is-active .jr-big b, .jr:not(.is-moving) .jr-big b { opacity: 1; }
+
+/* the station: it stays at the top of the screen while its year is read */
+.jr-head { position: sticky; top: calc(var(--nav-h) + 16px); z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 6px; width: max-content; margin: 0 auto; }
+.jr-num { padding: 12px 18px; border: 1px solid rgba(255,255,255,0.2); background: var(--bg); font: 700 26px/1 var(--font-sans); letter-spacing: -0.035em; color: var(--muted); transition: background 0.45s var(--ease-out), color 0.45s var(--ease-out), border-color 0.45s var(--ease-out); }
+.jr-year.is-reached .jr-num { border-color: rgba(46,242,162,0.55); color: var(--fg); }
 .jr-year.is-active .jr-num { background: var(--green); border-color: var(--green); color: var(--ink); }
-.jr-year.is-quiet .jr-num { padding: 7px 9px; font-size: 14px; color: rgba(243,245,242,0.38); border-color: rgba(255,255,255,0.1); }
-.jr-year.is-quiet.is-active .jr-num { color: var(--ink); }
+.jr-count { padding: 3px 8px; background: var(--bg); font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; color: var(--faint); }
 
-.jr-items { display: flex; margin: 0; padding: 0 30px 0 0; list-style: none; }
-.jr-item { position: relative; width: 268px; transition: opacity 0.4s ease; }
-/* the mark on the rail, the stem up or down, and the card */
-.jr-node { position: absolute; left: 0; top: calc(50% + 1px); width: 12px; height: 12px; background: var(--mark-bg); border: 2px solid var(--mark-bd); transform: translate(0, -50%) rotate(var(--mark-turn)); z-index: 1;
-  box-shadow: 0 0 0 calc(var(--mark-ring, 0) * 3px) var(--bg), 0 0 0 calc(var(--mark-ring, 0) * 4px) var(--green); }
-.jr-stem { position: absolute; left: 5px; width: 1px; height: 44px; background: rgba(255,255,255,0.22); }
-.jr-item--up .jr-stem { bottom: calc(50% + 6px); }
-.jr-item--down .jr-stem { top: calc(50% + 8px); }
-.jr-card { position: absolute; left: 0; width: 244px; padding: 16px 18px 18px; background: #0b0e0d; border: 1px solid var(--line); transition: border-color 0.3s ease, transform 0.3s var(--ease-out); }
-.jr-item--up .jr-card { bottom: calc(50% + 50px); }
-.jr-item--down .jr-card { top: calc(50% + 52px); }
-.jr-card:hover { border-color: rgba(46,242,162,0.55); }
-.jr.is-pinned .jr-card { opacity: 0; transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out), border-color 0.3s ease; }
-.jr.is-pinned .jr-item--up .jr-card { transform: translateY(22px); }
-.jr.is-pinned .jr-item--down .jr-card { transform: translateY(-22px); }
-.jr.is-pinned .jr-item.is-in .jr-card { opacity: 1; transform: none; }
-.jr-card small { display: block; font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; color: var(--green); }
-.jr-card small b { margin-left: 6px; font-weight: 400; letter-spacing: 0.06em; color: var(--faint); }
-.jr-card h3 { margin-top: 10px; font-size: 19px; font-weight: 700; line-height: 1.15; letter-spacing: -0.025em; text-transform: lowercase; }
-.jr-card p { margin-top: 8px; font-size: 13.5px; line-height: 1.55; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.jr-card a { display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none; text-transform: lowercase; }
+/* milestones: left, right, left… each one tied to the spine by its mark and a short stem */
+.jr-items { position: relative; z-index: 1; display: grid; gap: clamp(22px, 2.6vw, 36px); margin: clamp(30px, 3.4vw, 48px) 0 0; padding: 0; list-style: none; transition: none; }
+.jr-item { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); transition: opacity 0.4s ease; }
+.jr-card { position: relative; width: 100%; max-width: 440px; padding: 22px 24px 24px; background: #0b0e0d; border: 1px solid var(--line); transition: border-color 0.3s ease, opacity 0.7s var(--ease-out), transform 0.8s var(--ease-out); }
+.jr-item--left .jr-card { grid-column: 1; justify-self: end; margin-right: 58px; }
+.jr-item--right .jr-card { grid-column: 2; justify-self: start; margin-left: 58px; }
+/* a short green tick on the corner that faces the spine */
+.jr-card::before { content: ""; position: absolute; top: -1px; width: 22px; height: 2px; background: var(--green); }
+.jr-item--left .jr-card::before { right: -1px; }
+.jr-item--right .jr-card::before { left: -1px; }
+.jr-card:hover { border-color: rgba(46,242,162,0.5); }
+.jr-card small { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; color: var(--green); }
+.jr-card small b { font-weight: 400; letter-spacing: 0.06em; color: var(--faint); }
+.jr-card h3 { margin-top: 12px; font-size: clamp(19px, 1.7vw, 23px); font-weight: 700; line-height: 1.15; letter-spacing: -0.028em; text-transform: lowercase; }
+.jr-card p { margin-top: 10px; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+.jr-card a { display: inline-block; margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--green); text-decoration: none; text-transform: lowercase; }
 .jr-card a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-/* today: a live station, the open end, then the years still to come */
-.jr-today { position: relative; padding-right: 40px; }
-.jr-num--now { background: var(--green); border-color: var(--green); color: var(--ink); }
-/* today's year sends out a slow ring: the line is live here */
-.jr-pulse { display: none; }
-.jr-num--now::after { content: ""; position: absolute; inset: -1px; border: 1px solid var(--green); pointer-events: none; animation: jr-pulse 2.4s ease-out infinite; }
-@keyframes jr-pulse { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.35, 1.7); } }
-.jr-now { position: relative; flex: none; width: 380px; }
-.jr-now::before { content: ""; position: absolute; left: 5px; bottom: calc(50% + 6px); width: 1px; height: 44px; background: var(--green); }
-.jr-now::after { content: ""; position: absolute; left: 0; top: calc(50% + 1px); width: 12px; height: 12px; background: var(--green); transform: translateY(-50%); }
-.jr-now-in { position: absolute; left: 0; bottom: calc(50% + 56px); width: 340px; }
+.jr-node { position: absolute; left: 50%; top: 27px; z-index: 2; width: 13px; height: 13px; background: var(--mark-bg); border: 2px solid var(--mark-bd); transform: translate(-50%, -50%) rotate(var(--mark-turn));
+  box-shadow: 0 0 0 calc(var(--mark-ring) * 3px) var(--bg), 0 0 0 calc(var(--mark-ring) * 4px) var(--green); transition: transform 0.5s var(--ease-out); }
+.jr-stem { position: absolute; top: 27px; width: 52px; height: 1px; background: rgba(46,242,162,0.55); transition: transform 0.5s var(--ease-out) 0.08s; }
+.jr-item--left .jr-stem { right: calc(50% + 6px); transform-origin: right; }
+.jr-item--right .jr-stem { left: calc(50% + 6px); transform-origin: left; }
+/* the month, stamped on the other side of the spine */
+.jr-when { position: absolute; top: 20px; font: 700 12px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: lowercase; color: var(--faint); transition: opacity 0.6s ease 0.2s; }
+.jr-item--left .jr-when { left: calc(50% + 24px); }
+.jr-item--right .jr-when { right: calc(50% + 24px); }
+
+/* branching out as each one scrolls into view: the mark, then the stem, then the card */
+.jr.is-moving .jr-item:not(.is-in) .jr-node { transform: translate(-50%, -50%) rotate(var(--mark-turn)) scale(0); }
+.jr.is-moving .jr-item:not(.is-in) .jr-stem { transform: scaleX(0); }
+.jr.is-moving .jr-item:not(.is-in) .jr-when { opacity: 0; }
+.jr.is-moving .jr-item:not(.is-in) .jr-card { opacity: 0; }
+.jr.is-moving .jr-item--left:not(.is-in) .jr-card { transform: translateX(30px); }
+.jr.is-moving .jr-item--right:not(.is-in) .jr-card { transform: translateX(-30px); }
+.jr.is-moving .jr-item.is-in .jr-card { transition-delay: 0s, 0.14s, 0.14s; }
+
+/* today: a live station, then the open end of the line */
+.jr-today .jr-num { position: relative; background: var(--green); border-color: var(--green); color: var(--ink); }
+.jr-today .jr-num::after { content: ""; position: absolute; inset: -1px; border: 1px solid var(--green); pointer-events: none; animation: jr-pulse 2.4s ease-out infinite; }
+@keyframes jr-pulse { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.3, 1.65); } }
+.jr-now { position: relative; z-index: 2; max-width: 540px; margin: clamp(36px, 4vw, 56px) auto 0; padding: clamp(26px, 3vw, 36px); background: var(--bg); border: 1px solid rgba(46,242,162,0.35); text-align: center; }
 .jr-now-tag { display: block; font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--green); }
-.jr-now-title { margin-top: 10px; font-size: clamp(28px, 2.6vw, 40px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; text-transform: lowercase; }
-.jr-now-sub { margin-top: 12px; font-size: 14.5px; line-height: 1.6; color: var(--muted); max-width: 34ch; }
-.jr-now-cta { margin-top: 22px; }
-.jr-future { position: relative; padding-right: 70px; }
-/* past today the rail turns dashed and fades into what is not written yet */
-.jr-future::before { content: ""; position: absolute; left: -40px; right: 0; top: calc(50% - 1px); height: 2px; background: repeating-linear-gradient(90deg, rgba(46,242,162,0.55) 0 8px, transparent 8px 16px); }
-.jr-future .jr-num { border-style: dashed; color: rgba(243,245,242,0.4); border-color: rgba(255,255,255,0.22); background: var(--bg); }
-.jr-future--far { opacity: 0.4; padding-right: 90px; }
-/* the dashes run to the very end of the strip and fade out */
-.jr-future--far::before { right: calc(-1 * var(--gutter)); -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent); mask-image: linear-gradient(90deg, #000 40%, transparent); }
-.jr.is-empty .jr-today { padding-left: 0; }
+.jr-now-title { margin-top: 10px; font-size: clamp(28px, 3vw, 42px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; text-transform: lowercase; }
+.jr-now-sub { max-width: 40ch; margin: 14px auto 0; font-size: 15px; line-height: 1.6; color: var(--muted); }
+.jr-now-cta { margin-top: 24px; }
+
+/* past today the spine turns dashed and fades into the years still to come */
+.jr-future { padding: 44px 0 0; }
+.jr-future::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); background: repeating-linear-gradient(180deg, rgba(46,242,162,0.6) 0 7px, transparent 7px 15px); }
+.jr-future--far { padding-bottom: 64px; opacity: 0.45; }
+.jr-future--far::before { -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent); mask-image: linear-gradient(180deg, #000 30%, transparent); }
+.jr-future .jr-head { position: relative; top: auto; }
+.jr-future .jr-num { border-style: dashed; border-color: rgba(255,255,255,0.24); font-size: 18px; padding: 9px 14px; color: rgba(243,245,242,0.42); }
+
+/* a year still to come, with something already planned in it */
+.jr-ahead::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); background: repeating-linear-gradient(180deg, rgba(46,242,162,0.6) 0 7px, transparent 7px 15px); }
+.jr-ahead { padding-top: 44px; }
+.jr-ahead .jr-num { border-style: dashed; border-color: rgba(46,242,162,0.6); color: var(--fg); background: var(--bg); }
+.jr-ahead.is-active .jr-num { border-style: solid; }
+.jr-ahead .jr-card { border-style: dashed; }
+.jr-soon { padding: 2px 7px; border: 1px solid rgba(46,242,162,0.55); font-style: normal; letter-spacing: 0.1em; color: var(--green); }
 
 /* show one kind at a time */
 .jr-filter { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
@@ -102,72 +122,35 @@
 .jr[data-only="subsidiary"] .jr-item:not([data-kind="subsidiary"]),
 .jr[data-only="program"] .jr-item:not([data-kind="program"]),
 .jr[data-only="recognition"] .jr-item:not([data-kind="recognition"]),
-.jr[data-only="launch"] .jr-item:not([data-kind="launch"]),
-.jy[data-only="milestone"] .jy-items li:not([data-kind="milestone"]),
-.jy[data-only="partnership"] .jy-items li:not([data-kind="partnership"]),
-.jy[data-only="subsidiary"] .jy-items li:not([data-kind="subsidiary"]),
-.jy[data-only="program"] .jy-items li:not([data-kind="program"]),
-.jy[data-only="recognition"] .jy-items li:not([data-kind="recognition"]),
-.jy[data-only="launch"] .jy-items li:not([data-kind="launch"]) { opacity: 0.16; }
+.jr[data-only="launch"] .jr-item:not([data-kind="launch"]) { opacity: 0.16; }
 
 /* --------------------------------------------------------------------------
-   year by year
-   -------------------------------------------------------------------------- */
-.jy { margin-top: clamp(40px, 5vw, 72px); }
-.jy-year { display: grid; grid-template-columns: minmax(180px, 0.42fr) minmax(0, 1fr); gap: clamp(20px, 4vw, 64px); padding: clamp(26px, 3vw, 40px) 0; border-top: 1px solid var(--line); }
-.jy-year:last-child { border-bottom: 1px solid var(--line); }
-.jy-num { position: sticky; top: calc(var(--nav-h) + 24px); align-self: start; font-size: clamp(52px, 6.4vw, 104px); font-weight: 700; line-height: 0.9; letter-spacing: -0.055em; }
-.jy-num span { display: block; margin-top: 12px; font: 400 12px/1.3 var(--font-sans); letter-spacing: 0.16em; text-transform: lowercase; color: var(--accent-ink); }
-.jy-items { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.jy-items li { position: relative; padding: 4px 0 22px 30px; transition: opacity 0.4s ease; }
-.jy-items li + li { padding-top: 22px; border-top: 1px solid var(--line); }
-.jy-items li::before { content: ""; position: absolute; left: 0; top: 10px; width: 11px; height: 11px; background: var(--mark-bg); border: 2px solid var(--mark-bd); transform: rotate(var(--mark-turn)); }
-.jy-items li + li::before { top: 28px; }
-.theme-light .jy-items li { --mark-bd: #0a7a52; }
-.theme-light .jy-items li:not([data-kind="subsidiary"]):not([data-kind="recognition"]) { --mark-bg: #0a7a52; }
-.theme-light .jy-items li[data-kind="program"], .theme-light .jy-items li[data-kind="recognition"] { --mark-bd: var(--ink); }
-.theme-light .jy-items li[data-kind="program"] { --mark-bg: var(--ink); }
-.jy-items small { display: block; font: 400 11px/1.3 var(--font-sans); letter-spacing: 0.14em; text-transform: lowercase; color: var(--accent-ink); }
-.jy-items h3 { margin-top: 8px; font-size: clamp(20px, 1.9vw, 26px); font-weight: 700; line-height: 1.12; letter-spacing: -0.03em; text-transform: lowercase; }
-.jy-items p { margin-top: 8px; max-width: 62ch; font-size: 15px; line-height: 1.65; color: var(--muted); }
-.jy-items a { display: inline-block; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--accent-ink); text-transform: lowercase; }
-.jy-year--now .jy-num { color: var(--accent-ink); }
-.jy-next { padding: 6px 0 0; }
-.jy-next h3 { font-size: clamp(26px, 2.6vw, 38px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; text-transform: lowercase; }
-.jy-next p { margin-top: 12px; max-width: 52ch; font-size: 15px; line-height: 1.65; color: var(--muted); }
-
-/* --------------------------------------------------------------------------
-   phones and narrow screens: the line runs down the page
+   phones and narrow screens: the spine moves to the left, every card on its right
    -------------------------------------------------------------------------- */
 @media (max-width: 900px) {
-  .jr-stage { height: auto; overflow: visible; padding: 0 var(--gutter) 20px; }
-  .jr-ghost { display: none; }
-  .jr-track { display: block; width: auto; height: auto; padding: 0; transform: none !important; }
-  .jr-rail { left: 5px; right: auto !important; top: 0; bottom: 0; width: 2px; height: auto; }
-  .jr-fill { transform: none; }
-  .jr-years { display: block; height: auto; }
-  .jr-year { display: block; }
-  .jr-num { display: inline-block; margin: 26px 0 14px; }
-  .jr-year:first-child .jr-num { margin-top: 0; }
-  .jr-year.is-quiet .jr-num { margin: 14px 0 0; }
-  .jr-items { display: grid; gap: 14px; padding: 0; }
-  .jr-item { width: auto; padding-left: 30px; }
-  .jr-node { top: 22px; transform: rotate(var(--mark-turn)); }
-  .jr-stem { left: 14px; top: 27px !important; bottom: auto !important; width: 16px; height: 1px; }
-  .jr-card { position: static; width: auto; }
-  .jr-today { padding: 0; }
-  .jr-now { position: static; width: auto; padding: 18px 0 0 30px; }
-  .jr-now::before, .jr-now::after { display: none; }
-  .jr-now-in { position: static; width: auto; }
-  .jr-future { padding: 0; }
-  .jr-future::before { left: 5px; top: 0; bottom: 0; right: auto; width: 2px; height: auto; background: repeating-linear-gradient(180deg, rgba(46,242,162,0.55) 0 8px, var(--bg) 8px 16px); }
-  .jr-future .jr-num { margin-top: 18px; }
-  .jr-future--far { padding-bottom: 8px; }
+  .jr { margin-top: 40px; }
+  .jr-rail { left: 15px; }
+  .jr-big { display: none; }
+  /* the year becomes a slim bar across the screen while it is read, so cards slide cleanly under it */
+  .jr-head { flex-direction: row; align-items: center; gap: 12px; width: auto; margin: 0 calc(-1 * var(--gutter)); padding: 10px var(--gutter); background: var(--bg); box-shadow: 0 1px 0 var(--line); }
+  .jr-future .jr-head { background: none; box-shadow: none; }
+  .jr-num { font-size: 22px; padding: 10px 14px; }
+  .jr-count { padding-left: 0; }
+  .jr-items { margin-top: 22px; gap: 16px; }
+  .jr-item { grid-template-columns: minmax(0, 1fr); padding-left: 42px; }
+  .jr-item--left .jr-card, .jr-item--right .jr-card { grid-column: 1; justify-self: stretch; max-width: none; margin: 0; }
+  .jr-item--left .jr-card::before, .jr-item--right .jr-card::before { left: -1px; right: auto; }
+  .jr-node { left: 15px; top: 26px; }
+  .jr-item--left .jr-stem, .jr-item--right .jr-stem { left: 22px; right: auto; width: 20px; transform-origin: left; }
+  .jr-when { display: none; }
+  .jr.is-moving .jr-item--left:not(.is-in) .jr-card, .jr.is-moving .jr-item--right:not(.is-in) .jr-card { transform: translateX(-18px); }
+  .jr-now { margin: 26px 0 0 42px; text-align: left; }
+  .jr-now-sub { margin-left: 0; }
+  .jr-future::before, .jr-ahead::before { left: 15px; }
+  .jr-ahead { padding-top: 30px; }
+  .jr-future .jr-head { margin: 0; }
   .jr-filter { justify-content: flex-start; margin-top: 24px; }
-  .jy-year { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .jy-num { position: static; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .jr-num--now::after, .jr-ghost.is-in { animation: none; }
-  .jr-num--now::after { display: none; }
+  .jr-today .jr-num::after { animation: none; display: none; }
 }
