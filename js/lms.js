@@ -333,7 +333,8 @@
   const VIDEOS = new Map();
   function videoEmbed(raw, opts = {}) {
     const url = String(raw || '').trim();
-    const frame = (src, extra = '') => `<iframe src="${esc(src)}" title="lesson video" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen ${extra}></iframe>`;
+    // (sandbox: the player runs, but it may not open a new tab or send this page anywhere)
+    const frame = (src, extra = '') => `<iframe src="${esc(src)}" title="lesson video" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; fullscreen" allowfullscreen ${extra}></iframe>`;
     let u = null;
     try { u = new URL(url); } catch (e) {}
     if (u) {
@@ -359,21 +360,9 @@
         VIDEOS.set(ticket, { id: yt, start: Math.floor(start) || 0 });
         const src = `https://www.youtube-nocookie.com/embed/?controls=0&disablekb=1&fs=0&iv_load_policy=3&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${enc(location.origin)}`;
         return `<div class="vp is-new" data-vp="${ticket}">
-            <iframe src="${esc(src)}" title="lesson video" tabindex="-1" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media; picture-in-picture" data-yt></iframe>
-            <div class="vp-band vp-band--top"></div><div class="vp-band vp-band--bottom"></div>
-            <div class="vp-dim"></div>
-            <div class="vp-mark" aria-hidden="true"></div>
-            <div class="vp-shield" tabindex="0" role="button" aria-label="play or pause the video"></div>
-            <button class="vp-big" type="button" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.500z"/></svg></button>
-            <p class="vp-hint" hidden>tap the video once more to start it.</p>
-            <div class="vp-bar">
-              <button type="button" data-vp="play" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.500z"/><path class="i-pause" d="M7 5.5h3.500v13H7zM13.500 5.500H17v13h-3.500z"/></svg></button>
-              <span class="vp-time"><b data-vp="now">0:00</b> / <span data-vp="total">0:00</span></span>
-              <input class="vp-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="move through the video">
-              <button type="button" data-vp="mute" aria-label="sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.500h3.500L12 6v12l-4.500-3.500H4z"/><path class="i-loud" d="M15.500 9a4.500 4.500 0 0 1 0 6M17.800 6.700a7.800 7.800 0 0 1 0 10.600"/><path class="i-quiet" d="M15.500 9.500l5 5M20.500 9.500l-5 5"/></svg></button>
-              <button type="button" class="vp-speed" data-vp="speed" aria-label="speed" title="speed">1×</button>
-              <button type="button" data-vp="full" aria-label="full screen" title="full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.500 9.500v-5h5M19.500 9.500v-5h-5M4.500 14.500v5h5M19.500 14.500v5h-5"/></svg></button>
-            </div>
+            <iframe src="${esc(src)}" title="lesson video" tabindex="-1" sandbox="allow-scripts allow-same-origin allow-presentation" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; encrypted-media" data-yt></iframe>
+            ${PLAYER_TOP}
+            ${PLAYER_BAR}
           </div>`;
       }
       if (host === 'vimeo.com' || host === 'player.vimeo.com') {
@@ -382,21 +371,117 @@
       }
       if (host === 'drive.google.com' && parts[0] === 'file' && parts[2]) return frame(`https://drive.google.com/file/d/${parts[2]}/preview`);
     }
-    return `<video src="${esc(url)}" controls controlslist="nodownload noremoteplayback" disablepictureinpicture oncontextmenu="return false" playsinline preload="metadata"></video>`;
+    // the address of the file is not written into the page either: guard() sets it from VIDEOS
+    const ticket = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    VIDEOS.set(ticket, { file: url, start: Math.floor(opts.resume || 0) });
+    return `<div class="vp vp--file is-new" data-vp="${ticket}">
+        <video data-file playsinline preload="metadata" disablepictureinpicture disableremoteplayback x-webkit-airplay="deny" controlslist="nodownload nofullscreen noremoteplayback noplaybackrate"></video>
+        ${PLAYER_TOP}
+        ${PLAYER_BAR}
+      </div>`;
   }
-  // Runs one guarded youtube player (the markup from videoEmbed with guard: true).
+  // the parts of the player that are the same for youtube and for a file of our own
+  const PLAYER_TOP = `<div class="vp-dim"></div>
+            <div class="vp-shield" tabindex="0" role="button" aria-label="play or pause the video"></div>`;
+  const PLAYER_BAR = `<button class="vp-big" type="button" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.500z"/></svg></button>
+            <p class="vp-hint" hidden>tap the middle of the video once more to start it.</p>
+            <div class="vp-bar">
+              <button type="button" data-vp="play" aria-label="play"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.500z"/><path class="i-pause" d="M7 5.5h3.500v13H7zM13.500 5.500H17v13h-3.500z"/></svg></button>
+              <span class="vp-time"><b data-vp="now">0:00</b> / <span data-vp="total">0:00</span></span>
+              <input class="vp-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="move through the video">
+              <button type="button" data-vp="mute" aria-label="sound"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.500h3.500L12 6v12l-4.500-3.500H4z"/><path class="i-loud" d="M15.500 9a4.500 4.500 0 0 1 0 6M17.800 6.700a7.800 7.800 0 0 1 0 10.600"/><path class="i-quiet" d="M15.500 9.500l5 5M20.500 9.500l-5 5"/></svg></button>
+              <button type="button" class="vp-speed" data-vp="speed" aria-label="speed" title="speed">1×</button>
+              <button type="button" data-vp="full" aria-label="full screen" title="full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.500 9.500v-5h5M19.500 9.500v-5h-5M4.500 14.500v5h5M19.500 14.500v5h-5"/></svg></button>
+            </div>`;
+
+  // ── the watermark: who is watching, on every lesson video, recording and live class ──
+  // Two layers, both drawn over the picture so that a recording of the screen carries them:
+  //   • a pattern of the learner's email repeated across the whole picture, very faint (like the
+  //     pattern on a banknote). It covers every part of the frame, so cropping a recording cannot
+  //     cut it out without cutting the video away with it.
+  //   • the same email, a little clearer, small, fading out and reappearing somewhere else now
+  //     and then — so even a short clip shows plainly whose account it came from.
+  // Neither takes clicks, and neither changes size with the picture. If either is removed, hidden,
+  // made see-through, shrunk or rewritten (with the browser's tools, for example), onTamper() is
+  // called — the video stops or the class goes blank — and the watermark is put back.
+  function watermark(box, text, onTamper) {
+    if (!box || !text) return null;
+    const cell = (t) => {
+      const v = String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='380' height='170'><g fill='white' font-family='Helvetica, Arial, sans-serif' font-size='13' font-weight='700' transform='rotate(-20 190 85)'><text x='14' y='62'>${v}</text><text x='200' y='150'>${v}</text></g></svg>`;
+      return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+    };
+    const pattern = cell(text);
+    let tile, drift, label, moving = false, stopped = false;
+    const build = () => {
+      tile = document.createElement('div'); tile.className = 'wm-tile'; tile.setAttribute('aria-hidden', 'true'); tile.style.backgroundImage = pattern;
+      drift = document.createElement('div'); drift.className = 'wm-drift'; drift.setAttribute('aria-hidden', 'true');
+      label = document.createElement('b'); label.textContent = text; drift.appendChild(label);
+      box.append(tile, drift);
+      place();
+    };
+    // a new place: away from the very middle (what is being watched) and from the buttons at the bottom
+    const place = () => {
+      let x, y;
+      do { x = 3 + Math.random() * 64; y = 6 + Math.random() * 70; } while (x > 26 && x < 50 && y > 30 && y < 58);
+      drift.style.left = x + '%'; drift.style.top = y + '%';
+    };
+    const move = () => {
+      if (stopped) return;
+      moving = true; drift.classList.add('is-moving');
+      setTimeout(() => { place(); drift.classList.remove('is-moving'); setTimeout(() => { moving = false; }, 800); }, 800);
+    };
+    const intact = () => {
+      if (!tile.isConnected || !drift.isConnected || tile.parentNode !== box || drift.parentNode !== box || !label.isConnected) return false;
+      if (label.textContent !== text || tile.style.backgroundImage.indexOf('data:image/svg+xml') < 0) return false;
+      const t = getComputedStyle(tile), d = getComputedStyle(drift), l = getComputedStyle(label);
+      const shown = (cs) => cs.display !== 'none' && cs.visibility === 'visible' && cs.transform === 'none' && cs.filter === 'none' && cs.clipPath === 'none' && cs.contentVisibility !== 'hidden';
+      if (!shown(t) || !shown(d) || l.display === 'none' || l.visibility !== 'visible' || l.transform !== 'none' || l.filter !== 'none') return false;
+      if (+t.opacity < 0.04 || +d.opacity < 0.99 || (!moving && +l.opacity < 0.9)) return false;
+      if (parseFloat(l.fontSize) < 9 || t.backgroundImage === 'none') return false;
+      const a = box.getBoundingClientRect(), b = tile.getBoundingClientRect();
+      if (a.width > 40 && (b.width < a.width - 2 || b.height < a.height - 2)) return false;
+      return true;
+    };
+    const check = () => {
+      if (stopped || intact()) return;
+      [tile, drift].forEach((el) => { if (el && el.parentNode) el.remove(); });
+      build();
+      if (onTamper) onTamper();
+    };
+    build();
+    const timer = setInterval(move, 13000 + Math.random() * 6000);
+    const watch = setInterval(check, 1500);
+    let soon = 0;
+    const seen = new MutationObserver(() => { if (!soon) soon = setTimeout(() => { soon = 0; check(); }, 300); });
+    seen.observe(box, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+    return { stop: () => { stopped = true; clearInterval(timer); clearInterval(watch); seen.disconnect(); } };
+  }
+  // Runs one player from videoEmbed: a youtube video (guard: true) or a video file of our own.
   //   on.time(seconds, total)   as it plays        on.ended()   when it reaches the end
-  //   mark                      text drifted across the picture (who is watching), or ''
+  //   mark                      the watermark (who is watching: their email), or '' for none
   function guard(el, on = {}, mark = '') {
-    const frame = $('iframe', el), shield = $('.vp-shield', el), seek = $('.vp-seek', el), hint = $('.vp-hint', el);
+    const frame = $('iframe[data-yt]', el), file = $('video[data-file]', el), shield = $('.vp-shield', el), seek = $('.vp-seek', el), hint = $('.vp-hint', el);
     const YT = 'https://www.youtube-nocookie.com';
     const st = { state: -1, now: 0, total: 0, muted: false, rate: 1, heard: false, dragging: false, started: false };
-    const video = VIDEOS.get(el.dataset.vp); VIDEOS.delete(el.dataset.vp); el.dataset.vp = '';
+    const video = VIDEOS.get(el.dataset.vp) || {}; VIDEOS.delete(el.dataset.vp); el.dataset.vp = '';
     let cued = false;
-    const tell = (func, args = []) => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), YT); } catch (e) {} };
+    // the same commands drive either engine
+    const tell = file ? (func, args = []) => {
+      try {
+        if (func === 'playVideo') { const go = file.play(); if (go && go.catch) go.catch(() => {}); }
+        else if (func === 'pauseVideo') file.pause();
+        else if (func === 'seekTo') file.currentTime = args[0];
+        else if (func === 'mute') file.muted = true;
+        else if (func === 'unMute') file.muted = false;
+        else if (func === 'setPlaybackRate') file.playbackRate = args[0];
+      } catch (e) {}
+    } : (func, args = []) => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), YT); } catch (e) {} };
     const listen = () => { try { frame.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), YT); } catch (e) {} };
-    let knocks = 0; const knock = setInterval(() => { knocks += 1; if (st.heard || knocks > 60) return clearInterval(knock); listen(); }, 600);
-    frame.addEventListener('load', listen);
+    if (frame) {
+      let knocks = 0; const knock = setInterval(() => { knocks += 1; if (st.heard || knocks > 60) return clearInterval(knock); listen(); }, 600);
+      frame.addEventListener('load', listen);
+    }
     const draw = () => {
       const playing = st.state === 1 || st.state === 3;
       el.classList.toggle('is-playing', playing); el.classList.toggle('is-paused', st.state === 2);
@@ -407,12 +492,29 @@
       if (!st.dragging) { seek.value = st.total ? Math.round((st.now / st.total) * 1000) : 0; seek.style.setProperty('--at', (st.total ? (st.now / st.total) * 100 : 0) + '%'); }
       $('[data-vp=speed]', el).textContent = st.rate + '×';
     };
-    window.addEventListener('message', (e) => {
+    if (file) {
+      // a file of our own: the browser reports everything directly
+      const sync = () => {
+        st.heard = true;
+        st.now = file.currentTime || 0; st.total = isFinite(file.duration) ? file.duration : 0;
+        st.muted = file.muted; st.rate = file.playbackRate;
+        st.state = file.ended ? 0 : file.paused ? (st.started ? 2 : -1) : file.readyState < 3 ? 3 : 1;
+        if (!file.paused) { st.started = true; el.classList.remove('is-new', 'needs-tap'); hint.hidden = true; }
+        draw();
+      };
+      ['play', 'playing', 'pause', 'waiting', 'seeked', 'durationchange', 'loadedmetadata', 'ratechange', 'volumechange'].forEach((t) => file.addEventListener(t, sync));
+      file.addEventListener('timeupdate', () => { sync(); if (on.time) on.time(st.now, st.total); });
+      file.addEventListener('ended', () => { sync(); if (on.ended) on.ended(); });
+      // carries on from where it was stopped last time, unless it was nearly over
+      if (video.start) file.addEventListener('loadedmetadata', () => { if (video.start < file.duration - 20) file.currentTime = video.start; }, { once: true });
+      if (video.file) file.src = video.file;
+    }
+    if (frame) window.addEventListener('message', (e) => {
       if (e.source !== frame.contentWindow || !/^https:\/\/www\.youtube(-nocookie)?\.com$/.test(e.origin)) return;
       let d; try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
       if (!d) return;
       // the player has answered: now it is told which video to show (and where to carry on from)
-      if (!cued && video) { cued = true; st.heard = true; tell('cueVideoById', [{ videoId: video.id, startSeconds: video.start }]); if (video.start) { st.now = video.start; } }
+      if (!cued && video.id) { cued = true; st.heard = true; tell('cueVideoById', [{ videoId: video.id, startSeconds: video.start }]); if (video.start) { st.now = video.start; } }
       if (!d.info) return;
       st.heard = true;
       const i = d.info;
@@ -431,7 +533,7 @@
     // video itself — if it has not started a moment later, the middle of the sheet is opened for one tap.
     const play = () => {
       tell('playVideo');
-      if (st.started) return;
+      if (st.started || file) return;
       setTimeout(() => { if (!st.started && st.state !== 1 && st.state !== 3) { el.classList.add('needs-tap'); hint.hidden = false; } }, 1800);
     };
     const toggle = () => (st.state === 1 || st.state === 3 ? tell('pauseVideo') : st.state === 0 ? (tell('seekTo', [0, true]), tell('playVideo')) : play());
@@ -442,8 +544,12 @@
     const canFull = !!(el.requestFullscreen || el.webkitRequestFullscreen);
     const fill = (on) => { el.classList.toggle('is-full', on); document.documentElement.classList.toggle('vp-open', on); };
     const full = () => {
-      if (!canFull) return fill(!el.classList.contains('is-full'));
-      if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (el.classList.contains('is-full')) return fill(false);
+      if (!canFull) return fill(true);
+      if (document.fullscreenElement || document.webkitFullscreenElement) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      // a browser that refuses full screen (some apps' own browsers do): the player fills the window instead
+      const go = (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      if (go && go.catch) go.catch(() => fill(true));
     };
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && el.classList.contains('is-full')) fill(false); });
     shield.addEventListener('click', toggle);
@@ -469,15 +575,8 @@
     // the buttons fade away while it plays, and come back when the pointer moves or the screen is touched
     let idle; const wake = () => { el.classList.remove('is-idle'); clearTimeout(idle); idle = setTimeout(() => el.classList.add('is-idle'), 2600); };
     ['pointermove', 'pointerdown', 'keydown', 'focusin'].forEach((t) => el.addEventListener(t, wake)); wake();
-    // who is watching, drifting across the picture: a recording of the screen carries it too
-    const tag = $('.vp-mark', el);
-    if (mark && tag) {
-      tag.textContent = mark;
-      const move = () => { tag.style.left = 4 + Math.random() * 62 + '%'; tag.style.top = 8 + Math.random() * 74 + '%'; };
-      move(); setInterval(move, 9000);
-      // if the mark is taken out of the page or hidden, the video stops
-      const check = setInterval(() => { const cs = tag.isConnected ? getComputedStyle(tag) : null; if (!cs || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.1 || tag.textContent !== mark) { tell('pauseVideo'); if (!tag.isConnected) { clearInterval(check); el.querySelector('iframe').remove(); } else tag.textContent = mark; } }, 3000);
-    } else if (tag) tag.remove();
+    // who is watching: if the watermark is tampered with, the video stops (and the watermark comes back)
+    if (mark) watermark(el, mark, () => { tell('pauseVideo'); el.classList.add('is-tampered'); hint.textContent = 'the watermark was changed, so the video stopped. refresh the page to watch again.'; hint.hidden = false; });
     draw();
     return { tell, state: st };
   }
@@ -1104,7 +1203,7 @@
             ${liveCard}
             ${steps.length ? `<div class="course-block rise"><h2>how it works</h2><ol class="how">${steps.map(([t, d], i) => `<li><b>${i + 1}</b><div><strong>${t}</strong><span>${d}</span></div></li>`).join('')}</ol></div>` : ''}
             ${news.length ? `<div class="course-block rise"><h2>announcements</h2><ul class="news">${news.map((n) => `<li><small>${ago(n.created_at)}</small><strong>${esc(n.title)}</strong>${n.body ? `<div class="prose">${markdown(n.body)}</div>` : ''}</li>`).join('')}</ul></div>` : ''}
-            ${course.trailer_url ? `<div class="course-block rise"><h2>watch the introduction</h2><div class="lesson-video" style="margin:0;">${videoEmbed(course.trailer_url)}</div></div>` : ''}
+            ${course.trailer_url ? `<div class="course-block rise"><h2>watch the introduction</h2><div class="lesson-video" style="margin:0;">${videoEmbed(course.trailer_url, { guard: true })}</div></div>` : ''}
             ${course.description ? `<div class="course-block rise"><h2>about this ${noun}</h2><p class="course-desc">${esc(course.description)}</p></div>` : ''}
             ${bullets('what you will be able to do', course.outcomes)}
             ${(course.tags || []).length ? `<div class="course-block rise"><h2>skills you will gain</h2><ul class="tags">${course.tags.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
@@ -1140,6 +1239,8 @@
     setInterval(() => $$('[data-until]', root).forEach((b) => { b.textContent = until(b.dataset.until); }), 30000);
 
     wireModules(root);
+    // the introduction video plays in our own player (no watermark: anyone may watch it)
+    $$('.course-block .vp', root).forEach((el) => guard(el));
     const enrolBtn = $('#enrol');
     if (enrolBtn) enrolBtn.addEventListener('click', async () => { enrolBtn.disabled = true; await enrol(course); location.href = lessonUrl(st.next); });
     const join = $('#join');
@@ -1681,6 +1782,10 @@
             </div>
           </div>`;
         const grid = $('#mr-grid', stage), side = $('#mr-side', stage), msg = $('#mr-msg', stage);
+        // who is in the room, written over every picture in it (the watermark). if it is tampered
+        // with, the pictures go blank until the class is joined again.
+        const roomMark = S.user ? String(S.user.email || S.name || '').trim() : '';
+        if (roomMark) watermark($('.mr', stage), roomMark, () => { stage.classList.add('is-veiled'); msg.textContent = 'the watermark was changed, so the pictures are hidden. leave and join the class again.'; });
         const say = (t, bad) => { msg.textContent = t || ''; msg.classList.toggle('is-bad', !!bad); if (t) setTimeout(() => { if (msg.textContent === t) msg.textContent = ''; }, 6000); };
         const btn = (k) => $(`[data-do="${k}"]`, stage);
         const setBtn = (k, on, label) => { const b = btn(k); if (!b) return; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-on', on); $('span', b).textContent = label; };
@@ -1940,8 +2045,8 @@
       const k = (e.key || '').toLowerCase(), mod = e.ctrlKey || e.metaKey;
       if (k === 'f12' || (mod && e.shiftKey && ['i', 'j', 'c', 'k'].includes(k)) || (mod && e.altKey && ['i', 'j', 'u', 'c'].includes(k)) || (mod && ['u', 's'].includes(k) && !e.shiftKey && !e.altKey)) { e.preventDefault(); e.stopPropagation(); }
     }, true);
-    // on a paid entry the learner's own name and email drift across the video
-    const viewerMark = fee(course).paid && S.user && !S.admin ? [S.name, S.user.email].filter(Boolean).join(' · ') : '';
+    // whoever is signed in carries their own email on the video (the watermark)
+    const viewerMark = S.user ? String(S.user.email || S.name || '').trim() : '';
     // ── the video: remember how far it got, and when it ends say what comes next ──
     function refreshProgress() {
       const opened = $$('.lp-sec', side).map((x) => x.classList.contains('is-open'));
@@ -1971,16 +2076,9 @@
       };
       const restart = $('#from-start', root);
       if (restart) restart.addEventListener('click', () => { const w = local.get(LOCAL_WATCH); delete w[lesson.id]; local.set(LOCAL_WATCH, w); location.reload(); });
-      const own = $('.lp-stage video', root), yt = $('.lp-stage .vp iframe[data-yt]', root);
-      if (own) {
-        // a file of our own: the browser tells us directly
-        own.addEventListener('loadedmetadata', () => { if (resumeAt && resumeAt < own.duration - 20) own.currentTime = resumeAt; });
-        own.addEventListener('timeupdate', () => savePos(own.currentTime, own.duration));
-        own.addEventListener('ended', onEnded);
-      } else if (yt) {
-        // youtube, inside our own player: it tells us the time as it plays, and when it ends
-        guard(yt.closest('.vp'), { time: savePos, ended: onEnded }, viewerMark);
-      }
+      // youtube or a file of our own, in our own player: it tells us the time as it plays, and when it ends
+      const player = $('.lp-stage .vp', root);
+      if (player) guard(player, { time: savePos, ended: onEnded }, viewerMark);
     }
     // the recording of a live class is guarded the same way
     $$('.live-rec .vp', root).forEach((el) => guard(el, {}, viewerMark));

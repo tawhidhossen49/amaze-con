@@ -1403,3 +1403,26 @@ html.vp-open, html.vp-open body { overflow: hidden; }
   .auth-main { padding: 26px 20px calc(24px + env(safe-area-inset-bottom)); }
   .dialog--auth h2 { margin-top: 24px; font-size: 32px; }
 }
+
+/* --------------------------------------------------------------------------
+   the watermark (see watermark() in lms.js): a faint pattern of the viewer's
+   email over the whole picture, and the same email drifting from place to place
+   -------------------------------------------------------------------------- */
+.wm-tile { position: absolute; inset: 0; z-index: 4; pointer-events: none; background-repeat: repeat; background-size: 380px 170px; opacity: 0.055; mix-blend-mode: difference; }
+.wm-drift { position: absolute; z-index: 4; max-width: 72%; pointer-events: none; transition: none; }
+.wm-drift b { display: block; overflow: hidden; padding: 3px 8px; font: 700 clamp(11px, 1.15vw, 14px)/1.3 var(--font-sans); letter-spacing: 0.02em; text-transform: none; white-space: nowrap; text-overflow: ellipsis; color: rgba(255,255,255,0.32); text-shadow: 0 0 2px rgba(0,0,0,0.6); transition: opacity 0.8s ease; }
+.wm-drift.is-moving b { opacity: 0; }
+@media (max-width: 560px) { .wm-tile { background-size: 300px 134px; } }
+
+/* a video file of our own, in our player (the browser's own buttons are never shown) */
+.vp--file video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; pointer-events: none; }
+.vp--file video::-webkit-media-controls { display: none !important; }
+/* paused: the picture is dimmed enough that nothing youtube shows underneath can be read */
+.vp.is-paused .vp-dim { background: rgba(0,0,0,0.86); }
+/* a phone that only starts a youtube video from a touch on the video itself: only a small square
+   in the middle (youtube's play button) is opened for that one tap; the rest stays covered */
+.vp.needs-tap .vp-shield { pointer-events: auto; clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, calc(50% - 56px) calc(50% - 56px), calc(50% + 56px) calc(50% - 56px), calc(50% + 56px) calc(50% + 56px), calc(50% - 56px) calc(50% + 56px), calc(50% - 56px) calc(50% - 56px)); }
+.vp.needs-tap iframe[data-yt] { pointer-events: auto; }
+.vp.is-tampered .vp-big { display: none; }
+/* the live class, after its watermark was tampered with */
+.live-stage.is-veiled .mr video { visibility: hidden; }
