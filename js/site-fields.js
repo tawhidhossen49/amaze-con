@@ -202,6 +202,7 @@
     groups: [
       { name: 'show / hide sections', fields: [
         ['journey.show.line', 'the timeline', sect(2), 'visible'],
+        ['journey.show.years', 'year by year', sect(3), 'visible'],
         ['journey.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
       { name: 'page top', fields: [
@@ -209,13 +210,14 @@
         ['journey.hero.title1', 'headline — line 1', line('.page-h1', 1), 'html'],
         ['journey.hero.title2', 'headline — line 2', line('.page-h1', 2), 'html'],
       ] },
-      { name: 'the timeline', fields: [...sectHead('journey.line', 2),
+      { name: 'the timeline', fields: [
         ['journey.now.tag', 'at the end of the line — small label', '.jr-now-tag'],
         ['journey.now.title', 'at the end of the line — heading', '.jr-now-title'],
         ['journey.now.sub', 'at the end of the line — sentence', '.jr-now-sub'],
         ['journey.now.button', 'at the end of the line — button text', '.jr-now-cta'],
         ['journey.now.href', 'at the end of the line — button link', '.jr-now-cta', 'href'],
       ] },
+      { name: 'year by year', fields: sectHead('journey.years', 3) },
       cta('journey'),
     ],
   };

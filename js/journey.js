@@ -17,7 +17,7 @@
   const NOW = new Date().getFullYear();
   const safeLink = (u) => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
 
-  const line = $('#journey-line'), track = $('#journey-track'), filter = $('#journey-filter');
+  const line = $('#journey-line'), track = $('#journey-track'), filter = $('#journey-filter'), yearList = $('#journey-years');
   if (!line || !track) return;
 
   const parsed = new Promise((res) => (document.readyState !== 'loading' ? res() : document.addEventListener('DOMContentLoaded', res, { once: true })));
@@ -69,6 +69,19 @@
     track.innerHTML = html;
     const nowSrc = $('#journey-now');
     if (nowSrc) { const box = $('.jr-now', track); [...nowSrc.childNodes].forEach((c) => box.appendChild(c)); nowSrc.remove(); }
+
+    // ── year by year: the same story as a list, for reading at leisure ──
+    if (yearList) {
+      const desc = (r) => { const kind = KIND[r.kind] ? r.kind : 'milestone', link = safeLink(r.link); return `<li data-kind="${kind}"><small>${KIND[kind]}${r.month ? ` · ${MONTH[r.month - 1]}` : ''}</small><h3>${esc(r.title)}</h3>${r.body ? `<p>${esc(r.body)}</p>` : ''}${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">read more ↗</a>` : ''}</li>`; };
+      const nowTitle = ($('.jr-now-title', track) || {}).textContent || 'the line keeps going.';
+      const nowSub = ($('.jr-now-sub', track) || {}).textContent || '';
+      yearList.innerHTML = years.filter((y) => byYear.get(y).length).map((y) => `<div class="jy-year reveal" data-year="${y}"><div class="jy-num">${y}</div><ul class="jy-items">${byYear.get(y).map(desc).join('')}</ul></div>`).join('')
+        + `<div class="jy-year jy-year--now reveal"><div class="jy-num">next<span>after ${NOW}</span></div><div class="jy-items jy-next"><h3>${esc(nowTitle)}</h3>${nowSub ? `<p>${esc(nowSub)}</p>` : ''}</div></div>`;
+      $$('.reveal', yearList).forEach((el) => {
+        if (!('IntersectionObserver' in window)) return el.classList.add('visible');
+        new IntersectionObserver((es, ob) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); ob.disconnect(); } }), { threshold: 0.1 }).observe(el);
+      });
+    }
 
     // ── show one kind at a time ──
     const kinds = Object.keys(KIND).filter((k) => list.some((r) => r.kind === k));
