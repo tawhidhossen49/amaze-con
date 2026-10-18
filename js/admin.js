@@ -38,9 +38,9 @@
   let user = null;
   // what the signed-in admin may open: a main admin everything, a limited admin the parts ticked for them
   let me = { role: 'main', access: [] };
-  const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners, and the journey timeline'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled']];
+  const AREAS = [['pages', 'words & pictures', 'the text and images of the pages'], ['lists', 'people & logos', 'executives, advisors, schools, partners, and the journey timeline'], ['courses', 'academy', 'courses, lessons, live classes, prices'], ['learners', 'learners & payments', 'check payments, see who is enrolled and everyone who signed up']];
   // the journey timeline belongs to whoever looks after people & logos
-  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view === 'reports' ? 'learners' : view === 'journey' ? 'lists' : view));
+  const can = (view) => view === 'home' || me.role === 'main' || (view !== 'admins' && me.access.includes(view === 'reports' || view === 'people' ? 'learners' : view === 'journey' ? 'lists' : view));
 
   // ── feedback ───────────────────────────────────────────────────────────────
   let toastEl, toastTimer;
@@ -473,6 +473,7 @@
     journey: ['our journey', journeyView, '↝', 'the timeline on the “our journey” page: add a partnership, a new subsidiary or any milestone'],
     courses: ['academy', coursesView, '▤', 'courses, programs and webinars — their lessons, prices and live classes'],
     learners: ['learners & payments', learnersView, '৳', 'check bkash payments and see who is enrolled'],
+    people: ['everyone signed up', peopleView, '☻', 'every person with an account: their name, email, phone, how they sign in, and everything they are taking'],
     reports: ['reports', reportsView, '▥', 'how the academy and the website are doing: money, enrolments, visitors, countries, popular pages — and a log of everything that happened'],
     admins: ['admins', adminsView, '⚿', 'who is allowed to use this panel'],
   };
@@ -1204,6 +1205,19 @@
             <small class="hint">${pay.settings.aid ? 'leave it empty to use the academy’s financial aid form.' : 'no financial aid form is set for the academy yet — add one on the academy screen, under “financial aid”, or put a form just for this one here.'}</small></label>
         </section>
 
+        <section class="card" id="inc-card" data-when="where=here">
+          <h2 class="card-title">the “this ${noun} includes” box</h2>
+          <p class="lede" style="margin:0 0 16px;">the short list beside the price on its page — video lessons, notes, pace, fee, certificate.</p>
+          <div class="field"><span>who writes the list?</span>${choice('inc_mode', [['auto', 'the website, by itself', 'counted from the lessons and the price, so it is always right', '↻'], ['own', 'i write it myself', 'change any line, add your own, or take one out', '✎']], (course.includes || []).length ? 'own' : 'auto', 'choice--2')}</div>
+          <div class="field" data-when="inc_mode=auto"><span>what people see now</span><ul class="inc-preview" id="inc-preview"></ul>
+            <small class="hint">it changes by itself when you add lessons or change the price.</small></div>
+          <div class="field" data-when="inc_mode=own"><span>the lines, top to bottom</span>
+            <div class="inc-head" aria-hidden="true"><span>what it is</span><span>how many, or what kind</span></div>
+            <div class="inc-rows" id="inc-rows"></div>
+            <div class="inc-acts"><button type="button" class="btn btn--sm btn--solid" data-inc-add>+ add a line</button><button type="button" class="btn btn--sm" data-inc-fill>start from the automatic list</button></div>
+            <small class="hint">press save at the bottom to keep your changes. if you take out every line, the website writes the list by itself again.</small></div>
+        </section>
+
         <section class="card">
           <h2 class="card-title">is it on the website?</h2>
           <div class="field">${choice('status', [['draft', 'not yet — draft', 'only you can see it, here', '○'], ['published', 'yes — published', 'visitors can see it on the academy page', '●']], course.status === 'published' ? 'published' : 'draft', 'choice--2')}</div>
@@ -1220,9 +1234,6 @@
           <label class="field"><span>how long it takes, in your words — e.g. 6 weeks</span><input name="duration" value="${esc(course.duration || '')}"></label>
           <label class="field"><span>language</span><input name="language" value="${esc(course.language || 'english')}"></label>
           <label class="field field--wide"><span>a short introduction video — youtube link (optional)</span><input name="trailer_url" value="${esc(course.trailer_url || '')}" placeholder="https://youtu.be/…"></label>
-          <div class="field field--wide"><div class="field-top"><span>the “this ${noun} includes” box — one per line, as: name | value</span><button type="button" class="linkish" data-fill-includes>fill it in for me</button></div>
-            <textarea name="includes" rows="5" placeholder="video lessons | 12&#10;certificate | yes">${esc((course.includes || []).map((r) => `${r.label} | ${r.value}`).join('\n'))}</textarea>
-            <small class="hint">you can leave this empty: the box then counts the lessons by itself.</small></div>
         </div></details>
 
         <section class="card" id="teacher-group">
@@ -1385,15 +1396,52 @@
         if (await paySave('pay.teachers', fresh, `${t.name} is no longer on the saved list`)) { teachers = fresh; drawTeachers(); }
       }
     });
-    // fills the "includes" box with what the page would show on its own, ready to edit
-    $('[data-fill-includes]', main).addEventListener('click', () => {
+    // ── the "this course includes" box: written by the website from the lessons and the price,
+    //    or line by line by the admin (the same list the course page works out for itself) ──
+    const incRows = $('#inc-rows', main);
+    function autoIncludes() {
       const shown = lessons.filter((l) => !l.is_hidden && !(modules.find((m) => m.id === l.module_id) || {}).is_hidden);
       const n = (k) => shown.filter((l) => l.kind === k).length;
-      const access = $('#course-form [name=access]', main).value === 'open' ? 'open to everyone' : 'free account';
-      $('#course-form [name=includes]', main).value = [
-        n('video') && `video lessons | ${n('video')}`, n('article') && `readings | ${n('article')}`, n('quiz') && `quizzes | ${n('quiz')}`, n('form') && `tests & assignments | ${n('form')}`, n('live') && `live classes | ${n('live')}`,
-        'notes & q&a | on every lesson', n('live') ? 'pace | live, on set dates' : 'pace | your own', `access | ${access}`, 'certificate | verifiable',
-      ].filter(Boolean).join('\n');
+      const unit = String(pay.settings.currency || '৳').trim(), money = (x) => (/^[a-z]/i.test(unit) ? `${unit} ${x}` : unit + x).toLowerCase();
+      const num = (x) => parseFloat(String(x).replace(/[^0-9.]/g, ''));
+      const paid = cf.pay_paid.value !== '0', amount = (cf.pay_price.value.trim() || String(pay.settings.price || '')).trim(), was = cf.pay_was.value.trim();
+      const fee = (amount ? money(amount) : 'paid') + (amount && was && num(was) > num(amount) ? ` (was ${money(was)})` : '');
+      return [
+        n('video') && ['video lessons', n('video')], n('article') && ['readings', n('article')], n('quiz') && ['quizzes', n('quiz')],
+        n('form') && ['tests & assignments', n('form')], n('live') && ['live classes', n('live')],
+        ['notes & q&a', 'on every lesson'], ['pace', n('live') ? 'live, on set dates' : 'your own'],
+        paid ? ['fee', fee] : ['access', cf.access.value === 'open' ? 'open to everyone' : 'free account'],
+        ['certificate', 'verifiable'],
+      ].filter(Boolean).map(([label, value]) => ({ label, value: String(value) }));
+    }
+    const drawPreview = () => { $('#inc-preview', main).innerHTML = autoIncludes().map((r) => `<li>${esc(r.label)} <b>${esc(r.value)}</b></li>`).join(''); };
+    const incLine = (r = { label: '', value: '' }) => `<div class="inc-row">
+        <input data-inc="label" maxlength="40" value="${esc(r.label)}" placeholder="e.g. video lessons" aria-label="what it is">
+        <input data-inc="value" maxlength="60" value="${esc(r.value)}" placeholder="e.g. 12" aria-label="how many, or what kind">
+        <div class="row-actions"><button type="button" class="btn btn--sm" data-inc-move="-1" title="move up" aria-label="move this line up">↑</button><button type="button" class="btn btn--sm" data-inc-move="1" title="move down" aria-label="move this line down">↓</button><button type="button" class="btn btn--sm btn--danger" data-inc-del title="take this line out" aria-label="take this line out">×</button></div></div>`;
+    const drawRows = (list) => { incRows.innerHTML = list.map(incLine).join(''); };
+    const readRows = () => $$('.inc-row', incRows).map((r) => ({ label: $('[data-inc=label]', r).value.trim(), value: $('[data-inc=value]', r).value.trim() })).filter((r) => r.label);
+    drawRows((course.includes || []).length ? course.includes : autoIncludes());
+    drawPreview();
+    cf.addEventListener('input', (e) => { if (e.target.matches('[name=pay_price], [name=pay_was]')) drawPreview(); });
+    cf.addEventListener('change', (e) => {
+      if (e.target.matches('[name=pay_paid], [name=access]')) drawPreview();
+      // switching to "i write it myself" with nothing written yet starts from what is shown now
+      if (e.target.name === 'inc_mode' && e.target.value === 'own' && !readRows().length) drawRows(autoIncludes());
+    });
+    $('#inc-card', main).addEventListener('click', (e) => {
+      const row = e.target.closest('.inc-row');
+      if (e.target.closest('[data-inc-add]')) { incRows.insertAdjacentHTML('beforeend', incLine()); $$('.inc-row', incRows).pop().querySelector('input').focus(); return; }
+      if (e.target.closest('[data-inc-fill]')) {
+        if (readRows().length && !confirm('replace your lines with the automatic list?')) return;
+        drawRows(autoIncludes()); return;
+      }
+      if (row && e.target.closest('[data-inc-del]')) { row.remove(); return; }
+      const move = e.target.closest('[data-inc-move]');
+      if (row && move) {
+        const to = move.dataset.incMove === '-1' ? row.previousElementSibling : row.nextElementSibling;
+        if (to) (move.dataset.incMove === '-1' ? to.before(row) : to.after(row));
+      }
     });
     $('#course-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1403,7 +1451,7 @@
         title: v.title.trim(), tagline: v.tagline || null, description: v.description || null, category: v.category.trim().toLowerCase(), level: v.level,
         duration: v.duration || null, sort_order: +v.sort_order || 0, access: v.access, status: v.status, featured: !!v.featured,
         outcomes: lines(v.outcomes), tags: lines(v.tags), requirements: lines(v.requirements), audience: lines(v.audience),
-        includes: lines(v.includes).map((line) => line.split('|').map((x) => x.trim())).filter((x) => x[0]).map(([label, ...rest]) => ({ label, value: rest.join('|') })),
+        includes: v.inc_mode === 'own' ? readRows() : [],
         trailer_url: v.trailer_url.trim() || null, language: v.language.trim().toLowerCase() || 'english', sequential: !!v.sequential, updated_at: new Date().toISOString(),
         instructor_name: v.instructor_name || null, instructor_role: v.instructor_role || null, instructor_img: v.instructor_img || null, cover: v.cover || null,
       };
@@ -1752,6 +1800,128 @@
       const [uid, cid] = b.dataset.unenrol.split('|');
       if (!confirm('remove this learner from the entry\'s list? their lesson progress is kept. (this does not change a payment — use “take back” above for that.)')) return;
       if (await run(sb.from('enrollments').delete().eq('user_id', uid).eq('course_id', cid), 'removed from the list')) learnersView();
+    };
+  }
+
+  // ── everyone signed up ─────────────────────────────────────────────────────
+  // Every account on the website, newest first: how to reach them, how they sign in, and
+  // everything they are taking. The accounts come from admin_people (seed 16), which only
+  // hands out what is shown here; the rest is read from the tables learners fill in.
+  const PEOPLE_SHOW = [['all', 'everyone'], ['taking', 'taking something'], ['nothing', 'not taking anything yet'], ['paid', 'paid for something'], ['new', 'joined in the last 30 days']];
+  let peopleShow = 'all', peopleFind = '', peopleMax = 50;
+  async function peopleView() {
+    const [people, en, pr, courses, lessons, mods, pm, certs] = await Promise.all([
+      run(sb.rpc('admin_people')),
+      run(sb.from('enrollments').select('user_id,course_id,enrolled_at,completed_at')),
+      run(sb.from('lesson_progress').select('user_id,course_id,lesson_id,completed_at')),
+      run(sb.from('courses').select('id,title')),
+      run(sb.from('course_lessons').select('id,course_id,module_id,is_hidden')),
+      run(sb.from('course_modules').select('id,is_hidden')),
+      run(sb.from('payments').select('user_id,course_id,amount,method,trx_id,status,created_at,coupon').order('created_at', { ascending: false })),
+      run(sb.from('certificates').select('id,user_id,course_id,issued_at')),
+    ]);
+    if (!people) {
+      main.innerHTML = head('everyone signed up', '') + '<p class="empty">this list could not be loaded. if it is the first time, run <b style="color:var(--fg);text-transform:none;">seed/website-backend-16-people.sql</b> in supabase.</p>';
+      return;
+    }
+    const list = (x) => (x === true || !x ? [] : x);
+    const all = list(people), enrol = list(en), progress = list(pr), payments = list(pm), certificates = list(certs);
+    const title = Object.fromEntries(list(courses).map((c) => [c.id, c.title]));
+    const hiddenModule = new Set(list(mods).filter((m) => m.is_hidden).map((m) => m.id));
+    const visible = new Set(list(lessons).filter((l) => !l.is_hidden && !hiddenModule.has(l.module_id)).map((l) => l.id));
+    const total = (c) => list(lessons).filter((l) => l.course_id === c && visible.has(l.id)).length;
+    const by = (rows) => rows.reduce((m, r) => ((m[r.user_id] = m[r.user_id] || []).push(r), m), {});
+    const enrolOf = by(enrol), progressOf = by(progress), payOf = by(payments), certOf = by(certificates);
+    const day = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+    const ago = (d) => {
+      if (!d) return 'never';
+      const s = (Date.now() - new Date(d)) / 1000;
+      return s < 3600 ? 'within the hour' : s < 86400 ? 'today' : s < 172800 ? 'yesterday' : s < 30 * 86400 ? `${Math.floor(s / 86400)} days ago` : day(d);
+    };
+    const nameOf = (p) => p.full_name || p.account_name || '';
+    const ways = (p) => (p.ways || []).map((w) => (w === 'google' ? 'google' : w === 'email' ? 'email & password' : w)).join(' + ') || '—';
+    const lastActive = (p) => (progressOf[p.id] || []).reduce((m, r) => (r.completed_at > m ? r.completed_at : m), p.last_seen || '');
+    const paid = (p) => (payOf[p.id] || []).some((x) => x.status === 'confirmed');
+    const month = Date.now() - 30 * 86400000;
+    const keep = {
+      all: () => true, taking: (p) => (enrolOf[p.id] || []).length > 0, nothing: (p) => !(enrolOf[p.id] || []).length,
+      paid, new: (p) => new Date(p.signed_up) >= month,
+    };
+    const payWord = (x) => (x.status === 'confirmed' ? (x.method === 'manual' ? 'given by hand' : 'paid') : x.status === 'pending' ? 'to check' : 'rejected');
+
+    const detail = (p) => {
+      const mine = enrolOf[p.id] || [], pays = payOf[p.id] || [], certsOf = certOf[p.id] || [];
+      const facts = [
+        ['email', `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>`],
+        ['name on their page', esc(p.full_name || '— not written yet')],
+        ['name on their google account', esc(p.account_name || '—')],
+        ['phone', p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '— not added yet'],
+        ['signs in with', esc(ways(p))],
+        ['email confirmed', p.confirmed ? 'yes' : 'no — they have not pressed the link in the email yet'],
+        ['joined', day(p.signed_up)],
+        ['last signed in', esc(ago(p.last_seen))],
+        ['last active', esc(ago(lastActive(p)))],
+        ...(p.admin_role ? [['admin', p.admin_role === 'main' ? 'main admin' : 'admin, with some areas']] : []),
+      ];
+      return `<div class="p-detail">
+        <dl class="p-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+        <div class="p-sub"><b>what they are taking <small>${mine.length}</small></b>${mine.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>course, program or webinar</th><th>since</th><th>progress</th><th>finished</th><th>certificate</th></tr></thead><tbody>${mine.map((r) => {
+          const t = total(r.course_id), d = Math.min((progressOf[p.id] || []).filter((x) => x.course_id === r.course_id && visible.has(x.lesson_id)).length, t), pct = t ? Math.round((d / t) * 100) : 0;
+          const c = certsOf.find((x) => x.course_id === r.course_id);
+          return `<tr><td>${esc(title[r.course_id] || r.course_id)}</td><td>${day(r.enrolled_at)}</td><td>${d} / ${t} · ${pct}%<div class="progress"><i style="width:${pct}%"></i></div></td><td>${day(r.completed_at)}</td><td>${c ? `<a href="${A.root}academy/certificate/${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${esc(c.id)} ↗</a>` : '—'}</td></tr>`;
+        }).join('')}</tbody></table></div>` : '<p class="p-none">nothing yet.</p>'}</div>
+        <div class="p-sub"><b>payments <small>${pays.length}</small></b>${pays.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>for</th><th>amount</th><th>transaction id</th><th>sent</th><th>state</th></tr></thead><tbody>${pays.map((x) => `<tr><td>${esc(title[x.course_id] || x.course_id)}</td><td>${esc(x.amount || '—')}${x.coupon ? ` · coupon ${esc(x.coupon)}` : ''}</td><td>${x.method === 'manual' ? 'given by hand' : `<code>${esc(x.trx_id || '—')}</code>`}</td><td>${day(x.created_at)}</td><td><span class="badge${x.status === 'confirmed' ? ' badge--on' : ''}" style="margin:0;">${payWord(x)}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="p-none">no payments.</p>'}</div>
+      </div>`;
+    };
+
+    const csv = () => downloadCsv(`everyone-signed-up-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ['name', 'email', 'phone', 'signs in with', 'email confirmed', 'joined', 'last signed in', 'taking', 'finished', 'paid for', 'certificates'],
+      ...all.map((p) => [nameOf(p), p.email, p.phone || '', ways(p), p.confirmed ? 'yes' : 'no', day(p.signed_up), p.last_seen ? day(p.last_seen) : 'never',
+        (enrolOf[p.id] || []).map((r) => title[r.course_id] || r.course_id).join('; '), (enrolOf[p.id] || []).filter((r) => r.completed_at).length,
+        (payOf[p.id] || []).filter((x) => x.status === 'confirmed').length, (certOf[p.id] || []).length]),
+    ]);
+
+    function draw() {
+      const want = peopleFind.trim().toLowerCase();
+      const found = all.filter(keep[peopleShow] || keep.all).filter((p) => !want || [nameOf(p), p.email, p.phone, p.account_name].join(' ').toLowerCase().includes(want));
+      const open = new Set($$('.p-row.is-open', main).map((r) => r.dataset.person));
+      $('#people-n', main).textContent = `${found.length} of ${all.length}`;
+      $('#people-list', main).innerHTML = found.length ? `<div class="table-wrap"><table class="table p-table"><thead><tr><th>person</th><th>phone</th><th>signs in with</th><th>joined</th><th>last signed in</th><th>taking</th><th></th></tr></thead><tbody>${found.slice(0, peopleMax).map((p) => {
+        const n = (enrolOf[p.id] || []).length, isOpen = open.has(p.id);
+        return `<tr class="p-row${isOpen ? ' is-open' : ''}" data-person="${p.id}"><td><strong>${esc(nameOf(p) || '— no name yet')}</strong>${p.admin_role ? '<span class="badge badge--on">admin</span>' : ''}${p.confirmed ? '' : '<span class="badge">email not confirmed</span>'}<br><span class="p-mail">${esc(p.email)}</span></td>
+          <td data-l="phone: ">${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '<span class="p-faint">—</span>'}</td><td data-l="signs in with: ">${esc(ways(p))}</td><td data-l="joined: ">${day(p.signed_up)}</td><td data-l="last signed in: ">${esc(ago(p.last_seen))}</td>
+          <td data-l="taking: ">${n ? `${n}${paid(p) ? ' <span class="badge badge--on" style="margin-left:6px;">paid</span>' : ''}` : '<span class="p-faint">nothing</span>'}</td>
+          <td><button class="btn btn--sm${isOpen ? ' btn--solid' : ''}" data-more aria-expanded="${isOpen}">${isOpen ? 'close' : 'see everything'}</button></td></tr>
+          <tr class="p-more"${isOpen ? '' : ' hidden'}><td colspan="7">${isOpen ? detail(p) : ''}</td></tr>`;
+      }).join('')}</tbody></table></div>${found.length > peopleMax ? `<div class="editor-foot"><button class="btn" type="button" data-people-more>show ${Math.min(50, found.length - peopleMax)} more</button></div>` : ''}`
+        : `<p class="empty">${all.length ? 'no one matches. try fewer letters, or choose “everyone”.' : 'no one has signed up yet. when someone makes an account on the website, they appear here.'}</p>`;
+    }
+
+    const joined = all.filter(keep.new).length;
+    main.innerHTML = head('everyone signed up', 'every person who made an account on the website, newest first — how to reach them, how they sign in, and everything they are taking. learners write their own name and phone number on their page.', `<button class="btn btn--sm" type="button" data-people-csv${all.length ? '' : ' disabled'}>download the list (excel / csv)</button>`)
+      + `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));"><div><b>${all.length}</b><span>people signed up</span></div><div><b>${joined}</b><span>joined in the last 30 days</span></div><div><b>${all.filter(keep.taking).length}</b><span>taking something</span></div><div><b>${all.filter((p) => p.phone).length}</b><span>added a phone number</span></div></div>`
+      + `<label class="search"><input type="search" id="people-find" placeholder="find someone by name, email or phone…" autocomplete="off" value="${esc(peopleFind)}"><span id="people-n"></span></label>
+        <div class="p-filters" role="group" aria-label="show">${PEOPLE_SHOW.map(([k, t]) => `<button type="button" data-people-show="${k}" class="${k === peopleShow ? 'is-on' : ''}" aria-pressed="${k === peopleShow}">${t}</button>`).join('')}</div>
+        <div id="people-list"></div>`;
+    draw();
+
+    $('#people-find', main).addEventListener('input', (e) => { peopleFind = e.target.value; peopleMax = 50; draw(); });
+    main.onclick = (e) => {
+      if (e.target.closest('[data-people-csv]')) return csv();
+      if (e.target.closest('[data-people-more]')) { peopleMax += 50; return draw(); }
+      const f = e.target.closest('[data-people-show]');
+      if (f) {
+        peopleShow = f.dataset.peopleShow; peopleMax = 50;
+        $$('[data-people-show]', main).forEach((b) => { const on = b === f; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
+        return draw();
+      }
+      const more = e.target.closest('[data-more]');
+      if (more) {
+        const row = more.closest('.p-row'), box = row.nextElementSibling, open = !row.classList.contains('is-open'), p = all.find((x) => x.id === row.dataset.person);
+        row.classList.toggle('is-open', open); box.hidden = !open;
+        box.firstElementChild.innerHTML = open ? detail(p) : '';
+        more.textContent = open ? 'close' : 'see everything'; more.classList.toggle('btn--solid', open); more.setAttribute('aria-expanded', String(open));
+      }
     };
   }
 

@@ -446,6 +446,9 @@
       if (!shown(t) || !shown(d) || l.display === 'none' || l.visibility !== 'visible' || l.transform !== 'none' || l.filter !== 'none') return false;
       if (+t.opacity < 0.04 || +d.opacity < 0.99 || (!moving && +l.opacity < 0.9)) return false;
       if (parseFloat(l.fontSize) < 9 || t.backgroundImage === 'none') return false;
+      // the floating label is kept faint on purpose; fainter than that (or see-through) is tampering
+      const alpha = (l.color.match(/[\d.]+/g) || [])[3];
+      if (alpha !== undefined && +alpha < 0.1) return false;
       const a = box.getBoundingClientRect(), b = tile.getBoundingClientRect();
       if (a.width > 40 && (b.width < a.width - 2 || b.height < a.height - 2)) return false;
       return true;
