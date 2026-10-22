@@ -1116,10 +1116,10 @@
     if (out) action = `<a class="btn-primary" ${outLink(course)}>go to the ${noun} on ${esc(out.host)} <span class="btn-arrow" aria-hidden="true">↗</span></a>${price.label ? `<span class="was-note"><b style="color:var(--fg)">${esc(price.label)}</b>${price.was ? ` <s>${esc(price.was)}</s> ${price.off}% off` : ''}</span>` : ''}`;
     else if (!st.count) action = '<span class="btn-outline" style="pointer-events:none;opacity:0.6;">lessons coming soon <span class="btn-arrow" aria-hidden="true">→</span></span>';
     // a paid entry: "enrol now" leads to the payment page; while a payment is being checked it says so
-    else if (mustPay) action = `<a class="btn-primary" href="${U.pay(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
+    else if (mustPay) action = `<a class="btn-primary" href="${U.pay(course.id)}">${payState(course) === 'pending' ? 'payment being checked' : payState(course) === 'rejected' ? 'payment not confirmed — try again' : (noun === 'webinar' ? 'register now' : 'enroll now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a>${price.was && !payState(course) ? `<span class="was-note"><s>${esc(price.was)}</s> ${price.off}% off</span>` : ''}`;
     else if (going) action = `<a class="btn-primary" href="${lessonUrl(st.next)}">${st.pct === 100 ? 'review the ' + noun : noun === 'webinar' ? 'open the webinar' : 'continue learning'} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
-    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enrol — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
-    else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enrol'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
+    else if (S.user || open) action = `<button class="btn-primary" id="enrol" type="button">${S.admin ? 'preview the lessons' : S.user ? (noun === 'webinar' ? 'register — it\'s free' : 'enroll — it\'s free') : 'start the ' + noun} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
+    else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enroll'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     const second = !out && !going && preview && !open && !mustPay ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
     const initials = (course.instructor_name || 'a').trim()[0];
@@ -1223,7 +1223,7 @@
             <div class="course-block rise"${out ? ' hidden' : ''}><h2>curriculum${mustPay ? ' — locked' : course.sequential ? ' — lessons unlock in order' : ''}</h2>
               ${mustPay && st.count ? `<div class="cur-lock">${PADLOCK}<div><strong>${payState(course) === 'pending' ? 'your payment is being checked.' : payState(course) === 'rejected' ? 'we could not confirm your payment.' : `the lessons open once you have enrolled and paid.`}</strong>
                 <p>${payState(course) === 'pending' ? 'as soon as we confirm it, every lesson below unlocks for your account.' : payState(course) === 'rejected' ? 'open the payment page to see why, and enter your transaction id again.' : `this ${noun} has ${modulesOf(course.id).length} module${modulesOf(course.id).length === 1 ? '' : 's'} and ${st.count} lesson${st.count === 1 ? '' : 's'}${kinds('live') ? `, ${kinds('live')} of them live` : ''}. you can read the lesson titles below; the videos, readings and files open after you pay and we confirm it — nothing more to do.`}</p></div>
-                <a class="btn-primary" href="${U.pay(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enrol now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
+                <a class="btn-primary" href="${U.pay(course.id)}">${payState(course) ? 'open the payment page' : (noun === 'webinar' ? 'register now' : 'enroll now') + ' — ' + price.label} <span class="btn-arrow" aria-hidden="true">→</span></a></div>` : ''}
               ${outline(course, null, false) || '<p class="lms-empty">lessons are being added.</p>'}</div>
             ${bullets('before you start', course.requirements, 'plain-list')}
             ${bullets(`who this ${noun} is for`, course.audience, 'plain-list')}
@@ -1237,7 +1237,7 @@
           </aside>
         </div>
       </section>
-      ${st.count || out ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${out ? 'on ' + esc(out.host) : going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${out ? 'view ' + noun + ' ↗' : going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enrol') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
+      ${st.count || out ? `<div class="sticky-cta" id="sticky-cta" hidden><div><strong>${esc(course.title)}</strong><span>${out ? 'on ' + esc(out.host) : going ? `${st.done} of ${st.count} lessons done` : esc(price.label)}</span></div><button class="btn-primary" type="button">${out ? 'view ' + noun + ' ↗' : going ? (st.pct === 100 ? 'review' : 'continue') : mustPay ? (payState(course) ? 'payment' : noun === 'webinar' ? 'register' : 'enroll') : 'start'} <span class="btn-arrow" aria-hidden="true">→</span></button></div>` : ''}`;
 
     // on a phone the main button stays in reach once the one at the top has scrolled away
     const sticky = $('#sticky-cta', root), cta = $('#course-cta', root);
@@ -1315,7 +1315,7 @@
       const waiting = payState(course) === 'pending';
       bodyHtml = `<div class="gate"><strong>${waiting ? 'your payment is being checked.' : `this lesson is part of a paid ${typeOf(course)}.`}</strong>
         <p>${waiting ? 'as soon as it is confirmed, every lesson here unlocks for your account by itself.' : `enrol to unlock every lesson, the live classes, your notes and the certificate. the fee is ${fee(course).label}.`}</p>
-        <div class="hero-buttons"><a class="btn-primary" href="${U.pay(course.id)}">${waiting ? 'open the payment page' : 'enrol now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
+        <div class="hero-buttons"><a class="btn-primary" href="${U.pay(course.id)}">${waiting ? 'open the payment page' : 'enroll now'} <span class="btn-arrow" aria-hidden="true">→</span></a>
         ${waiting ? '' : aidButton(course)}
         <a class="btn-outline" href="${courseUrl}">back to the ${typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a></div>
         <p class="ask">${waiting ? 'waiting longer than a day?' : 'not sure how to pay?'} ${helpLink('i need help with my payment for “' + course.title + '”')}</p></div>`;
