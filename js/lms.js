@@ -1185,7 +1185,6 @@
         <div class="course-hero-inner">
           ${notice()}
           <a class="crumb rise" href="${U.catalog()}">← academy</a>
-          <div class="hero-tag rise"><i></i>${esc(course.category)}</div>
           <h1 class="course-h1 rise rise-2">${esc(course.title)}</h1>
           ${social ? `<div class="course-social course-social--lg rise rise-2">${social}</div>` : ''}
           <div class="course-hero-foot rise rise-3">
@@ -2331,7 +2330,6 @@
       root.innerHTML = `<section class="pay"><div class="pay-inner">
         ${notice()}
         <a class="crumb rise" href="${back}">← back to the ${type}</a>
-        <div class="hero-tag rise"><i></i>enrolment</div>
         <h1 class="pay-h1 rise rise-2">complete your <em>enrolment.</em></h1>
         <ol class="pay-steps rise rise-3">${steps}</ol>
         <div class="pay-grid">
@@ -2493,7 +2491,6 @@
       <section class="course-hero"><div class="course-hero-inner">
         ${notice()}
         <a class="crumb rise" href="${U.catalog()}">← academy</a>
-        <div class="hero-tag rise"><i></i>my learning</div>
         <h1 class="course-h1 rise rise-2">${esc(hello)}.</h1>
         ${S.user && !S.admin ? `<div class="me-line rise rise-2"><span>${esc(S.user.email || '')}${S.profile && S.profile.phone ? ` · ${esc(S.profile.phone)}` : ''}</span><button type="button" class="me-edit" data-profile>${S.profile && S.profile.phone ? 'edit profile' : 'edit name · add phone'}</button></div>` : ''}
         ${S.user || S.preview ? '' : `<div class="gate rise rise-3" style="margin-top:clamp(28px,3vw,44px);max-width:720px;">

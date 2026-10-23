@@ -16,9 +16,8 @@
 // add a line here — nothing else needs to change.
 (function () {
   const line = (scope, n) => `${scope} .line:nth-child(${n}) > span`;
-  // label + heading lines for a standard section header
+  // the heading lines of a standard section header
   const head = (key, scope, lines, titleSel = '.section-title') => [
-    [`${key}.label`, 'small label', `${scope} .section-label`],
     ...Array.from({ length: lines }, (_, i) => [`${key}.title${i + 1}`, `heading — line ${i + 1}`, line(`${scope} ${titleSel}`, i + 1), 'html']),
   ];
   const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
@@ -43,7 +42,6 @@
         ['home.nav.cta.href', 'button link', '#navbar .nav-cta', 'href'],
       ] },
       { name: 'hero — headline', fields: [
-        ['home.hero.tag', 'small label', '#hero .cap--lead .hero-tag'],
         ...range(3).map((i) => [`home.hero.line${i}`, `headline — line ${i}`, line('#hero .hero-h1', i), 'html']),
         ['home.hero.sub', 'paragraph', '#hero .hero-sub'],
         ['home.hero.cta1', 'first button text', '#hero .hero-buttons a:nth-child(1)'],
@@ -52,7 +50,6 @@
         ['home.hero.cta2.href', 'second button link', '#hero .hero-buttons a:nth-child(2)', 'href'],
       ] },
       { name: 'hero — numbers', fields: [
-        ['home.hero.facts.tag', 'small label', '#hero .cap--facts .hero-tag'],
         ...range(4).flatMap((i) => [
           [`home.hero.stat${i}.num`, `number ${i}`, `#hero .hero-stats li:nth-child(${i}) b`],
           [`home.hero.stat${i}.label`, `number ${i} — caption`, `#hero .hero-stats li:nth-child(${i}) span`],
@@ -72,7 +69,6 @@
       ] },
       { name: 'subsidiaries', fields: [...head('home.subs', '#divisions', 2), ['home.subs.sub', 'intro text', '.divisions-sub']] },
       { name: 'founder', fields: [
-        ['home.founder.label', 'small label', '#founder .section-label'],
         ['home.founder.photo', 'photo', '.founder-img', 'src'],
         ['home.founder.link', 'photo link', '.founder-img-wrap a', 'href'],
         ['home.founder.quote', 'quote', '.founder-quote', 'html'],
@@ -98,7 +94,6 @@
         ]),
       ] },
       { name: 'team', fields: [
-        ['home.team.label', 'small label', '#team .section-label'],
         ['home.team.photo', 'photo', '.team-img', 'src'],
         ['home.team.caption', 'photo caption', '.team-caption'],
         ['home.team.title1', 'heading — line 1', line('.team-title', 1), 'html'],
@@ -130,7 +125,6 @@
   // 'courses' is the academy page — because saved text is stored under them.)
   const sect = (n) => `section:nth-of-type(${n})`;
   const pageHero = (key, metaCount) => ({ name: 'page top', fields: [
-    [`${key}.hero.tag`, 'small label', '.page-hero .hero-tag'],
     [`${key}.hero.title1`, 'headline — line 1', line('.page-h1', 1), 'html'],
     [`${key}.hero.title2`, 'headline — line 2', line('.page-h1', 2), 'html'],
     [`${key}.hero.sub`, 'paragraph', '.page-sub'],
@@ -140,7 +134,6 @@
     ]),
   ] });
   const sectHead = (key, n) => [
-    [`${key}.label`, 'small label', `${sect(n)} .section-label`],
     [`${key}.title1`, 'heading — line 1', line(`${sect(n)} .sect-title`, 1), 'html'],
     [`${key}.title2`, 'heading — line 2', line(`${sect(n)} .sect-title`, 2), 'html'],
   ];
@@ -206,7 +199,6 @@
         ['journey.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
       { name: 'page top', fields: [
-        ['journey.hero.tag', 'small label', '.page-hero .hero-tag'],
         ['journey.hero.title1', 'headline — line 1', line('.page-h1', 1), 'html'],
         ['journey.hero.title2', 'headline — line 2', line('.page-h1', 2), 'html'],
       ] },
@@ -231,7 +223,6 @@
         ['courses.show.cta', 'closing call to action', '.page-cta', 'visible'],
       ] },
       { name: 'page top', fields: [
-        ['courses.hero.tag', 'small label', '.page-hero .hero-tag'],
         ['courses.hero.title1', 'headline — line 1', line('.page-h1', 1), 'html'],
         ['courses.hero.title2', 'headline — line 2', line('.page-h1', 2), 'html'],
       ] },
