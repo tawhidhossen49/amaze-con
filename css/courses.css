@@ -176,7 +176,10 @@ a.lesson-row:hover { color: var(--green); padding-left: 8px; }
 .instructor-photo { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; background: var(--green); color: var(--ink); font-weight: 700; font-size: 20px; text-transform: uppercase; overflow: hidden; }
 .instructor-photo img { width: 100%; height: 100%; object-fit: cover; }
 .instructor strong { display: block; font-size: 17px; letter-spacing: -0.025em; text-transform: lowercase; }
-.instructor span { font-size: 13px; color: var(--muted); text-transform: lowercase; }
+.instructor span { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); text-transform: lowercase; }
+.instructor > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+.instructors { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.instructors .instructor + .instructor { padding-top: 14px; border-top: 1px solid var(--line); }
 .includes { list-style: none; }
 .includes li { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; text-transform: lowercase; color: var(--muted); }
 .includes li:first-child { border-top: 0; padding-top: 0; }

@@ -140,12 +140,25 @@ body.admin .area input:checked::after { content: '✓'; font-size: 13px; font-we
 .teacher:hover { border-color: rgba(46,242,162,0.6); }
 .teacher.is-on { border-color: var(--green); background: rgba(46,242,162,0.09); box-shadow: inset 0 0 0 1px var(--green); }
 .teacher-use { flex: 1; min-width: 0; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 2px 12px; align-items: center; padding: 12px; background: none; border: 0; color: var(--fg); cursor: pointer; text-align: left; font: inherit; }
+body.admin .teacher-use .thumb { display: grid; place-items: center; }
 .teacher-use .thumb { grid-row: 1 / span 2; width: 44px; height: 44px; font-size: 16px; font-weight: 700; color: var(--green); border-color: rgba(46,242,162,0.4); }
 .teacher-use b { align-self: end; font-size: 15px; letter-spacing: -0.02em; text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .teacher-use small { align-self: start; font-size: 12.5px; color: var(--muted); text-transform: lowercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .teacher-forget { flex: none; width: 34px; background: none; border: 0; border-left: 1px solid var(--line); color: var(--faint); cursor: pointer; font-size: 12px; }
 .teacher-forget:hover { color: #ff6b5e; background: rgba(255,107,94,0.08); }
 .teacher--new { border-style: dashed; }
+.team { margin-top: 18px; }
+.team:empty { display: none; }
+.team-head { margin: 0 0 8px; font: 700 14px/1.4 var(--font-sans); letter-spacing: -0.005em; color: var(--fg); text-transform: lowercase; }
+.team-head small { margin-left: 6px; font-weight: 400; color: var(--faint); }
+.team .hint { display: block; margin-top: 10px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.team-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.team-row:first-child { border-top: 1px solid var(--line); }
+.team-row .thumb { width: 44px; height: 44px; font-size: 16px; font-weight: 700; color: var(--green); }
+.teacher-box { margin-top: 18px; padding: 18px; border: 1px solid var(--green); background: rgba(46,242,162,0.04); }
+.teacher-box[hidden] { display: none; }
+.teacher-box h3 { margin: 0 0 14px; font: 700 15px/1.3 var(--font-sans); letter-spacing: -0.01em; text-transform: lowercase; }
+.teacher-box-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .teacher-ask { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--green); background: rgba(46,242,162,0.08); font-size: 14px; text-transform: lowercase; }
 .teacher-ask b { text-transform: none; }
 

@@ -805,6 +805,9 @@
     return paySave('pay.faq', { ...(pay.faq || {}), [faqPlace]: next }, okText);
   }
   let teacherOpen = false, teacherEdit = null;   // the teachers box: kept open after a save, and who is being changed
+  // everyone on an entry, main teacher first (co_teachers: seed 17)
+  const teamOf = (course) => [{ name: course.instructor_name, role: course.instructor_role, img: course.instructor_img }, ...(Array.isArray(course.co_teachers) ? course.co_teachers : [])]
+    .map((t) => ({ name: String((t && t.name) || '').trim(), role: String((t && t.role) || '').trim(), img: String((t && t.img) || '').trim() })).filter((t) => t.name);
   async function coursesView(courseId) {
     await checkAcademy();
     if (courseId && courseId.startsWith('new:')) return courseEditor(null, null, courseId.slice(4));
@@ -829,6 +832,8 @@
     const count = (id) => lessons.filter((l) => l.course_id === id).length;
     const rowsOf = (type) => courses.filter((c) => typeOf(c) === type);
     const one = { course: 'course', program: 'program', webinar: 'webinar' };
+    const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+    const teachesHere = (t) => courses.filter((c) => teamOf(c).some((x) => sameName(x.name, t.name))).length;
     main.innerHTML = head('academy', 'everything on the academy page. press “edit” on one to change it, set its price or add lessons and live classes. a draft is only seen here — publish it to put it on the website.',
       Object.keys(TYPES).map((t) => `<button class="btn${t === 'course' ? ' btn--solid' : ''}" data-new="${t}">+ new ${t}</button>`).join(''))
       + setupNote()
@@ -877,7 +882,7 @@
         <div class="h2" style="margin-top:28px;"><span>saved teachers <small>${pay.teachers.length}</small></span></div>
         <div class="rows">${pay.teachers.map((t, i) => `<div class="row" data-saved-teacher="${i}">
             <div class="thumb">${t.img ? `<img src="${esc(img(t.img))}" alt="" data-fallback="${esc(t.name.trim()[0] || '?')}">` : esc(t.name.trim()[0] || '?')}</div>
-            <div><strong style="text-transform:none;">${esc(t.name)}</strong><span class="sub">${esc(t.role || 'no role saved')}${courses.filter((c) => String(c.instructor_name || '').trim().toLowerCase() === t.name.trim().toLowerCase()).length ? ` · teaches ${courses.filter((c) => String(c.instructor_name || '').trim().toLowerCase() === t.name.trim().toLowerCase()).length} here` : ''}</span></div>
+            <div><strong style="text-transform:none;">${esc(t.name)}</strong><span class="sub">${esc(t.role || 'no role saved')}${teachesHere(t) ? ` · teaches ${teachesHere(t)} here` : ''}</span></div>
             <div class="row-actions"><button class="btn btn--sm btn--solid" data-teacher-edit>change</button><button class="btn btn--sm btn--danger" data-teacher-del>remove</button></div>
           </div>`).join('') || '<p class="empty">no teachers saved yet. fill in the form above and press “save this teacher”.</p>'}</div>
       </div></details>`
@@ -974,7 +979,6 @@
     });
 
     // ── teachers: add, change, remove ──
-    const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
     $('#teacher-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
       const v = Object.fromEntries(new FormData(e.target)), name = v.name.trim();
@@ -1239,14 +1243,17 @@
         <section class="card" id="teacher-group">
           <h2 class="card-title">who teaches it</h2>
           <div class="field" id="teacher-pick"></div>
-          <div id="teacher-fields" hidden>
+          <div class="team" id="teacher-team"></div>
+          <div class="teacher-box" id="teacher-fields" hidden>
+            <h3 id="teacher-box-title"></h3>
             <div class="form-grid">
-              <label class="field"><span>teacher’s name</span><input name="instructor_name" value="${esc(course.instructor_name || '')}" autocomplete="off"></label>
-              <label class="field"><span>their role or organisation</span><input name="instructor_role" value="${esc(course.instructor_role || '')}" autocomplete="off"></label>
-              <div class="field field--wide"><span>their photo (optional)</span>${imageField('instructor_img', course.instructor_img)}</div>
+              <label class="field"><span>teacher’s name</span><input name="teacher_name" autocomplete="off"></label>
+              <label class="field"><span>their role or organisation</span><input name="teacher_role" autocomplete="off"></label>
+              <div class="field field--wide"><span>their photo (optional)</span>${imageField('teacher_img', '')}</div>
             </div>
             <p class="teacher-ask" id="teacher-ask" hidden></p>
             <label class="check" id="teacher-keep" hidden><input type="checkbox" name="remember_teacher" checked> <span></span></label>
+            <div class="teacher-box-acts"><button type="button" class="btn btn--sm btn--solid" data-box-keep></button><button type="button" class="btn btn--sm" data-box-close>cancel</button></div>
           </div>
         </section>
 
@@ -1344,56 +1351,100 @@
     let teachers = pay.teachers.slice();
     const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
     const savedAs = (name) => teachers.find((t) => same(t.name, name));
-    // the section always asks the same question: one of the saved teachers, or a new one?
-    // the three boxes appear once that is answered (or straight away when a teacher is already set)
-    let typingNew = false;
-    function drawTeachers() {
-      const name = cf.instructor_name.value, known = savedAs(name);
-      $('#teacher-fields', main).hidden = !name.trim() && !typingNew;
-      $('#teacher-pick', main).innerHTML = `<span>${teachers.length ? 'choose a saved teacher, or add a new one' : 'add the teacher'}</span>
-        <div class="teachers">${teachers.map((t, i) => `<div class="teacher${same(t.name, name) ? ' is-on' : ''}">
-            <button type="button" class="teacher-use" data-teacher="${i}"><span class="thumb">${t.img ? `<img src="${esc(img(t.img))}" alt="" data-fallback="${esc(t.name.trim()[0] || '?')}">` : esc(t.name.trim()[0] || '?')}</span><b>${esc(t.name)}</b><small>${esc(t.role || 'no role saved')}</small></button></div>`).join('')}
-          <div class="teacher teacher--new${(name.trim() && !known) || (typingNew && !name.trim()) ? ' is-on' : ''}"><button type="button" class="teacher-use" data-teacher="new"><span class="thumb">+</span><b>a new teacher</b><small>type their name, role and photo</small></button></div></div>
-        ${teachers.length ? '' : '<small class="hint">no teachers are saved yet. add one here and tick “remember” — or save them all at once on the academy screen, under “teachers”. next time they are one press away.</small>'}`;
-      // someone new is being typed in: offer to remember them
-      const keep = $('#teacher-keep', main), changed = known && (!same(known.role, cf.instructor_role.value) || (known.img || '') !== cf.instructor_img.value.trim());
-      keep.hidden = !name.trim() || (known && !changed);
-      $('span', keep).textContent = known ? `update what is saved for ${known.name}, so the new role and photo are used next time` : `remember ${name.trim() || 'this teacher'} — next time you only press their name`;
+    // everyone on this entry, main teacher first. saved teachers go on and off with one press;
+    // the three boxes are for someone new, or for changing someone who is already on the list.
+    let team = teamOf(course);
+    let boxFor = null;   // null: the boxes are closed · 'new': adding someone · a number: changing that person
+    const onTeam = (name, skip = -1) => team.some((t, i) => i !== skip && same(t.name, name));
+    const boxValue = () => ({ name: cf.teacher_name.value.trim(), role: cf.teacher_role.value.trim(), img: cf.teacher_img.value.trim() });
+    function fillBox(t) {
+      cf.teacher_name.value = t.name; cf.teacher_role.value = t.role; cf.teacher_img.value = t.img;
+      cf.teacher_img.dispatchEvent(new Event('input', { bubbles: true }));   // redraws the small picture
+      $('#teacher-ask', main).hidden = true;
     }
-    function useTeacher(t) {
-      cf.instructor_name.value = t.name; cf.instructor_role.value = t.role || ''; cf.instructor_img.value = t.img || '';
-      cf.instructor_img.dispatchEvent(new Event('input', { bubbles: true }));   // redraws the small picture
-      $('#teacher-ask', main).hidden = true; typingNew = false;
-      drawTeachers();
-      toast(`${t.name} filled in — press save at the bottom to keep it`);
+    function closeBox() { boxFor = null; fillBox({ name: '', role: '', img: '' }); drawTeachers(); }
+    function openBox(which) {
+      boxFor = which; fillBox(which === 'new' ? { name: '', role: '', img: '' } : team[which]);
+      drawTeachers(); cf.teacher_name.focus();
+    }
+    function drawTeachers() {
+      const name = cf.teacher_name.value, known = savedAs(name);
+      $('#teacher-pick', main).innerHTML = `<span>${teachers.length ? `choose the saved teachers on this ${noun}, or add a new one` : 'add the teacher'}</span>
+        <div class="teachers">${teachers.map((t, i) => { const on = onTeam(t.name); return `<div class="teacher${on ? ' is-on' : ''}">
+            <button type="button" class="teacher-use" data-teacher="${i}" aria-pressed="${on}" title="${on ? 'press to take them off' : 'press to add them'}"><span class="thumb">${t.img ? `<img src="${esc(img(t.img))}" alt="" data-fallback="${esc(t.name.trim()[0] || '?')}">` : esc(t.name.trim()[0] || '?')}</span><b>${esc(t.name)}</b><small>${esc(t.role || 'no role saved')}</small></button></div>`; }).join('')}
+          <div class="teacher teacher--new${boxFor === 'new' ? ' is-on' : ''}"><button type="button" class="teacher-use" data-teacher="new" aria-pressed="${boxFor === 'new'}"><span class="thumb">+</span><b>a new teacher</b><small>type their name, role and photo</small></button></div></div>
+        ${teachers.length ? '' : '<small class="hint">no teachers are saved yet. add one here and tick “remember” — or save them all at once on the academy screen, under “teachers”. next time they are one press away.</small>'}`;
+      $('#teacher-team', main).innerHTML = team.length ? `<p class="team-head">teaching this ${noun} <small>${team.length}</small></p>
+        <div class="rows">${team.map((t, i) => `<div class="row team-row" data-team="${i}">
+          <div class="thumb">${t.img ? `<img src="${esc(img(t.img))}" alt="" data-fallback="${esc(t.name[0])}">` : esc(t.name[0])}</div>
+          <div><strong style="text-transform:none;">${esc(t.name)}${team.length > 1 && !i ? '<span class="badge badge--on">main teacher</span>' : ''}</strong><span class="sub">${esc(t.role || 'no role written')}</span></div>
+          <div class="row-actions"><button type="button" class="btn btn--sm" data-team-edit>change</button>${team.length > 1 ? `<button type="button" class="btn btn--sm" data-team-move="-1"${i ? '' : ' disabled'} title="move up" aria-label="move ${esc(t.name)} up">↑</button><button type="button" class="btn btn--sm" data-team-move="1"${i === team.length - 1 ? ' disabled' : ''} title="move down" aria-label="move ${esc(t.name)} down">↓</button>` : ''}<button type="button" class="btn btn--sm btn--danger" data-team-del aria-label="remove ${esc(t.name)}">remove</button></div>
+        </div>`).join('')}</div>
+        ${team.length > 1 ? `<small class="hint">the first teacher is the main one: when there is little room, as on a card, their name is shown first. use the arrows to change the order.</small>` : ''}` : '';
+      // the boxes appear only once someone is being added or changed
+      $('#teacher-fields', main).hidden = boxFor === null;
+      $('#teacher-box-title', main).textContent = boxFor === 'new' ? 'add a new teacher' : boxFor === null ? '' : `change ${team[boxFor].name}`;
+      $('[data-box-keep]', main).textContent = boxFor === 'new' ? 'add this teacher' : 'keep these changes';
+      // someone new is being typed in: offer to remember them
+      const keep = $('#teacher-keep', main), now = boxValue(), changed = known && (!same(known.role, now.role) || (known.img || '') !== now.img);
+      keep.hidden = !now.name || (known && !changed);
+      $('span', keep).textContent = known ? `update what is saved for ${known.name}, so the new role and photo are used next time` : `remember ${now.name || 'this teacher'} — next time you only press their name`;
+    }
+    // puts what is in the boxes on the list; false means something needs fixing first
+    async function keepBox() {
+      if (boxFor === null) return true;
+      const t = boxValue(), skip = boxFor === 'new' ? -1 : boxFor;
+      if (!t.name) {
+        if (boxFor === 'new' && !t.role && !t.img) { closeBox(); return true; }
+        toast('type the teacher’s name', true); cf.teacher_name.focus(); return false;
+      }
+      if (onTeam(t.name, skip)) { toast(`${t.name} is already on this ${noun}`, true); cf.teacher_name.focus(); return false; }
+      // remember the teacher for next time (a new one is added; a known one gets the new role and photo)
+      if (cf.remember_teacher.checked && !$('#teacher-keep', main).hidden) {
+        const list = (await payLoad()).teachers.filter((x) => !same(x.name, t.name));
+        list.push(t);
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        if (await paySave('pay.teachers', list)) teachers = list;
+      }
+      if (boxFor === 'new') team.push(t); else team[boxFor] = t;
+      closeBox();
+      return true;
     }
     drawTeachers();
     $('#teacher-group', main).addEventListener('input', (e) => {
-      if (!e.target.matches('[name=instructor_name], [name=instructor_role], [name=instructor_img]')) return;
+      if (!e.target.matches('[name=teacher_name], [name=teacher_role], [name=teacher_img]')) return;
       drawTeachers();
-      // typing the start of a saved name: ask whether to fill in the rest
-      const ask = $('#teacher-ask', main), typed = cf.instructor_name.value.trim().toLowerCase();
-      const guess = e.target.name === 'instructor_name' && typed.length >= 2 ? teachers.find((t) => t.name.toLowerCase().startsWith(typed) && (!same(t.role, cf.instructor_role.value) || (t.img || '') !== cf.instructor_img.value.trim() || !same(t.name, typed))) : null;
+      // typing the start of a saved name: ask whether to use them
+      const ask = $('#teacher-ask', main), typed = cf.teacher_name.value.trim().toLowerCase();
+      const guess = boxFor === 'new' && e.target.name === 'teacher_name' && typed.length >= 2 ? teachers.find((t) => t.name.toLowerCase().startsWith(typed) && !onTeam(t.name)) : null;
       ask.hidden = !guess;
-      if (guess) ask.innerHTML = `<b>${esc(guess.name)}</b> is saved${guess.role ? ` as “${esc(guess.role)}”` : ''}. fill in their details? <button type="button" class="btn btn--sm btn--solid" data-teacher="${teachers.indexOf(guess)}">yes, fill them in</button><button type="button" class="btn btn--sm" data-ask-no>no</button>`;
+      if (guess) ask.innerHTML = `<b>${esc(guess.name)}</b> is saved${guess.role ? ` as “${esc(guess.role)}”` : ''}. add them? <button type="button" class="btn btn--sm btn--solid" data-teacher="${teachers.indexOf(guess)}">yes, add them</button><button type="button" class="btn btn--sm" data-ask-no>no</button>`;
     });
+    // enter in one of the boxes adds the teacher; it must not save the whole form
+    $('#teacher-fields', main).addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('input:not([type=file]):not([type=checkbox])')) { e.preventDefault(); keepBox(); } });
     $('#teacher-group', main).addEventListener('click', async (e) => {
       if (e.target.closest('[data-ask-no]')) { $('#teacher-ask', main).hidden = true; return; }
+      if (e.target.closest('[data-box-keep]')) { await keepBox(); return; }
+      if (e.target.closest('[data-box-close]')) { closeBox(); return; }
       const use = e.target.closest('[data-teacher]');
       if (use) {
-        if (use.dataset.teacher !== 'new') return useTeacher(teachers[+use.dataset.teacher]);
-        cf.instructor_name.value = ''; cf.instructor_role.value = ''; cf.instructor_img.value = '';
-        typingNew = true;
-        cf.instructor_img.dispatchEvent(new Event('input', { bubbles: true }));
-        drawTeachers(); cf.instructor_name.focus();
+        if (use.dataset.teacher === 'new') { openBox('new'); return; }
+        const t = teachers[+use.dataset.teacher], at = team.findIndex((x) => same(x.name, t.name));
+        if (at >= 0) team.splice(at, 1); else team.push({ name: t.name.trim(), role: (t.role || '').trim(), img: (t.img || '').trim() });
+        if (at >= 0 && boxFor !== 'new') { closeBox(); return; }
+        if (boxFor === 'new' && use.closest('#teacher-ask')) { closeBox(); return; }
+        drawTeachers();
         return;
       }
-      const forget = e.target.closest('[data-forget]');
-      if (forget) {
-        const t = teachers[+forget.dataset.forget];
-        if (!confirm(`take ${t.name} off the saved list?\n\ncourses that already show ${t.name} keep them — this only removes the shortcut.`)) return;
-        const fresh = (await payLoad()).teachers.filter((x) => !same(x.name, t.name));
-        if (await paySave('pay.teachers', fresh, `${t.name} is no longer on the saved list`)) { teachers = fresh; drawTeachers(); }
+      const row = e.target.closest('[data-team]'); if (!row) return;
+      const i = +row.dataset.team;
+      if (e.target.closest('[data-team-edit]')) { openBox(i); return; }
+      if (e.target.closest('[data-team-del]')) { team.splice(i, 1); if (boxFor !== 'new') closeBox(); else drawTeachers(); return; }
+      const move = e.target.closest('[data-team-move]');
+      if (move) {
+        const j = i + +move.dataset.teamMove;
+        [team[i], team[j]] = [team[j], team[i]];
+        if (boxFor !== 'new') closeBox(); else drawTeachers();
       }
     });
     // ── the "this course includes" box: written by the website from the lessons and the price,
@@ -1445,6 +1496,7 @@
     });
     $('#course-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!(await keepBox())) { $('#teacher-group', main).scrollIntoView({ block: 'center' }); return; }
       const v = Object.fromEntries(new FormData(e.target));
       const lines = (text) => text.split('\n').map((x) => x.trim()).filter(Boolean);
       const row = {
@@ -1453,7 +1505,7 @@
         outcomes: lines(v.outcomes), tags: lines(v.tags), requirements: lines(v.requirements), audience: lines(v.audience),
         includes: v.inc_mode === 'own' ? readRows() : [],
         trailer_url: v.trailer_url.trim() || null, language: v.language.trim().toLowerCase() || 'english', sequential: !!v.sequential, updated_at: new Date().toISOString(),
-        instructor_name: v.instructor_name || null, instructor_role: v.instructor_role || null, instructor_img: v.instructor_img || null, cover: v.cover || null,
+        instructor_name: team.length ? team[0].name : null, instructor_role: (team.length && team[0].role) || null, instructor_img: (team.length && team[0].img) || null, co_teachers: team.slice(1), cover: v.cover || null,
       };
       if (academyReady) { row.kind = TYPES[v.kind] ? v.kind : 'course'; row.starts_at = fromLocalInput(v.starts_at); }
       else if (v.kind !== 'course' || v.starts_at) toast('saved as a course without a date — run seed/website-backend-05-academy.sql in supabase to switch programs, webinars and dates on', true);
@@ -1468,13 +1520,6 @@
       const aid = away || v.pay_paid === '0' ? '' : (v.pay_aid || '').trim();
       if (aid && !/^https:\/\/[^\s.]+\.[^\s]+$/i.test(aid)) return toast('the financial aid form has to be a full link, starting with https://', true);
       const fee = away ? { paid: false, price: nowPrice, was: wasPrice, external: link, external_by: (v.external_by || '').trim() } : { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice, ...(aid ? { aid } : {}) };
-      // remember the teacher for next time (a new one is added; a known one gets the new role and photo)
-      if (row.instructor_name && v.remember_teacher && !$('#teacher-keep', main).hidden) {
-        const list = (await payLoad()).teachers.filter((t) => !same(t.name, row.instructor_name));
-        list.push({ name: row.instructor_name.trim(), role: (row.instructor_role || '').trim(), img: (row.instructor_img || '').trim() });
-        list.sort((a, b) => a.name.localeCompare(b.name));
-        await paySave('pay.teachers', list);
-      }
       if (id) { if ((await run(sb.from('courses').update(row).eq('id', id))) && (await paySave('pay.course.' + id, fee, 'saved'))) reload(); return; }
       let newId = slug(row.title);
       if (!newId) return toast('give the course a title first', true);

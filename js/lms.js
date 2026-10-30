@@ -812,6 +812,23 @@
   const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 4.2 12.6a4.9 4.9 0 0 1 0-7 5 5 0 0 1 7 0l.8.8.8-.8a5 5 0 0 1 7 0 4.9 4.9 0 0 1 0 7z"/></svg>';
   // addresses saved as site paths (img/courses/x.jpg) are resolved from the site root
   const imageUrl = (v) => (/^(https?:)?\/\//.test(v) ? v : A.root + v);
+  // who teaches an entry: the main teacher, then anyone teaching beside them
+  function teachersOf(course) {
+    const seen = new Set();
+    return [{ name: course.instructor_name, role: course.instructor_role, img: course.instructor_img }, ...(Array.isArray(course.co_teachers) ? course.co_teachers : [])]
+      .map((t) => ({ name: String((t && t.name) || '').trim(), role: String((t && t.role) || '').trim(), img: String((t && t.img) || '').trim() }))
+      .filter((t) => t.name && !seen.has(t.name.toLowerCase()) && seen.add(t.name.toLowerCase()));
+  }
+  // for one short line, as on a card: "sara", "sara & rafi", "sara + 2 more"
+  function teacherLine(course) {
+    const [first, second, ...rest] = teachersOf(course).map((t) => t.name);
+    return !second ? first || '' : rest.length ? `${first} + ${rest.length + 1} more` : `${first} & ${second}`;
+  }
+  // everyone, in a sentence: "sara, rafi and mina"
+  function teacherNames(course) {
+    const names = teachersOf(course).map((t) => t.name), last = names.pop();
+    return names.length ? `${names.join(', ')} and ${last}` : last || '';
+  }
 
   function card(course, i, opts = {}) {
     const st = stats(course);
@@ -844,7 +861,7 @@
       <div class="ucard-media">${media}<span class="ucard-flag">${esc(course.category)}</span></div>
       <button class="ucard-save${isSaved ? ' is-on' : ''}" type="button" data-save="${esc(course.id)}" aria-pressed="${isSaved}" aria-label="${isSaved ? 'remove from saved' : 'save for later'}">${HEART}</button>
       <h3 class="ucard-title"><a ${link}>${esc(course.title)}</a></h3>
-      <p class="ucard-by">${esc((out && out.by) || course.instructor_name || 'amaze consortium')}</p>
+      <p class="ucard-by">${esc((out && out.by) || teacherLine(course) || 'amaze consortium')}</p>
       <div class="ucard-badges">${badges}</div>
       ${going && !out ? `<div class="progress"><i style="width:${st.pct}%"></i></div>` : ''}
       <div class="ucard-foot">${foot}</div>
@@ -978,7 +995,7 @@
       let list = (active === 'all' ? S.courses : of(active)).filter((c) => true
         && (!category.value || c.category === category.value)
         && (!level.value || c.level === level.value)
-        && (!term || `${c.title} ${c.tagline} ${c.category} ${c.description} ${c.instructor_name} ${typeOf(c)} ${(c.tags || []).join(' ')}`.toLowerCase().includes(term)));
+        && (!term || `${c.title} ${c.tagline} ${c.category} ${c.description} ${teachersOf(c).map((t) => t.name).join(' ')} ${typeOf(c)} ${(c.tags || []).join(' ')}`.toLowerCase().includes(term)));
       list = sort.value === 'recommended' ? schedule(list.sort(SORTS.recommended)) : list.sort(SORTS[sort.value] || SORTS.recommended);
       const what = active === 'all' ? ['result', 'results'] : active === 'out' ? [OUT, OUT] : [active, TYPES[active]];
       results.innerHTML = list.length
@@ -1044,7 +1061,7 @@
             <ul class="feat-facts">${facts.map(([k, v]) => `<li><small>${k}</small><span>${v}</span></li>`).join('')}</ul>
             <div class="feat-foot">
               <a class="btn-primary" ${link}>${out ? 'view ' + type + ' on ' + esc(out.host) : started(c) ? (st.pct === 100 ? 'review' : 'continue') : state === 'live' ? 'join now' : 'view ' + type} <span class="btn-arrow" aria-hidden="true">${out ? '↗' : '→'}</span></a>
-              <span class="feat-by">${out && out.by ? 'by' : 'with'} <b>${esc((out && out.by) || c.instructor_name || 'amaze consortium')}</b></span>
+              <span class="feat-by">${out && out.by ? 'by' : 'with'} <b>${esc((out && out.by) || teacherLine(c) || 'amaze consortium')}</b></span>
             </div>
           </div>
         </div>
@@ -1122,7 +1139,7 @@
     else action = `<button class="btn-primary" id="join" type="button">create a free account to ${noun === 'webinar' ? 'register' : 'enroll'} <span class="btn-arrow" aria-hidden="true">→</span></button>`;
     const second = !out && !going && preview && !open && !mustPay ? `<a class="btn-outline" href="${lessonUrl(preview)}">try a free lesson <span class="btn-arrow" aria-hidden="true">→</span></a>` : '';
     const done100 = st.pct === 100 && st.count > 0;
-    const initials = (course.instructor_name || 'a').trim()[0];
+    const teachers = teachersOf(course);
     // for someone who has not started: the whole path in four short steps
     const steps = out || going || S.admin || !st.count ? [] : price.paid ? [
       [signInWords(), emailOn() ? 'with google in one click, or with your email.' : 'one click — no password to make or remember.'],
@@ -1200,7 +1217,7 @@
             <ul class="course-facts">
               <li><small>level</small><span>${esc(course.level)}</span></li>
               ${course.starts_at ? `<li><small>${noun === 'webinar' ? 'date' : 'starts'}</small><span>${when(course.starts_at)}</span></li>` : `<li><small>duration</small><span>${esc(course.duration || 'self-paced')}</span></li>`}
-              ${out ? `<li><small>where</small><span style="text-transform:none;">${esc(out.host)}</span></li><li><small>run by</small><span>${esc(out.by || course.instructor_name || out.host)}</span></li>` : `<li><small>lessons</small><span>${st.count}</span></li>
+              ${out ? `<li><small>where</small><span style="text-transform:none;">${esc(out.host)}</span></li><li><small>run by</small><span>${esc(out.by || teacherLine(course) || out.host)}</span></li>` : `<li><small>lessons</small><span>${st.count}</span></li>
               <li><small>study time</small><span>${length(st.minutes)}</span></li>`}
             </ul>
           </div>
@@ -1229,7 +1246,7 @@
             ${reviewsBlock}
           </div>
           <aside class="course-side rise rise-2">
-            ${course.instructor_name ? `<div class="side-card"><h3>taught by</h3><div class="instructor"><div class="instructor-photo">${course.instructor_img ? `<img src="${esc(course.instructor_img)}" alt="">` : esc(initials)}</div><div><strong>${esc(course.instructor_name)}</strong><span>${esc(course.instructor_role || '')}</span></div></div></div>` : ''}
+            ${teachers.length ? `<div class="side-card"><h3>taught by</h3><ul class="instructors">${teachers.map((t) => `<li class="instructor"><div class="instructor-photo">${t.img ? `<img src="${esc(imageUrl(t.img))}" alt="" loading="lazy" data-initial="${esc(t.name[0])}" onerror="this.parentNode.textContent=this.dataset.initial">` : esc(t.name[0])}</div><div><strong>${esc(t.name)}</strong>${t.role ? `<span>${esc(t.role)}</span>` : ''}</div></li>`).join('')}</ul></div>` : ''}
             <div class="side-card"${out && !(course.includes || []).length ? ' hidden' : ''}><h3>this ${noun} includes</h3><ul class="includes">
               ${includes.map(([label, value]) => `<li>${esc(label)} <b>${esc(value)}</b></li>`).join('')}
             </ul></div>
@@ -1398,7 +1415,7 @@
         ${about ? `<div class="prose">${markdown(about)}</div>` : ''}
         <div class="lp-about${about ? ' has-text' : ''}">
           <div><small>${esc(typeOf(course))}</small><strong>${esc(course.title)}</strong>${course.tagline ? `<p>${esc(course.tagline)}</p>` : ''}</div>
-          <ul><li><small>this lesson</small><span>${idx + 1} of ${all.length}</span></li><li><small>section</small><span>${esc(mod ? mod.title : '—')}</span></li><li><small>taught by</small><span>${esc(course.instructor_name || 'amaze consortium')}</span></li></ul>
+          <ul><li><small>this lesson</small><span>${idx + 1} of ${all.length}</span></li><li><small>section</small><span>${esc(mod ? mod.title : '—')}</span></li><li><small>taught by</small><span>${esc(teacherNames(course) || 'amaze consortium')}</span></li></ul>
         </div>
       </div>
       <div class="tab-panel" data-panel="notes" hidden>
@@ -2344,7 +2361,7 @@
             <div class="pay-cover">${cover}<span class="pay-type">${type}</span></div>
             <div class="pay-card-body">
               <h3>${esc(course.title)}</h3>
-              <p class="pay-by">${esc(course.instructor_name || 'amaze consortium')}</p>
+              <p class="pay-by">${esc(teacherNames(course) || 'amaze consortium')}</p>
               <ul class="pay-facts">
                 ${course.starts_at ? `<li><span>${type === 'webinar' ? 'date' : 'starts'}</span><b>${when(course.starts_at)}</b></li>` : ''}
                 <li><span>lessons</span><b>${st.count}</b></li>
@@ -2607,7 +2624,7 @@
         <button class="btn-primary" type="button" id="cert-print" style="align-self:flex-end;">print or save as pdf <span class="btn-arrow" aria-hidden="true">↓</span></button>
       </div>
       <p class="lms-notice" style="max-width:none;">this copy is not verifiable because you are not signed in. create a free account and finish the course there to get a certificate with a reference anyone can check.</p>
-      ${certSheet({ name: '', title: course.title, instructor: course.instructor_name, date: day(Date.now()), detail: ['course length', `${st.count} lessons · ${length(st.minutes)}`], ref: 'unverified copy' })}
+      ${certSheet({ name: '', title: course.title, instructor: teacherNames(course), date: day(Date.now()), detail: ['course length', `${st.count} lessons · ${length(st.minutes)}`], ref: 'unverified copy' })}
     </div>`;
     $('#cert-name-in').addEventListener('input', (e) => { $('#cert-name').textContent = e.target.value || 'your name'; });
     $('#cert-print').addEventListener('click', () => window.print());
