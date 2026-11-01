@@ -91,6 +91,7 @@
     if (form && form.matches('[data-lesson]') && sel.name === 'kind') return syncLesson(form);
     $$('button', box).forEach((b) => { const on = b.dataset.value === sel.value; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
     if (form) syncShown(form);
+    if (form && sel.name === 'quiz_how') syncLesson(form);
   });
   // a row's “more ▾” list closes when anything else is pressed
   document.addEventListener('click', (e) => { $$('details.menu[open]').forEach((m) => { if (!m.contains(e.target) || e.target.closest('.menu-in')) m.open = false; }); });
@@ -113,7 +114,7 @@
     ['article', 'article', 'reading', 'text you write here', '▤'],
     ['pdf', 'article', 'pdf', 'a document learners read on the page', '▣'],
     ['live', 'live', 'live class', 'a class on a date, inside the site', '◉'],
-    ['quiz', 'quiz', 'quiz', 'questions with one right answer', '☑'],
+    ['quiz', 'quiz', 'quiz', 'your own questions, or a google form', '☑'],
     ['form', 'form', 'test or assignment', 'a google form', '✎'],
   ];
   const UI_KIND = Object.fromEntries(LESSON_TYPES.map(([ui, kind]) => [ui, kind]));
@@ -121,7 +122,7 @@
   const LESSON_WORDS = {
     title: { video: 'lesson title — filled in from the youtube video by itself', article: 'lesson title', pdf: 'lesson title', live: 'name of the class', quiz: 'name of the quiz', form: 'name of the test or assignment' },
     minutes: { video: 'how long is the video, in minutes', article: 'minutes it takes to read', pdf: 'minutes it takes to read', live: 'how long the class lasts, in minutes', quiz: 'minutes it takes', form: 'minutes it takes' },
-    body: { video: 'text shown under the video (optional)', article: 'the lesson — write or paste it here', pdf: 'a note shown with the document (optional)', live: 'what the class is about (optional)', quiz: 'a short introduction above the questions (optional)', form: 'instructions shown with the form (optional)' },
+    body: { video: 'text shown under the video (optional)', article: 'the lesson — write or paste it here', pdf: 'a note shown with the document (optional)', live: 'what the class is about (optional)', quiz: 'a short introduction for learners (optional)', form: 'instructions shown with the form (optional)' },
     files: { video: 'files for learners to download (optional)', article: 'files for learners to download (optional)', pdf: 'the pdf learners will read', live: 'files for learners to download (optional)', quiz: 'files for learners to download (optional)', form: 'files for learners to download (optional)' },
     save: { video: 'video', article: 'reading', pdf: 'pdf lesson', live: 'live class', quiz: 'quiz', form: 'test' },
   };
@@ -133,6 +134,8 @@
     form.classList.toggle('is-picked', !!ui);
     $$('[data-types] button', form).forEach((b) => { const on = b.dataset.ui === ui; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); });
     $$('[data-for]', form).forEach((el) => { el.hidden = !ui || !el.dataset.for.split(' ').includes(ui); });
+    // a quiz is either questions here or a google form: only the one chosen shows
+    if (ui === 'quiz') $$('[data-how]', form).forEach((el) => { if (el.dataset.how !== form.quiz_how.value) el.hidden = true; });
     $$('[data-word]', form).forEach((el) => { const w = (LESSON_WORDS[el.dataset.word] || {})[ui]; if (w) el.textContent = w; });
     // the lesson text is the main thing in a reading, and an extra everywhere else
     const body = $('[data-body]', form), slot = $(ui === 'article' ? '[data-slot=main]' : '[data-slot=more]', form);
@@ -1133,10 +1136,13 @@
         <label class="field" data-for="live"><span>date and time of the class${needs}</span><input name="live_at" type="datetime-local" value="${toLocalInput(l.live_at)}">
           <small class="hint">use your own clock — each learner sees it in their own time. at that time, open this lesson while signed in here and press “start teaching”; learners press “enter the live class”. no date yet? leave it empty and it says “date to be announced”.</small></label>
 
-        <label class="field" data-for="form"><span>the google form link</span><input name="form_url" value="${esc(c.form_url || '')}" placeholder="https://docs.google.com/forms/…">
-          <small class="hint">in google forms press “send”, choose the link, and paste it here. the form shows inside the lesson; answers arrive in google forms.</small></label>
+        <div class="field" data-for="quiz"><span>how will learners answer it?</span>${choice('quiz_how', [['here', 'questions on this website', 'you type them here and the website marks them', '☑'], ['form', 'a google form', 'paste the link and learners fill it in inside the lesson', '✎']], c.form_url && !(c.quiz || []).length ? 'form' : 'here', 'choice--2')}</div>
 
-        <div class="field" data-for="quiz"><span>the questions</span>
+        <label class="field" data-for="form quiz" data-how="form"><span>the google form link</span><input name="form_url" inputmode="url" autocomplete="off" value="${esc(c.form_url || '')}" placeholder="https://docs.google.com/forms/…">
+          <small class="hint">in google forms press “send”, choose the link, untick “shorten url”, and paste it here. the form shows inside the lesson; answers arrive in google forms. a short forms.gle link also works, but it opens in a new tab.</small>
+          <small class="hint" data-for="quiz">learners press “i have submitted it” when they finish. google forms keeps their answers and marks, so the 70% pass rule does not apply.</small></label>
+
+        <div class="field" data-for="quiz" data-how="here"><span>the questions</span>
           <div class="quiz-build" data-quiz></div>
           <small class="hint">learners pass when they get 70% right.</small></div>
 
@@ -1628,13 +1634,15 @@
         if (ui === 'video') await titleFromVideo(lf.querySelector('[name=video_url]'));
         const v = Object.fromEntries(new FormData(lf));
         const resources = fileLines(v.resources);
-        const quiz = readQuiz(lf);
+        const quiz = readQuiz(lf), how = ui === 'quiz' ? v.quiz_how : '', link = (v.form_url || '').trim();
         if (ui === 'video' && !v.video_url.trim()) return toast('paste the youtube link of the video — or upload a video file', true);
         if (!v.title.trim()) return toast(ui === 'video' ? 'give the lesson a title — or wait a moment for it to be filled in from the video' : 'give it a title', true);
         if (ui === 'article' && !v.body.trim()) return toast('write the lesson in the big box — or choose “pdf” if you want to upload a document instead', true);
         if (ui === 'pdf' && !resources.some((r) => /\.pdf($|[?#])/i.test(r.url))) return toast('upload the pdf first — press “upload a pdf”', true);
-        if (ui === 'form' && !v.form_url.trim()) return toast('paste the google form link for this test', true);
-        if (ui === 'quiz' && !quiz.length) return toast('a quiz needs at least one question with two answers', true);
+        if ((ui === 'form' || how === 'form') && !link) return toast(`paste the google form link for this ${ui === 'form' ? 'test' : 'quiz'}`, true);
+        if ((ui === 'form' || how === 'form') && !/^https?:\/\/[^\s.]+\.[^\s]+$/i.test(link)) return toast('paste the full google form link — it starts with https://', true);
+        if (how === 'here' && !quiz.length) return toast('a quiz needs at least one question with two answers', true);
+        if (how === 'form' && ((content && content.quiz) || []).length && !confirm(`this quiz has ${content.quiz.length} question${content.quiz.length === 1 ? '' : 's'} on this website. using a google form removes them. continue?`)) return;
         if (ui === 'live' && !academyReady) toast('the live class is saved, but its date and link need seed/website-backend-05-academy.sql to be run in supabase first', true);
         // what belongs to another kind of lesson is not carried along when the kind changes
         const changed = (lf.dataset.was || '') !== v.kind || !lf.dataset.lesson;
@@ -1649,8 +1657,8 @@
           if (!made) return;
           lessonId = made.id;
         }
-        const keptQuiz = ui === 'quiz' ? quiz : (!changed && content && content.quiz ? content.quiz : []);
-        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url, form_url: keep('form_url', ['form']), body: v.body || null, quiz: keptQuiz.length ? keptQuiz : null, resources, ...(academyReady ? { live_url: keep('live_url', ['live']) } : {}) }), LESSON_WORDS.save[ui] + ' saved')) {
+        const keptQuiz = how === 'form' ? [] : ui === 'quiz' ? quiz : (!changed && content && content.quiz ? content.quiz : []);
+        if (await run(sb.from('lesson_content').upsert({ lesson_id: lessonId, video_url, form_url: how === 'form' ? link : how ? null : keep('form_url', ['form']), body: v.body || null, quiz: keptQuiz.length ? keptQuiz : null, resources, ...(academyReady ? { live_url: keep('live_url', ['live']) } : {}) }), LESSON_WORDS.save[ui] + ' saved')) {
           // keep numbering contiguous section by section, including the new lesson
           const fresh = await run(sb.from('course_lessons').select('*').eq('course_id', id).order('sort_order'));
           if (fresh && fresh !== true) { lessons = fresh; await renumberLessons(modules, (mid) => fresh.filter((x) => x.module_id === mid)); }

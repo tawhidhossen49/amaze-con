@@ -1365,11 +1365,14 @@
       about = content.body || '';
       bodyHtml = '<div class="live-stage" id="live-stage"></div>'
         + (content.video_url ? `<div class="live-rec"><span class="lesson-kicker">recording</span><div class="lesson-video">${videoEmbed(content.video_url, { guard: true })}</div></div>` : '');
-    } else if (lesson.kind === 'form') {
+    } else if (lesson.kind === 'form' || (lesson.kind === 'quiz' && content.form_url)) {
       about = content.body || '';
-      bodyHtml = (content.form_url ? `<div class="lesson-form"><iframe src="${esc(formEmbed(safeUrl(content.form_url)))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
-          <p class="form-alt">form not showing? <a href="${esc(safeUrl(content.form_url))}" target="_blank" rel="noopener noreferrer">open it in a new tab ↗</a> — then come back and mark it as submitted.</p>`
-          : '<p class="lms-empty">the form for this lesson hasn\'t been added yet.</p>');
+      const form = content.form_url ? safeUrl(content.form_url) : '';
+      // only a full google forms link can sit inside the page; a short forms.gle link has to open on its own
+      bodyHtml = !form ? '<p class="lms-empty">the form for this lesson hasn\'t been added yet.</p>'
+        : /^https:\/\/docs\.google\.com\/forms\//.test(form) ? `<div class="lesson-form"><iframe src="${esc(formEmbed(form))}" title="${esc(lesson.title)}" loading="lazy">loading…</iframe></div>
+          <p class="form-alt">form not showing? <a href="${esc(form)}" target="_blank" rel="noopener noreferrer">open it in a new tab ↗</a> — then come back and mark it as submitted.</p>`
+        : `<div class="form-open"><p>this form opens in a new tab. fill it in, then come back here and mark it as submitted.</p><a class="btn-primary" href="${esc(form)}" target="_blank" rel="noopener noreferrer">open the form <span class="btn-arrow" aria-hidden="true">↗</span></a></div>`;
     } else if (content.video_url) {
       stageKind = 'video'; about = content.body || '';
       // a video carries on from where it was stopped last time (unless it was nearly over)
@@ -1400,7 +1403,7 @@
     const isQuiz = usable && lesson.kind === 'quiz' && (content.quiz || []).length > 0;
     // a class that hasn't happened yet can't be marked as attended
     const waiting = usable && lesson.kind === 'live' && ['upcoming', 'tba'].includes(liveState(lesson.live_at, lesson.duration_min)) && !S.done[lesson.id];
-    const doneLabel = lesson.kind === 'form' ? (next ? 'i have submitted it — continue' : 'i have submitted it — finish')
+    const doneLabel = lesson.kind === 'form' || (usable && lesson.kind === 'quiz' && !isQuiz && content.form_url) ? (next ? 'i have submitted it — continue' : 'i have submitted it — finish')
       : lesson.kind === 'live' ? (next ? 'i attended — continue' : 'i attended — finish')
       : (next ? 'complete & continue' : 'complete the course');
     const tabs = usable ? `
@@ -1444,7 +1447,7 @@
           const meta = l.kind === 'live' ? (l.live_at ? new Date(l.live_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase() + ' · ' + clock(l.live_at) : 'date tba') : `${l.duration_min}min`;
           const box = shut ? `<span class="lp-tick is-shut" title="locked">${PADLOCK}</span>`
             : canTick(l) ? `<button class="lp-tick${isDone ? ' is-on' : ''}" type="button" data-tick="${l.id}" aria-pressed="${isDone}" aria-label="${isDone ? 'mark as not done' : 'mark as done'}: ${esc(l.title)}"></button>`
-              : `<span class="lp-tick${isDone ? ' is-on' : ''}" title="${l.kind === 'quiz' ? 'ticked when you pass the quiz' : 'ticked after the class'}"></span>`;
+              : `<span class="lp-tick${isDone ? ' is-on' : ''}" title="${l.kind === 'quiz' ? 'ticked when you finish the quiz' : 'ticked after the class'}"></span>`;
           return `<li class="lp-item${l.id === lesson.id ? ' is-current' : ''}${isDone ? ' is-done' : ''}${shut ? ' is-shut' : ''}">${box}
             <a class="lp-row" href="${closedByFee ? `${U.pay(course.id)}` : url(l)}"><span class="lesson-name">${n}. ${esc(l.title)}</span><span class="lp-meta">${ICON[l.kind] || ICON.article}<span>${meta}</span></span></a></li>`;
         }).join('');

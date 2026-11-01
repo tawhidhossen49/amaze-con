@@ -430,6 +430,8 @@ button.btn-primary, button.btn-outline { font-family: var(--font-sans); }
 .lesson-form iframe { display: block; width: 100%; height: min(78vh, 900px); border: 0; }
 .form-alt { margin-top: 14px; font-size: 13px; color: var(--muted); }
 .form-alt a { color: var(--green); }
+.form-open { padding: clamp(22px, 4vw, 36px); border: 1px solid var(--line); background: var(--surface); }
+.form-open p { margin: 0 0 20px; color: var(--muted); }
 
 /* locked-order courses */
 .lesson-row.is-locked { color: var(--faint); }
