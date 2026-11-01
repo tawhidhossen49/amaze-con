@@ -1929,9 +1929,7 @@
         const whose = (person) => String(person.identity).split('_').pop();
         const flags = (x) => ({ cam: !!x.cam, mic: !!x.mic, screen: !!x.screen, hand: !!x.hand });
         // the mark comes from the pass the server signed, so nobody can give it to themselves
-        // shortcut: a pass from the previous live-room function has no mark, only "(teacher)" after the signed name; delete that case once the new function is deployed
-        const isTeacher = (person) => { if (!person.metadata) return / \(teacher\)$/.test(person.name || ''); try { return JSON.parse(person.metadata).host === true; } catch (e) { return false; } };
-        const nameOf = (person) => String(person.name || '').replace(/ \(teacher\)$/, '');
+        const isTeacher = (person) => { try { return JSON.parse(person.metadata || '{}').host === true; } catch (e) { return false; } };
         // In the big room everything goes through its one LiveKit connection: who is here, chat, raised
         // hands, "mute everyone". LiveKit itself says who sent each thing, so it cannot be faked.
         function bigNet() {
@@ -1947,7 +1945,7 @@
           if (!room || closed) return;
           onPeople([{ id: me, ...my, at: +room.localParticipant.joinedAt || my.at }, ...[...room.remoteParticipants.values()].map((x) => {
             const id = whose(x), f = far.get(id) || {}, s = said.get(id) || {};
-            return { id, name: nameOf(x), host: isTeacher(x), at: +x.joinedAt || Date.now(), ...flags(s), cam: !!(s.cam || (f.v && !f.screen)), screen: !!(s.screen || (f.v && f.screen)) };
+            return { id, name: x.name, host: isTeacher(x), at: +x.joinedAt || Date.now(), ...flags(s), cam: !!(s.cam || (f.v && !f.screen)), screen: !!(s.screen || (f.v && f.screen)) };
           })]);
         };
         // someone new cannot know what they missed: say it again, not all at the same instant
@@ -1979,7 +1977,7 @@
             let body; try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch (e) { return; }
             if (!body || typeof body !== 'object') return;
             if (topic === 'st') { said.set(whose(person), flags(body)); roster(); }
-            else if (topic === 'chat') onChat({ name: nameOf(person), host: isTeacher(person), text: body.text });
+            else if (topic === 'chat') onChat({ name: person.name, host: isTeacher(person), text: body.text });
             else if (topic === 'cmd' && isTeacher(person)) onCmd(body);
           });
           room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => soundOff(!room.canPlaybackAudio));
