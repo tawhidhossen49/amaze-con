@@ -1602,12 +1602,15 @@
         const start = +new Date(lesson.live_at), now = Date.now();
         return now < start - OPENS * 60000 ? 'early' : now < start ? 'open' : now < start + mins * 60000 ? 'live' : now < start + (mins + STAYS) * 60000 ? 'late' : 'over';
       };
-      const wait = () => { const s = Math.max(0, (+new Date(lesson.live_at) - OPENS * 60000 - Date.now()) / 1000), d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.ceil((s % 3600) / 60); return d ? `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}` : h ? `${h} h ${m} min` : `${Math.max(1, m)} min`; };
+      const wait = () => { const left = Math.ceil(Math.max(0, +new Date(lesson.live_at) - OPENS * 60000 - Date.now()) / 60000), d = Math.floor(left / 1440), h = Math.floor((left % 1440) / 60), m = left % 60; return d ? `${d} day${d === 1 ? '' : 's'}${h ? ` ${h} h` : ''}` : h ? `${h} h${m ? ` ${m} min` : ''}` : `${Math.max(1, m)} min`; };
       let inRoom = false, problem = '', busy = false, shown = '';
+      // only admins who run the academy teach; the server decides, this only sets the words on the door
+      let teacher = S.admin;
+      if (S.admin) soft(sb.rpc('admin_can', { p_area: 'courses' }), false).then((yes) => { teacher = yes === true; if (!inRoom && !checking) door(); });
 
       function door() {
         const ph = phase();
-        const canEnter = S.admin || ph === 'open' || ph === 'live' || ph === 'late';
+        const canEnter = teacher || ph === 'open' || ph === 'live' || ph === 'late';
         const flag = { tba: 'live class — date to be announced', early: 'upcoming live class', open: 'the room is open', live: 'live now', late: 'live now — running over', over: 'this class has ended' }[ph];
         shown = ph + '|' + problem + '|' + busy;
         stage.className = 'live-stage';
@@ -1617,10 +1620,10 @@
             ${ph === 'early' ? `<p class="live-note">the room opens ${OPENS} minutes before the start — in <b>${wait()}</b>. come back to this page then; the class happens right here.</p>` : ''}
             ${ph === 'open' || ph === 'live' || ph === 'late' ? '<p class="live-note">the class happens right here on this page. your camera and microphone start switched off — you choose when to turn them on.</p>' : ''}
             ${ph === 'over' ? `<p class="live-note">${content.video_url ? 'the recording is below.' : 'if a recording is published, it will appear on this page.'}</p>` : ''}
-            ${S.admin && ph !== 'open' && ph !== 'live' && ph !== 'late' ? '<p class="live-note">you are an admin, so you can open the room at any time — to test it, or to start early. learners can only come in around the class time.</p>' : ''}
+            ${teacher && ph !== 'open' && ph !== 'live' && ph !== 'late' ? '<p class="live-note">you are an admin, so you can open the room at any time — to test it, or to start early. learners can only come in around the class time.</p>' : ''}
             ${problem ? `<p class="dialog-msg is-error" role="alert">${esc(problem)}</p>` : ''}
             <div class="hero-buttons">
-              ${canEnter ? `<button class="btn-primary" id="live-enter" type="button"${busy ? ' disabled' : ''}>${busy ? 'opening the room…' : S.admin ? (ph === 'live' || ph === 'open' || ph === 'late' ? 'start teaching' : 'open the room') : 'enter the live class'} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
+              ${canEnter ? `<button class="btn-primary" id="live-enter" type="button"${busy ? ' disabled' : ''}>${busy ? 'opening the room…' : teacher ? (ph === 'live' || ph === 'open' || ph === 'late' ? 'start teaching' : 'open the room') : 'enter the live class'} <span class="btn-arrow" aria-hidden="true">→</span></button>` : ''}
               ${cal && ph === 'early' ? `<a class="btn-outline" href="${esc(cal)}" target="_blank" rel="noopener noreferrer">add to my calendar <span class="btn-arrow" aria-hidden="true">+</span></a>` : ''}
               ${ph !== 'over' && ph !== 'tba' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? '<button class="btn-outline" id="live-test" type="button">test my camera &amp; microphone <span class="btn-arrow" aria-hidden="true">→</span></button>' : ''}
               ${outside && ph !== 'over' && ph !== 'tba' ? `<a class="btn-outline" href="${esc(outside)}" target="_blank" rel="noopener noreferrer">join by link instead <span class="btn-arrow" aria-hidden="true">↗</span></a>` : ''}
@@ -1638,16 +1641,17 @@
       // ── before the class: does my camera work, can my microphone hear me? ──
       // Nothing is sent anywhere — the picture is only shown back to the learner, and the
       // microphone is only measured for the bar. Both are switched off again when the check is closed.
-      let checking = false, checkStream = null, checkFrame = 0, checkAudio = null;
+      let checking = false, checkStream = null, checkFrame = 0, checkAudio = null, checkTurn = 0;
       function stopCheck() {
-        checking = false; cancelAnimationFrame(checkFrame);
+        checking = false; checkTurn += 1; cancelAnimationFrame(checkFrame);
         if (checkStream) { checkStream.getTracks().forEach((t) => t.stop()); checkStream = null; }
         if (checkAudio) { try { checkAudio.close(); } catch (e) {} checkAudio = null; }
         const box = $('#live-check', stage); if (box) { box.hidden = true; box.innerHTML = ''; }
       }
       async function deviceCheck() {
         const box = $('#live-check', stage); if (!box) return;
-        if (checking && checkStream && !box.hidden) return stopCheck();
+        if (checking && !box.hidden) return stopCheck();   // pressing it again closes it, even while the browser is still asking
+        const turn = ++checkTurn;
         checking = true; box.hidden = false;
         box.innerHTML = '<p class="live-check-msg">your browser will ask to use the camera and microphone — press “allow”.</p>';
         const reason = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'the browser blocked it. press the padlock beside the website address, allow the camera and microphone, then test again.' : e && e.name === 'NotFoundError' ? 'none was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and test again.' : 'it could not be started.');
@@ -1655,7 +1659,7 @@
         let cam = null, mic = null, camWhy = '', micWhy = '';
         try { cam = (await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 } } })).getVideoTracks()[0]; } catch (e) { camWhy = reason(e); }
         try { mic = (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]; } catch (e) { micWhy = reason(e); }
-        if (!checking) { [cam, mic].forEach((t) => t && t.stop()); return; }
+        if (turn !== checkTurn) { [cam, mic].forEach((t) => t && t.stop()); return; }
         checkStream = new MediaStream([cam, mic].filter(Boolean));
         box.innerHTML = `<div class="live-check-in">
             <div class="live-check-pic">${cam ? '<video autoplay playsinline muted></video>' : '<span>no picture</span>'}</div>
@@ -1693,7 +1697,12 @@
         } catch (e) { got = null; }
         busy = false;
         const big = !!(got && got.provider === 'livekit' && got.url && got.token);
-        if (own || big) { if (!window.RTCPeerConnection) { problem = 'this browser cannot do video calls. open the class in chrome, safari, edge or firefox.'; door(); return; } return openBuiltIn(big ? { sfu: got, id: got.session || sid } : {}); }
+        if (own || big) {
+          if (!window.RTCPeerConnection) { problem = 'this browser cannot do video calls. open the class in chrome, safari, edge or firefox.'; door(); return; }
+          try { await openBuiltIn(big ? { sfu: got, id: got.session || sid } : {}); }
+          catch (e) { inRoom = false; problem = 'you could not be connected to the class. check your connection and try again.'; door(); }
+          return;
+        }
         if (!got || !got.url || !got.token) { problem = why || 'the room could not be opened. check your connection and try again.'; door(); return; }
         inRoom = true;
         // the room itself: a page from the video service, given the camera, microphone and screen for as long as it is open
@@ -1734,6 +1743,7 @@
       // Supabase allows a person only a handful of presence changes per half minute and closes
       // the channel beyond that. So what changes all the time — microphone, camera, screen,
       // raised hand — is sent as ordinary messages instead, and told again to anyone who arrives.
+      // (The big room does not use this: LiveKit carries all of that for it, see bigNet.)
       function supabaseTransport(topic, id) {
         let ch = null, on = null, card = null, mine = null, gone = false, joined = false, again = null, tell = null;
         const states = new Map(), known = new Set();
@@ -1763,7 +1773,9 @@
             else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
               if (!joined) { if (fail) { fail(new Error(status)); fail = null; } return; }
               // the line dropped in the middle of a class: come back by ourselves
-              clearTimeout(again); again = setTimeout(() => { if (gone) return; try { sb.removeChannel(mineCh); } catch (e) {} open(); }, 2500);
+              // (the old channel has to be fully gone first, or the same dead one is handed back; a
+              // tab left in the background may also be holding a sign-in that has run out)
+              clearTimeout(again); again = setTimeout(async () => { if (gone) return; ch = null; try { await sb.removeChannel(mineCh); await sb.auth.getSession(); } catch (e) {} if (!gone) open(); }, 2500);
             }
           });
         }
@@ -1779,11 +1791,12 @@
         inRoom = true;   // from this moment the stage belongs to the room: the door must not redraw itself over it
         const me = opt.id || newId();
         const sfu = opt.sfu || null, cap = sfu ? BIG_ROOM_CAP : ROOM_CAP;
-        const host = sfu ? !!sfu.host : !!S.admin;
+        const host = sfu ? !!sfu.host : !!teacher;
         const my = { name: (S.name || (S.user && S.user.email ? S.user.email.split('@')[0] : '') || 'learner').slice(0, 40), host, cam: false, mic: false, screen: false, hand: false, at: Date.now() };
         const peers = new Map();    // id → { pc, a, v, stream, queue, out, timer, info }
-        const net = (window.__liveTransport || supabaseTransport)('live:' + lesson.id, me);
+        const net = sfu ? bigNet() : (window.__liveTransport || supabaseTransport)('live:' + lesson.id, me);
         let micTrack = null, camTrack = null, screenTrack = null, people = [], chat = [], unread = 0, panel = '', closed = false;
+        const quit = new AbortController();   // everything listening for this visit to the room stops when it ends
         const videoOut = () => screenTrack || camTrack || null;
 
         stage.className = 'live-stage is-room is-own';
@@ -1793,6 +1806,7 @@
           <div class="mr"><div class="mr-grid" id="mr-grid"></div>
             <p class="mr-alone" id="mr-alone" hidden><b>you are the first one here.</b> everyone else appears as they come in.</p>
             <p class="mr-msg" id="mr-msg" role="status"></p>
+            <button class="mr-sound-off" id="mr-sound" type="button" data-do="sound" hidden>the sound is off — press here to hear the class</button>
             <aside class="mr-side" id="mr-side" hidden></aside></div>
           <div class="mr-controls" role="toolbar" aria-label="class controls">
             <div class="mr-set">
@@ -1815,14 +1829,17 @@
         // who is in the room, written over every picture in it (the watermark). if it is tampered
         // with, the pictures go blank until the class is joined again.
         const roomMark = S.user ? String(S.user.email || S.name || '').trim() : '';
-        if (roomMark) watermark($('.mr', stage), roomMark, () => { stage.classList.add('is-veiled'); msg.textContent = 'the watermark was changed, so the pictures are hidden. leave and join the class again.'; });
-        const say = (t, bad) => { msg.textContent = t || ''; msg.classList.toggle('is-bad', !!bad); if (t) setTimeout(() => { if (msg.textContent === t) msg.textContent = ''; }, 6000); };
+        const mark = roomMark ? watermark($('.mr', stage), roomMark, () => { stage.classList.add('is-veiled'); say('the watermark was changed, so the pictures are hidden. leave and join the class again.', true, true); }) : null;
+        // a message goes away by itself, unless it is about something still going on
+        let sayTimer = 0;
+        const say = (t, bad, stays) => { clearTimeout(sayTimer); msg.textContent = t || ''; msg.classList.toggle('is-bad', !!bad); if (t && !stays) sayTimer = setTimeout(() => { msg.textContent = ''; msg.classList.remove('is-bad'); }, 6000); };
         const btn = (k) => $(`[data-do="${k}"]`, stage);
         const setBtn = (k, on, label) => { const b = btn(k); if (!b) return; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('is-on', on); $('span', b).textContent = label; };
 
         // ── tiles ──
+        const tileOf = (id) => [...grid.children].find((el) => el.dataset.peer === id);
         function tile(id, info, mine) {
-          let el = $(`[data-peer="${id}"]`, grid);
+          let el = tileOf(id);
           if (!el) {
             el = document.createElement('div'); el.className = 'mr-tile' + (mine ? ' is-me' : ''); el.dataset.peer = id;
             el.innerHTML = `<video autoplay playsinline${mine ? ' muted' : ''}></video><div class="mr-face"><i></i></div><b class="mr-hand" hidden>${HAND}<em>hand up</em></b><div class="mr-name"><i class="mr-mic">${MIC}</i><span></span></div>`;
@@ -1852,7 +1869,7 @@
           const pc = new RTCPeerConnection({ iceServers: ICE });
           const p = { pc, a: null, v: null, stream: new MediaStream(), queue: [], out: [], timer: null, info: {} };
           peers.set(id, p);
-          pc.ontrack = (e) => { p.stream.addTrack(e.track); const el = $(`[data-peer="${id}"] video`, grid); if (el && el.srcObject !== p.stream) el.srcObject = p.stream; };
+          pc.ontrack = (e) => { p.stream.addTrack(e.track); const t = tileOf(id), el = t && $('video', t); if (el && el.srcObject !== p.stream) { el.srcObject = p.stream; wake(el); } };
           // ice candidates are sent a few at a time, not one message each
           pc.onicecandidate = (e) => { if (!e.candidate) return; p.out.push(e.candidate.toJSON()); clearTimeout(p.timer); p.timer = setTimeout(() => { net.send('sig', { from: me, to: id, cands: p.out.splice(0) }); }, 120); };
           pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && me < id) pc.restartIce(); if (pc.connectionState === 'connected') tune(p); };
@@ -1879,9 +1896,10 @@
             if (pc.remoteDescription) while (p.queue.length) await pc.addIceCandidate(p.queue.shift()).catch(() => {});
           } catch (e) {}
         }
+        // anything can arrive here from someone else's browser, so nothing about it is trusted to be sensible
         function onPeople(list) {
           if (closed) return;
-          people = list.sort((a, b) => (a.at || 0) - (b.at || 0));
+          people = list.filter((x) => x && typeof x.id === 'string' && x.id).map((x) => ({ ...x, name: String(x.name || 'learner').trim().slice(0, 60) || 'learner', host: !!x.host, at: +x.at || 0 })).sort((a, b) => a.at - b.at);
           const here = new Set(people.map((x) => x.id));
           people.forEach((info) => {
             const mine = info.id === me, el = tile(info.id, mine ? my : info, mine);
@@ -1890,11 +1908,13 @@
             if (sfu) { const f = far.get(info.id), v = $('video', el); if (f && f.v && f.v.attachedElements.indexOf(v) < 0) f.v.attach(v); return; }
             if (!peers.has(info.id)) { if (me < info.id) call(info.id); else connect(info.id); }
             peers.get(info.id).info = info;
-            const v = $('video', el), p = peers.get(info.id); if (v.srcObject !== p.stream) v.srcObject = p.stream;
+            const v = $('video', el), p = peers.get(info.id); if (v.srcObject !== p.stream) { v.srcObject = p.stream; wake(v); }
           });
           [...peers.keys()].filter((id) => !here.has(id)).forEach((id) => { peers.get(id).pc.close(); peers.delete(id); });
           [...grid.children].filter((el) => el.dataset.peer !== me && !here.has(el.dataset.peer)).forEach((el) => el.remove());
           layout();
+          // the room holds so many, in the order they came; the teacher always gets in
+          if (!host && people.findIndex((x) => x.id === me) >= cap) { shut(); problem = `this class is full — the room holds ${cap} people. please tell the academy team.`; door(); }
         }
         const publish = () => { tile(me, my, true); layout(); net.update(my); };
         // a shared screen is mostly text: keep it sharp and let it go slower, where a camera does the opposite
@@ -1903,68 +1923,141 @@
 
         // ── the big room: one connection to a LiveKit server, which passes sound and pictures on ──
         let lk = null, room = null, line = Promise.resolve();
-        const far = new Map();              // id → { v: their picture }
+        const far = new Map();              // id → { v: their picture, screen: is it their screen }
+        const said = new Map();             // id → their microphone, camera, screen and hand, as they last told us
         const sent = { a: null, v: null };  // what of mine is going out now
         const whose = (person) => String(person.identity).split('_').pop();
+        const flags = (x) => ({ cam: !!x.cam, mic: !!x.mic, screen: !!x.screen, hand: !!x.hand });
+        // the mark comes from the pass the server signed, so nobody can give it to themselves
+        // shortcut: a pass from the previous live-room function has no mark, only "(teacher)" after the signed name; delete that case once the new function is deployed
+        const isTeacher = (person) => { if (!person.metadata) return / \(teacher\)$/.test(person.name || ''); try { return JSON.parse(person.metadata).host === true; } catch (e) { return false; } };
+        const nameOf = (person) => String(person.name || '').replace(/ \(teacher\)$/, '');
+        // In the big room everything goes through its one LiveKit connection: who is here, chat, raised
+        // hands, "mute everyone". LiveKit itself says who sent each thing, so it cannot be faked.
+        function bigNet() {
+          return {
+            join: () => startBig(),
+            send: (event, payload) => (room ? room.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(payload)), { reliable: true, topic: event }) : Promise.reject(new Error('not connected'))),
+            update: () => { if (room) net.send('st', flags(my)).catch(() => {}); },
+            leave: () => {},
+          };
+        }
+        // everyone in the room, as LiveKit knows them. a picture that is really arriving counts, even if its owner's note about it has not
+        const roster = () => {
+          if (!room || closed) return;
+          onPeople([{ id: me, ...my, at: +room.localParticipant.joinedAt || my.at }, ...[...room.remoteParticipants.values()].map((x) => {
+            const id = whose(x), f = far.get(id) || {}, s = said.get(id) || {};
+            return { id, name: nameOf(x), host: isTeacher(x), at: +x.joinedAt || Date.now(), ...flags(s), cam: !!(s.cam || (f.v && !f.screen)), screen: !!(s.screen || (f.v && f.screen)) };
+          })]);
+        };
+        // someone new cannot know what they missed: say it again, not all at the same instant
+        let tell = 0;
+        const tellNewcomer = () => { if (!Object.values(flags(my)).some(Boolean)) return; clearTimeout(tell); tell = setTimeout(() => net.update(), 300 + Math.random() * 1200); };
+        const soundOff = (off) => { const b = $('#mr-sound', stage); if (b) b.hidden = !off; };
+        // a phone or tablet may refuse to play sound until it is pressed
+        const wake = (v) => { const go = v.play && v.play(); if (go && go.catch) go.catch((e) => { if (e && e.name === 'NotAllowedError') soundOff(true); }); };
         async function startBig() {
           if (!window.LivekitClient) await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = A.root + 'js/vendor/livekit-client.umd.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+          if (closed) return;
           lk = window.LivekitClient;
           // pictures nobody is looking at are not fetched, and small tiles get a small picture
           room = new lk.Room({ adaptiveStream: true, dynacast: true });
           room.on(lk.RoomEvent.TrackSubscribed, (track, pub, person) => {
             const id = whose(person);
-            if (track.kind === 'video') { const f = far.get(id) || {}; far.set(id, f); f.v = track; const el = $(`[data-peer="${id}"] video`, grid); if (el) track.attach(el); }
+            if (track.kind === 'video') { const f = far.get(id) || {}; far.set(id, f); f.v = track; f.screen = !!pub && pub.source === lk.Track.Source.ScreenShare; const t = tileOf(id), el = t && $('video', t); if (el) track.attach(el); roster(); }
             else { const a = track.attach(); a.className = 'mr-sound'; a.hidden = true; stage.appendChild(a); }
           });
           room.on(lk.RoomEvent.TrackUnsubscribed, (track, pub, person) => {
-            if (track.kind === 'video') { const f = far.get(whose(person)); if (f && f.v === track) f.v = null; track.detach(); }
+            if (track.kind === 'video') { const f = far.get(whose(person)); if (f && f.v === track) f.v = null; track.detach(); roster(); }
             else track.detach().forEach((el) => el.remove());
           });
           room.on(lk.RoomEvent.ActiveSpeakersChanged, (list) => { const loud = new Set(list.map(whose)); $$('.mr-tile', grid).forEach((el) => el.classList.toggle('is-speaking', loud.has(el.dataset.peer))); });
-          room.on(lk.RoomEvent.Disconnected, () => { if (!closed) say('the connection to the class was lost. press leave, then enter again.', true); });
+          room.on(lk.RoomEvent.ParticipantConnected, () => { roster(); tellNewcomer(); });
+          room.on(lk.RoomEvent.ParticipantDisconnected, (person) => { const id = whose(person); said.delete(id); far.delete(id); roster(); });
+          room.on(lk.RoomEvent.DataReceived, (bytes, person, kind, topic) => {
+            if (!person) return;
+            let body; try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch (e) { return; }
+            if (!body || typeof body !== 'object') return;
+            if (topic === 'st') { said.set(whose(person), flags(body)); roster(); }
+            else if (topic === 'chat') onChat({ name: nameOf(person), host: isTeacher(person), text: body.text });
+            else if (topic === 'cmd' && isTeacher(person)) onCmd(body);
+          });
+          room.on(lk.RoomEvent.AudioPlaybackStatusChanged, () => soundOff(!room.canPlaybackAudio));
+          room.on(lk.RoomEvent.Reconnecting, () => say('the connection dropped — reconnecting…', true, true));
+          room.on(lk.RoomEvent.Reconnected, () => { say('you are back in the class.'); roster(); net.update(); });
+          room.on(lk.RoomEvent.Disconnected, (reason) => {
+            if (closed) return;
+            shut();
+            problem = reason === lk.DisconnectReason.PARTICIPANT_REMOVED ? 'you were taken out of this class.' : 'the connection to the class was lost. press the button to go back in.';
+            door();
+          });
           await room.connect(sfu.url, sfu.token);
-          sendBig();
+          if (closed) { room.disconnect(); return; }
+          soundOff(!room.canPlaybackAudio);
+          roster(); sendBig(); net.update();
         }
         // one change at a time, in the order they were asked for
         const sendBig = () => { line = line.then(async () => {
           if (!room || closed) return;
           const mine = room.localParticipant, v = videoOut();
           try {
-            if (micTrack && sent.a !== micTrack) { if (sent.a) await mine.unpublishTrack(sent.a, false); sent.a = micTrack; await mine.publishTrack(micTrack, { source: lk.Track.Source.Microphone }); }
+            // what is recorded as sent is only what really went: a failure can be tried again by pressing the button again
+            if (sent.a !== micTrack) { if (sent.a) await mine.unpublishTrack(sent.a, false); sent.a = null; if (micTrack) { await mine.publishTrack(micTrack, { source: lk.Track.Source.Microphone }); sent.a = micTrack; } }
             if (sent.v !== v) {
               if (sent.v) await mine.unpublishTrack(sent.v, false);
-              sent.v = v;
+              sent.v = null;
               // a shared screen is mostly text: one sharp picture; a camera goes out in sizes, so small tiles cost little
-              if (v) await mine.publishTrack(v, v === screenTrack ? { source: lk.Track.Source.ScreenShare, simulcast: false, screenShareEncoding: { maxBitrate: 2500000, maxFramerate: 15 }, degradationPreference: 'maintain-resolution' } : { source: lk.Track.Source.Camera, simulcast: true });
+              if (v) { await mine.publishTrack(v, v === screenTrack ? { source: lk.Track.Source.ScreenShare, simulcast: false, screenShareEncoding: { maxBitrate: 2500000, maxFramerate: 15 }, degradationPreference: 'maintain-resolution' } : { source: lk.Track.Source.Camera, simulcast: true }); sent.v = v; }
             }
           } catch (e) { say('that could not be sent to the class. try again.', true); }
         }); };
         const sendAll = () => (sfu ? sendBig() : sendMesh());
-        const showMine = () => { const v = $(`[data-peer="${me}"] video`, grid); const t = videoOut(); if (v) v.srcObject = t ? new MediaStream([t]) : null; };
+        const showMine = () => { const el = tileOf(me), v = el && $('video', el), t = videoOut(); if (v) v.srcObject = t ? new MediaStream([t]) : null; };
         const why = (e) => (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'your browser blocked it — allow the camera and microphone for this site (the padlock beside the address), then try again.' : e && e.name === 'NotFoundError' ? 'no camera or microphone was found on this device.' : e && e.name === 'NotReadableError' ? 'another app is using it — close that app and try again.' : 'that could not be started.');
 
         // ── controls ──
-        async function toggleMic(force) {
+        // the browser may take a while to ask for permission: pressing again meanwhile must not open a second
+        // camera, and someone who has left by the time it answers must not be left with one switched on
+        const asking = {};
+        const oneAtATime = (k, run) => async (arg) => { if (asking[k]) return; asking[k] = true; try { await run(arg); } finally { asking[k] = false; } };
+        // a camera or microphone can stop by itself: unplugged, taken by another app, or a phone call
+        const stopped = (t) => {
+          if (closed) return;
+          if (t === micTrack) { micTrack = null; my.mic = false; setBtn('mic', false, 'unmute'); say('your microphone stopped working. press unmute to try again.', true); }
+          else if (t === camTrack) { camTrack = null; my.cam = false; setBtn('cam', false, 'start video'); say('your camera stopped working. press start video to try again.', true); }
+          else return;
+          sendAll(); showMine(); publish();
+        };
+        const toggleMic = oneAtATime('mic', async (force) => {
           const want = typeof force === 'boolean' ? force : !my.mic;
-          if (want && !micTrack) { try { micTrack = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })).getAudioTracks()[0]; } catch (e) { return say('microphone: ' + why(e), true); } }
+          if (want && !micTrack) {
+            let t; try { t = (await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })).getAudioTracks()[0]; } catch (e) { return say('microphone: ' + why(e), true); }
+            if (closed) { t.stop(); return; }
+            micTrack = t; t.addEventListener('ended', () => stopped(t));
+          }
           if (micTrack) micTrack.enabled = want;
           my.mic = want && !!micTrack; setBtn('mic', my.mic, my.mic ? 'mute' : 'unmute'); sendAll(); publish();
-        }
-        async function toggleCam() {
+        });
+        const toggleCam = oneAtATime('cam', async () => {
           if (my.cam) { camTrack.stop(); camTrack = null; my.cam = false; }
-          else { try { camTrack = (await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 24 } } })).getVideoTracks()[0]; my.cam = true; } catch (e) { return say('camera: ' + why(e), true); } }
+          else {
+            let t; try { t = (await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 24 } } })).getVideoTracks()[0]; } catch (e) { return say('camera: ' + why(e), true); }
+            if (closed) { t.stop(); return; }
+            camTrack = t; my.cam = true; t.addEventListener('ended', () => stopped(t));
+          }
           setBtn('cam', my.cam, my.cam ? 'stop video' : 'start video'); sendAll(); showMine(); publish();
-        }
-        async function toggleScreen() {
+        });
+        const toggleScreen = oneAtATime('screen', async () => {
           if (my.screen) { screenTrack.stop(); screenTrack = null; my.screen = false; }
           else {
-            try { screenTrack = (await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 12, max: 15 } }, audio: false })).getVideoTracks()[0]; try { screenTrack.contentHint = 'detail'; } catch (e) {} } catch (e) { return e && e.name === 'NotAllowedError' ? null : say('screen share: ' + why(e), true); }
-            my.screen = true;
+            let t; try { t = (await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 12, max: 15 } }, audio: false })).getVideoTracks()[0]; try { t.contentHint = 'detail'; } catch (e) {} } catch (e) { return e && e.name === 'NotAllowedError' ? null : say('screen share: ' + why(e), true); }
+            if (closed) { t.stop(); return; }
+            screenTrack = t; my.screen = true;
             // the browser's own "stop sharing" bar ends it too
-            screenTrack.addEventListener('ended', () => { if (my.screen) toggleScreen(); });
+            t.addEventListener('ended', () => { if (t === screenTrack) toggleScreen(); });
           }
           setBtn('screen', my.screen, my.screen ? 'stop sharing' : 'share screen'); sendAll(); showMine(); publish();
-        }
+        });
         function drawSide() {
           side.hidden = !panel; btn('chat').classList.toggle('is-on', panel === 'chat'); btn('people').classList.toggle('is-on', panel === 'people');
           if (!panel) return;
@@ -1975,14 +2068,29 @@
           } else {
             unread = 0; $('.mr-dot', stage).hidden = true;
             side.innerHTML = `<div class="mr-side-top"><strong>chat</strong><button type="button" data-do="shut" aria-label="close">✕</button></div>
-              <ul class="mr-chat">${chat.map((c) => `<li${c.me ? ' class="is-me"' : ''}><small>${esc(c.name)}${c.host ? ' · teacher' : ''}</small><p>${esc(c.text).replace(/\n/g, '<br>')}</p></li>`).join('') || '<li class="is-empty">messages are seen by everyone in the class and are not saved.</li>'}</ul>
+              <ul class="mr-chat">${chat.map(chatLine).join('') || '<li class="is-empty">messages are seen by everyone in the class and are not saved.</li>'}</ul>
               <form class="mr-say"><input name="text" maxlength="500" autocomplete="off" placeholder="write to everyone…"><button type="submit" aria-label="send">→</button></form>`;
+            $('.mr-say input', side).value = draft;
             const list = $('.mr-chat', side); list.scrollTop = list.scrollHeight;
           }
         }
-        const onChat = (c) => { chat.push(c); if (chat.length > 200) chat.shift(); if (panel === 'chat') drawSide(); else if (!c.me) { unread += 1; $('.mr-dot', stage).hidden = false; } };
+        const chatLine = (c) => `<li${c.me ? ' class="is-me"' : ''}><small>${esc(c.name)}${c.host ? ' · teacher' : ''}</small><p>${esc(c.text).replace(/\n/g, '<br>')}</p></li>`;
+        // a new message is added to the list, never drawn over it: someone may be half way through typing
+        let draft = '';
+        const onChat = (raw, mine) => {
+          const text = raw && typeof raw.text === 'string' ? raw.text.trim().slice(0, 500) : ''; if (!text) return;
+          const c = { name: String((raw && raw.name) || 'learner').slice(0, 60), host: !!(raw && raw.host), text, me: !!mine };
+          chat.push(c); if (chat.length > 200) chat.shift();
+          if (panel !== 'chat') { if (!c.me) { unread += 1; $('.mr-dot', stage).hidden = false; } return; }
+          const list = $('.mr-chat', side), atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+          const empty = $('.is-empty', list); if (empty) empty.remove();
+          list.insertAdjacentHTML('beforeend', chatLine(c));
+          while (list.children.length > 200) list.firstElementChild.remove();
+          if (atEnd || c.me) list.scrollTop = list.scrollHeight;
+        };
         const onCmd = (c) => { if (c.type === 'mute-all' && !host && my.mic) { toggleMic(false); say('the teacher muted everyone. unmute when you want to speak.'); } };
 
+        stage.addEventListener('input', (e) => { if (e.target.closest('.mr-say')) draft = e.target.value; }, { signal: quit.signal });
         stage.addEventListener('click', (e) => {
           const b = e.target.closest('[data-do]'); if (!b || closed) return;
           const k = b.dataset.do;
@@ -1990,36 +2098,42 @@
           else if (k === 'hand') { my.hand = !my.hand; setBtn('hand', my.hand, my.hand ? 'lower hand' : 'raise hand'); publish(); }
           else if (k === 'chat' || k === 'people') { panel = panel === k ? '' : k; drawSide(); }
           else if (k === 'shut') { panel = ''; drawSide(); }
-          else if (k === 'muteall') { net.send('cmd', { type: 'mute-all', from: me }); say('everyone else has been muted.'); }
-        });
+          else if (k === 'muteall') { Promise.resolve(net.send('cmd', { type: 'mute-all', from: me })).then(() => say('everyone else has been muted.'), () => say('that did not reach the class. try again.', true)); }
+          else if (k === 'sound') { soundOff(false); if (room) room.startAudio().catch(() => soundOff(true)); else $$('.mr-tile:not(.is-me) video', grid).forEach(wake); }
+        }, { signal: quit.signal });
         stage.addEventListener('submit', (e) => {
           const f = e.target.closest('.mr-say'); if (!f) return;
           e.preventDefault();
-          const text = f.text.value.trim(); if (!text) return;
-          const c = { name: my.name, host, text: text.slice(0, 500), at: Date.now() };
-          net.send('chat', c); onChat({ ...c, me: true }); f.text.value = ''; const again = $('.mr-say input', side); if (again) again.focus();
-        });
-        const leave = () => {
+          const text = f.text.value.trim().slice(0, 500); if (!text) return;
+          f.text.value = ''; draft = ''; f.text.focus();
+          const c = { name: my.name, host, text };
+          Promise.resolve(net.send('chat', sfu ? { text } : c)).then(() => onChat(c, true), () => {
+            if (closed) return;
+            const box = $('.mr-say input', side); if (box && !box.value) box.value = draft = text;
+            say('your message was not sent. check your connection and press send again.', true);
+          });
+        }, { signal: quit.signal });
+        // stops everything this visit to the room started, whatever the reason for ending it
+        function shut() {
           if (closed) return; closed = true; inRoom = false;
+          quit.abort(); if (mark) mark.stop(); clearInterval(ticking); clearTimeout(sayTimer); clearTimeout(tell);
           [micTrack, camTrack, screenTrack].forEach((t) => t && t.stop());
-          peers.forEach((p) => p.pc.close()); peers.clear(); net.leave();
+          peers.forEach((p) => { clearTimeout(p.timer); p.pc.close(); }); peers.clear(); net.leave();
           if (room) { try { room.disconnect(); } catch (e) {} }
-          clearInterval(ticking);
-          window.removeEventListener('pagehide', leave);
-          door();
-        };
+        }
+        const leave = () => { if (closed) return; shut(); door(); };
         $('#live-leave', stage).addEventListener('click', leave);
-        window.addEventListener('pagehide', leave);
+        window.addEventListener('pagehide', leave, { signal: quit.signal });
         // how long you have been in the class
         const since = Date.now(), two = (n) => String(n).padStart(2, '0');
         const ticking = setInterval(() => { const c = $('#mr-clock', stage); if (!c) return; const sec = Math.floor((Date.now() - since) / 1000), h = Math.floor(sec / 3600); c.textContent = (h ? h + ':' : '') + two(Math.floor(sec / 60) % 60) + ':' + two(sec % 60); }, 1000);
 
         tile(me, my, true); layout();
-        try { await net.join(my, { people: onPeople, signal: onSignal, chat: onChat, cmd: onCmd }); }
-        catch (e) { closed = true; inRoom = false; problem = 'you could not be connected to the class. check your connection, make sure you are signed in, and try again.'; net.leave(); door(); return; }
-        if (people.length > cap) { say(''); const full = people.findIndex((x) => x.id === me) >= cap; if (full && !host) { leave(); problem = `this class is full — the room holds ${cap} people. please tell the academy team.`; door(); return; } }
-        if (sfu) { try { await startBig(); } catch (e) { leave(); problem = 'you could not be connected to the class. check your connection and try again.'; door(); return; } if (closed) return; }
-        inRoom = true;
+        if (sfu) say('connecting you to the class…', false, true);
+        // in the small room a "mute everyone" can only be judged by who says they are the teacher
+        try { await net.join(my, { people: onPeople, signal: onSignal, chat: (c) => onChat(c), cmd: (c) => { if (c && people.some((x) => x.id === c.from && x.host)) onCmd(c); } }); }
+        catch (e) { if (closed) return; shut(); problem = 'you could not be connected to the class. check your connection, make sure you are signed in, and try again.'; door(); return; }
+        if (closed) return;
         say(host ? 'you are in. turn on your microphone and camera when you are ready.' : 'you are in. your microphone and camera are off until you turn them on.');
         stage.scrollIntoView({ block: 'start', behavior: 'smooth' });
       }

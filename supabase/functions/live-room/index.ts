@@ -15,10 +15,14 @@
 // This function is the only place that knows those keys, so they never reach a browser.
 //
 // Who gets in:
-//   an admin        — any time, as the host (can mute or remove people)
+//   an admin of the academy — any time, as the teacher (can mute everyone)
 //   a learner       — only if the entry is open to them (it is free, or their payment was
-//                     confirmed), and only from 15 minutes before the class until it is over
+//                     confirmed) or the class is a free sample, and only from 15 minutes
+//                     before the class until it is over
 //   anyone else     — refused
+//
+// A LiveKit pass carries the person's name and whether they are the teacher, signed by this
+// function. The room believes only that, so nobody can pass themselves off as someone else.
 //
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -62,15 +66,16 @@ Deno.serve(async (req: Request) => {
     if (!user) return answer({ error: "signed_out", message: "sign in to join the live class." }, 401);
 
     const { data: lesson } = await db.from("course_lessons")
-      .select("id, course_id, title, kind, live_at, duration_min, is_hidden").eq("id", lesson_id).maybeSingle();
+      .select("id, course_id, title, kind, live_at, duration_min, is_hidden, is_preview").eq("id", lesson_id).maybeSingle();
     if (!lesson || lesson.kind !== "live" || lesson.is_hidden) return answer({ error: "not_found", message: "that live class does not exist." }, 404);
 
-    const { data: isAdmin } = await db.rpc("is_admin");
-    const host = isAdmin === true;
+    // only admins who run the academy teach; an admin of, say, the people & logos lists is a learner here
+    const { data: canTeach } = await db.rpc("admin_can", { p_area: "courses" });
+    const host = canTeach === true;
 
     if (!host) {
       const { data: open } = await db.rpc("course_open_to_me", { p_course: lesson.course_id });
-      if (open !== true) return answer({ error: "not_enrolled", message: "this live class is for learners whose enrolment is confirmed." }, 403);
+      if (open !== true && !lesson.is_preview) return answer({ error: "not_enrolled", message: "this live class is for learners whose enrolment is confirmed." }, 403);
       if (!lesson.live_at) return answer({ error: "no_date", message: "the date of this class has not been set yet." }, 409);
       const start = new Date(lesson.live_at).getTime();
       const end = start + Math.max(15, lesson.duration_min || 60) * 60_000;
@@ -79,9 +84,11 @@ Deno.serve(async (req: Request) => {
       if (now > end + STAYS_AFTER_MIN * 60_000) return answer({ error: "ended", message: "this class has ended." }, 409);
     }
 
-    // a pass is good for this room and this person only, and it runs out
+    // the name they chose on their own page comes first, as it does everywhere else on the website
+    const { data: profile } = await db.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
     const meta = (user.user_metadata ?? {}) as Record<string, string>;
-    const display = String(meta.full_name || meta.name || (user.email ?? "").split("@")[0] || "learner").slice(0, 60);
+    const display = String(profile?.full_name || meta.full_name || meta.name || (user.email ?? "").split("@")[0] || "learner").trim().slice(0, 60);
+    // a pass is good for this room and this person only, and it runs out
     const until = lesson.live_at
       ? Math.max(Date.now() + 60 * 60_000, new Date(lesson.live_at).getTime() + (Math.max(15, lesson.duration_min || 60) + STAYS_AFTER_MIN) * 60_000)
       : Date.now() + 3 * 60 * 60_000;
@@ -93,7 +100,7 @@ Deno.serve(async (req: Request) => {
       const sid = typeof session === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session) ? session : crypto.randomUUID();
       const now = Math.floor(Date.now() / 1000);
       const token = await livekitPass(lkKey, lkSecret, {
-        sub: `${user.id}_${sid}`, name: host ? `${display} (teacher)` : display, nbf: now - 10, exp: Math.floor(until / 1000),
+        sub: `${user.id}_${sid}`, name: display, metadata: JSON.stringify({ host }), nbf: now - 10, exp: Math.floor(until / 1000),
         video: { room: "class-" + lesson.id, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: host },
       });
       return answer({ provider: "livekit", url: lkUrl.replace(/^http/, "ws"), token, host, name: display, session: sid });
