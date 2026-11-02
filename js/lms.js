@@ -288,6 +288,25 @@
     if (!error) S.enrolled[course.id] = { course_id: course.id, completed_at: null };
   }
 
+  // ── certificates are issued the moment the last lesson is done ─────────────
+  // No form and no button: the database checks the work (every visible lesson complete, the course
+  // open to this learner) and prints the name on the account. If anything is missing it refuses and
+  // the certificate page asks for what it needs instead, so nothing here can break a lesson.
+  const certName = () => { const n = String(S.name || '').trim().replace(/\s+/g, ' '); return n.length >= 2 && !n.includes('@') ? n : ''; };
+  async function autoCertificate(course) {
+    if (S.certs[course.id]) return S.certs[course.id];
+    if (!sb || S.preview || !S.user || S.admin || !certName() || stats(course).pct < 100) return '';
+    try {
+      const { data, error } = await sb.rpc('issue_certificate', { p_course: course.id, p_name: certName() });
+      if (error || !data) return '';
+      S.certs[course.id] = data;
+      return data;
+    } catch (e) { return ''; }
+  }
+  // where "your certificate" goes: the finished certificate if there is one, otherwise the page that makes it
+  const certHref = (course) => U.cert(S.certs[course.id] ? { id: S.certs[course.id] } : { c: course.id });
+  const certWord = (course) => (S.certs[course.id] ? 'view my certificate' : 'get my certificate');
+
   async function markDone(course, lesson, score) {
     S.done[lesson.id] = true;
     if (!S.user || S.admin) { local.set(LOCAL_PROGRESS, S.done); return; }
@@ -298,6 +317,7 @@
       await sb.from('enrollments').update({ completed_at: at }).eq('user_id', S.user.id).eq('course_id', course.id);
       S.enrolled[course.id].completed_at = at;
     }
+    if (stats(course).pct === 100) await autoCertificate(course);
   }
 
   // ── small markdown: headings, lists, code, bold, italic, links ─────────────
@@ -1211,7 +1231,7 @@
                 <div class="hero-buttons" style="justify-content:flex-start;" id="course-cta">${action}${second}${going || S.admin || payState(course) === 'paid' ? '' : aidButton(course)}</div>
                 ${out ? `<p class="ask">this ${noun} is run by ${esc(out.by || out.host)} on their own website — you enrol, pay and learn there. the button opens it beside this page.</p>` : ''}
                 ${going || S.admin || out ? '' : `<p class="ask">a question before you start? ${helpLink('i have a question about “' + course.title + '”')}</p>`}
-                ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="${U.cert({ c: course.id })}" style="color:var(--green)">get your certificate →</a>` : ''}</small>` : ''}
+                ${going ? `<div class="progress"><i style="width:${st.pct}%"></i></div><small>${st.done} of ${st.count} lessons complete${done100 ? ` · <a href="${certHref(course)}" style="color:var(--green)">${S.certs[course.id] ? 'view your certificate' : 'get your certificate'} →</a>` : ''}</small>` : ''}
               </div>
             </div>
             <ul class="course-facts">
@@ -2173,7 +2193,7 @@
     });
     const goNext = () => {
       if (next) { location.href = url(next); return; }
-      location.href = stats(course).pct === 100 ? `${U.cert({ c: course.id })}` : courseUrl;
+      location.href = stats(course).pct === 100 ? certHref(course) : courseUrl;
     };
     $$('[data-auth]', root).forEach((b) => b.addEventListener('click', () => authDialog(b.dataset.auth)));
     wireBar();
@@ -2214,7 +2234,7 @@
         if (!wasDone && !locked(course, lesson, all)) { await markDone(course, lesson); refreshProgress(); }
         if (!noteBox) return;
         noteBox.hidden = false; noteBox.classList.add('is-done');
-        noteBox.innerHTML = `<span><b>✓ ${wasDone ? 'video finished.' : 'lesson complete.'}</b> ${next ? `next: ${esc(next.title)}` : 'that was the last lesson.'}</span><a class="btn-primary" href="${next ? url(next) : (stats(course).pct === 100 ? `${U.cert({ c: course.id })}` : courseUrl)}">${next ? 'next lesson' : stats(course).pct === 100 ? 'get my certificate' : 'back to the ' + typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
+        noteBox.innerHTML = `<span><b>✓ ${wasDone ? 'video finished.' : 'lesson complete.'}</b> ${next ? `next: ${esc(next.title)}` : 'that was the last lesson.'}</span><a class="btn-primary" href="${next ? url(next) : (stats(course).pct === 100 ? certHref(course) : courseUrl)}">${next ? 'next lesson' : stats(course).pct === 100 ? certWord(course) : 'back to the ' + typeOf(course)} <span class="btn-arrow" aria-hidden="true">→</span></a>`;
       };
       const restart = $('#from-start', root);
       if (restart) restart.addEventListener('click', () => { const w = local.get(LOCAL_WATCH); delete w[lesson.id]; local.set(LOCAL_WATCH, w); location.reload(); });
@@ -2334,7 +2354,7 @@
         side.innerHTML = sideList();
         const after = $('#after-quiz');
         after.hidden = false;
-        if (!next && stats(course).pct === 100) { after.href = `${U.cert({ c: course.id })}`; after.firstChild.textContent = 'get your certificate '; }
+        if (!next && stats(course).pct === 100) { after.href = certHref(course); after.firstChild.textContent = (S.certs[course.id] ? 'view your certificate ' : 'get your certificate '); }
       }
     });
   }
@@ -2665,64 +2685,98 @@
   }
 
   // ── view: certificate ──────────────────────────────────────────────────────
+  // The certificate is drawn by js/certificate.js on the approved template (img/certificate-template.jpg):
+  // the learner's name, the course and the date go in the blanks. The same drawing is what is shown,
+  // printed, saved as an image and saved as a pdf.
+  // the crest, also used by the course cards that have no picture
   const CREST = 'M10 8H90V52A40 40 0 0 1 10 52Z M22 20H46V44H22Z M54 20H78V44H54Z M22.3 56H46V79.7A28 28 0 0 1 22.3 56Z M77.7 56H54V79.7A28 28 0 0 0 77.7 56Z';
-  function certSheet({ name, title, instructor, date, detail, ref }) {
-    return `<div class="cert">
-      <div class="cert-top"><svg viewBox="0 0 100 100" aria-hidden="true"><path fill-rule="evenodd" d="${CREST}"/></svg><span>amaze consortium<br>certificate of completion</span></div>
-      <div class="cert-kicker">this certifies that</div>
-      <div class="cert-name" id="cert-name">${esc(name || 'your name')}</div>
-      <p class="cert-line">has completed every lesson and assessment in <b>${esc(title)}</b>${instructor ? `, taught by ${esc(instructor)}` : ''}.</p>
-      <div class="cert-foot">
-        <div><small>completed</small>${date}</div>
-        <div><small>${detail[0]}</small>${detail[1]}</div>
-        <div><small>reference</small>${esc(ref)}</div>
-      </div>
-    </div>`;
+  const slug = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'certificate';
+
+  async function drawCert(stage, info) {
+    if (!window.AmazeCert) { stage.innerHTML = '<p class="lms-empty">the certificate could not be drawn. reload the page and try again.</p>'; return null; }
+    try {
+      const canvas = await window.AmazeCert.render(info);
+      canvas.className = 'cert-canvas';
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', `certificate of completion for ${info.name || 'your name'}: ${info.title}`);
+      stage.replaceChildren(canvas);
+      return canvas;
+    } catch (e) {
+      stage.innerHTML = '<p class="lms-empty">the certificate could not be drawn. check your connection and reload the page.</p>';
+      return null;
+    }
   }
+
+  // save as pdf / save as image / print — each reads whatever is on the canvas at that moment
+  function wireCertTools(root, getCanvas, getFile) {
+    const run = (sel, fn) => {
+      const b = $(sel, root);
+      if (!b) return;
+      b.addEventListener('click', async () => {
+        const c = getCanvas(); if (!c) return;
+        b.disabled = true;
+        try { await fn(c); } finally { b.disabled = false; }
+      });
+    };
+    run('#cert-pdf', async (c) => window.AmazeCert.save(await window.AmazeCert.pdf(c), getFile() + '.pdf'));
+    run('#cert-img', async (c) => window.AmazeCert.save(await window.AmazeCert.png(c), getFile() + '.png'));
+    run('#cert-print', async () => window.print());
+  }
+  const certButtons = (extra = '') => `${extra}
+    <button class="btn-primary" type="button" id="cert-pdf">download pdf <span class="btn-arrow" aria-hidden="true">↓</span></button>
+    <button class="btn-outline" type="button" id="cert-img">download image <span class="btn-arrow" aria-hidden="true">↓</span></button>
+    <button class="btn-outline" type="button" id="cert-print">print <span class="btn-arrow" aria-hidden="true">↗</span></button>`;
 
   async function certificate() {
     const root = $('#cert-root');
     const id = Q.id;
 
-    // ?id= — anyone can open this link to check a certificate is genuine
+    // /certificate/<id> — anyone can open this link to check a certificate is genuine
     if (id) {
       const rows = S.preview ? [] : await soft(sb.rpc('get_certificate', { p_id: id }));
       const c = rows[0];
       if (!c) {
-        root.innerHTML = '<div class="gate" style="max-width:640px;"><h1>no certificate with that reference.</h1><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="${U.catalog()}">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>';
+        root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>no certificate with that reference.</h1><p>check the link or the reference printed on the certificate. references look like AC-1A2B3C4D5E.</p><div class="hero-buttons"><a class="btn-primary" href="${U.catalog()}">browse courses <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
         return;
       }
       document.title = `certificate — ${c.learner_name}`;
       const link = new URL(U.cert({ id: c.id }), location.href).href;
+      const mine = Object.values(S.certs).includes(c.id);
       root.innerHTML = `<div>
         <div class="cert-tools">
           <div class="verified">verified — issued by amaze consortium on ${day(c.issued_at)}</div>
-          <button class="btn-outline" type="button" id="cert-copy">copy link <span class="btn-arrow" aria-hidden="true">↗</span></button>
-          <button class="btn-primary" type="button" id="cert-print">print or save as pdf <span class="btn-arrow" aria-hidden="true">↓</span></button>
+          ${certButtons('<button class="btn-outline" type="button" id="cert-copy">copy link <span class="btn-arrow" aria-hidden="true">↗</span></button>')}
         </div>
-        ${certSheet({ name: c.learner_name, title: c.course_title, instructor: c.instructor_name, date: day(c.issued_at), detail: ['verify at', 'amazeconsortium.org/academy'], ref: c.id })}
+        <div class="cert-stage" id="cert-stage"><p class="lms-loading" style="padding:0;">drawing the certificate…</p></div>
+        ${mine ? '<p class="cert-note">this certificate is yours to keep and share — anyone with the link can check it is genuine. name printed wrong? update your name in your profile, then write to <a href="mailto:learn@amazeconsortium.org">learn@amazeconsortium.org</a> and we will reissue it.</p>' : ''}
       </div>`;
-      $('#cert-print').addEventListener('click', () => window.print());
+      const canvas = await drawCert($('#cert-stage'), { name: c.learner_name, title: c.course_title, date: c.issued_at, ref: c.id });
+      wireCertTools(root, () => canvas, () => `amaze-academy-certificate-${slug(c.course_title)}-${slug(c.learner_name)}`);
       $('#cert-copy').addEventListener('click', async (e) => { try { await navigator.clipboard.writeText(link); e.currentTarget.firstChild.textContent = 'link copied '; } catch (err) { prompt('copy this link', link); } });
       return;
     }
 
+    // /certificate?c=<course> — the course is finished and the certificate has not been made yet
     const course = S.courses.find((c) => c.id === Q.c);
     if (!course) { location.replace(U.catalog()); return; }
     if (S.certs[course.id]) { location.replace(U.cert({ id: S.certs[course.id] })); return; }
     const st = stats(course);
     if (st.pct < 100 || !st.count) {
-      root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>not quite there yet.</h1><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be waiting here.</p><div class="hero-buttons"><a class="btn-primary" href="${U.learn(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
+      root.innerHTML = `<div class="gate" style="max-width:640px;"><h1>not quite there yet.</h1><p>you have completed ${st.done} of ${st.count} lessons in ${esc(course.title)}. finish the rest and your certificate will be made for you automatically.</p><div class="hero-buttons"><a class="btn-primary" href="${U.learn(course.id)}">continue learning <span class="btn-arrow" aria-hidden="true">→</span></a></div></div>`;
       return;
     }
     document.title = `certificate — ${course.title}`;
 
-    // signed in: the database checks the work and issues a permanent, verifiable certificate
+    // signed in: the certificate is issued on the spot, under the name on the account
     if (S.user && !S.admin) {
-      root.innerHTML = `<div class="gate" style="max-width:640px;"><span class="lesson-kicker">course complete</span><h1 style="margin-top:14px;">claim your certificate.</h1>
-        <p>enter your name exactly as it should be printed. it can't be changed once the certificate is issued.</p>
+      root.innerHTML = '<p class="lms-loading" style="padding:0;">making your certificate…</p>';
+      const made = await autoCertificate(course);
+      if (made) { location.replace(U.cert({ id: made })); return; }
+      // no usable name on the account, or the database wants something else: ask, and show its reason
+      root.innerHTML = `<div class="gate" style="max-width:640px;"><span class="lesson-kicker">course complete</span><h1 style="margin-top:14px;">one last thing.</h1>
+        <p>enter your name exactly as it should be printed on the certificate. it can't be changed once the certificate is issued.</p>
         <form id="claim"><label class="field" style="margin-top:0;"><span>name on the certificate</span><input name="name" required minlength="2" maxlength="80" value="${esc(S.name)}"></label>
-        <button class="btn-primary" type="submit" style="margin-top:24px;">issue my certificate <span class="btn-arrow" aria-hidden="true">→</span></button></form></div>`;
+        <button class="btn-primary" type="submit" style="margin-top:24px;">make my certificate <span class="btn-arrow" aria-hidden="true">→</span></button></form></div>`;
       $('#claim').addEventListener('submit', async (e) => {
         e.preventDefault();
         const { data, error } = await sb.rpc('issue_certificate', { p_course: course.id, p_name: new FormData(e.target).get('name').trim() });
@@ -2732,17 +2786,21 @@
       return;
     }
 
-    // no account: a keepsake only — it has no reference and can't be verified
+    // no account (or an admin looking around): a keepsake only — it has no reference and can't be verified
     root.innerHTML = `<div>
       <div class="cert-tools">
-        <label class="field"><span>name on the certificate</span><input id="cert-name-in" placeholder="your full name"></label>
-        <button class="btn-primary" type="button" id="cert-print" style="align-self:flex-end;">print or save as pdf <span class="btn-arrow" aria-hidden="true">↓</span></button>
+        <label class="field"><span>name on the certificate</span><input id="cert-name-in" placeholder="your full name" maxlength="80" autocomplete="name"></label>
+        ${certButtons()}
       </div>
       <p class="lms-notice" style="max-width:none;">this copy is not verifiable because you are not signed in. create a free account and finish the course there to get a certificate with a reference anyone can check.</p>
-      ${certSheet({ name: '', title: course.title, instructor: teacherNames(course), date: day(Date.now()), detail: ['course length', `${st.count} lessons · ${length(st.minutes)}`], ref: 'unverified copy' })}
+      <div class="cert-stage" id="cert-stage"><p class="lms-loading" style="padding:0;">drawing the certificate…</p></div>
     </div>`;
-    $('#cert-name-in').addEventListener('input', (e) => { $('#cert-name').textContent = e.target.value || 'your name'; });
-    $('#cert-print').addEventListener('click', () => window.print());
+    const input = $('#cert-name-in'), stage = $('#cert-stage');
+    const info = () => ({ name: input.value, title: course.title, date: Date.now() });
+    let canvas = await drawCert(stage, info());
+    let timer = 0;
+    input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(async () => { canvas = (await drawCert(stage, info())) || canvas; }, 120); });
+    wireCertTools(root, () => canvas, () => `amaze-academy-certificate-${slug(course.title)}-${slug(input.value)}`);
   }
 
   // ── boot ───────────────────────────────────────────────────────────────────

@@ -70,7 +70,7 @@ A small learning platform on the site's own Supabase project (`seed/website-back
 - **In the player**: private notes, files and links per lesson, Q&A with instructor replies, course announcements, optional locked lesson order.
 - **Course page**: introduction video, skills, requirements, audience, learner count, ratings and reviews (one per enrolled learner).
 - **Learner dashboard**: `courses/my.html`.
-- **Certificates**: issued by the database only when every lesson is complete; each has a reference anyone can check at `courses/certificate.html?id=`.
+- **Certificates**: issued by the database only when every lesson is complete, and now issued automatically the moment the last lesson is done (under the account's name; the certificate page asks for a name only if the account has none). Drawn by `js/certificate.js` on `img/certificate-template.jpg`; downloadable as PDF or PNG; each has a reference anyone can check at `academy/certificate/<id>`.
 - **Admin**: everything above is edited under courses; lessons, modules and list items can be hidden without deleting; every page section has a shown / hidden switch under pages.
 - Each feature is left out of the page, not broken, if its table isn't there yet.
 
