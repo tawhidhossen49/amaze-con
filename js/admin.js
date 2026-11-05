@@ -861,6 +861,10 @@
           </ol>
         </div>
         <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button></div></form></details>
+      <details class="group learners-box"><summary>learner numbers<small>${ps.hide_learners ? '<b>hidden</b> · press to change' : '<b>shown</b> · press to change'}</small></summary>
+      <form id="learners-form" style="padding:4px 20px 22px;">
+        <div class="field"><span>show how many learners joined each course, program and webinar?</span>${choice('hide_learners', [['0', 'show them', 'for example “12 learners”, on the cards and on each page', '#'], ['1', 'hide them', 'the number is not shown anywhere on the website', '—']], ps.hide_learners ? '1' : '0', 'choice--2')}</div>
+        <div class="editor-foot"><button class="btn btn--solid" type="submit">save</button></div></form></details>
       <details class="group aid-box"><summary>financial aid — your google form<small>${ps.aid ? '<b>on</b> · the button shows on every paid course, program and webinar' : 'not set yet — no financial aid button is shown'}</small></summary>
       <form id="aid-form" style="padding:4px 20px 22px;">
         <label class="field"><span>the link to your financial aid google form</span><input name="aid" type="url" inputmode="url" autocomplete="off" value="${esc(ps.aid || '')}" placeholder="https://forms.gle/…">
@@ -919,7 +923,7 @@
             <span class="sub">${c.starts_at ? whenText(c.starts_at) + ' · ' : ''}${f.away ? 'on another website' : `${count(c.id)} lesson${count(c.id) === 1 ? '' : 's'}`} · ${esc(c.category)} · ${esc(c.level)}</span></div>
           <div class="row-actions"><button class="btn btn--sm btn--solid" data-open>edit</button><button class="btn btn--sm" data-toggle title="${c.status === 'published' ? 'take it off the website (it stays here as a draft)' : 'put it on the academy page'}">${c.status === 'published' ? 'unpublish' : 'publish'}</button>
             <details class="menu"><summary class="btn btn--sm" aria-label="more actions">more ▾</summary><div class="menu-in">
-              <a href="${A.root}academy/${encodeURIComponent(c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
+              <a href="${A.root}academy/${encodeURIComponent(c.slug || c.id)}" target="_blank" rel="noopener">see it on the site ↗</a>
               ${f.away ? '' : `<button type="button" data-fee title="${f.paid ? 'let anyone with an account enrol without paying' : 'send learners to the payment page before they can enrol'}">${f.paid ? 'make free' : 'make paid'}</button>`}
               <button type="button" data-feature title="${c.featured ? 'take it out of the featured card' : 'show it in the large featured card at the top of the academy page'}">${c.featured ? '★ featured' : '☆ feature'}</button>
             </div></details></div>
@@ -941,6 +945,12 @@
       const on = new FormData(e.target).get('email_login') === '1';
       const fresh = (await payLoad()).settings;
       if (await paySave('pay.settings', { ...fresh, email_login: on }, on ? 'saved — learners can now also create an account with their email' : 'saved — learners sign in with google only')) coursesView();
+    });
+    $('#learners-form', main).addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const hide = new FormData(e.target).get('hide_learners') === '1';
+      const fresh = (await payLoad()).settings;
+      if (await paySave('pay.settings', { ...fresh, hide_learners: hide }, hide ? 'saved — the number of learners is hidden on the website' : 'saved — the number of learners is shown on the website')) coursesView();
     });
     $('#aid-form', main).addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1182,7 +1192,7 @@
     };
 
     main.innerHTML = head(id ? esc(course.title) : 'new ' + noun, id ? `<span class="badge${course.status === 'published' ? ' badge--on' : ''}" style="margin:0;">${course.status === 'published' ? 'on the website' : 'draft — not on the website yet'}</span>` : 'three short steps: fill in the basics, press create, then add lessons.',
-      `<button class="btn" data-back>← back to academy</button>${id ? `<a class="btn" href="${A.root}academy/${encodeURIComponent(id)}" target="_blank" rel="noopener">see it on the site ↗</a>` : ''}`)
+      `<button class="btn" data-back>← back to academy</button>${id ? `<a class="btn" href="${A.root}academy/${encodeURIComponent(course.slug || id)}" target="_blank" rel="noopener">see it on the site ↗</a>` : ''}`)
       + setupNote()
       + `<form id="course-form" class="course-form">
         <section class="card">
@@ -1526,12 +1536,20 @@
       const aid = away || v.pay_paid === '0' ? '' : (v.pay_aid || '').trim();
       if (aid && !/^https:\/\/[^\s.]+\.[^\s]+$/i.test(aid)) return toast('the financial aid form has to be a full link, starting with https://', true);
       const fee = away ? { paid: false, price: nowPrice, was: wasPrice, external: link, external_by: (v.external_by || '').trim() } : { paid: v.pay_paid !== '0', price: nowPrice, was: wasPrice, ...(aid ? { aid } : {}) };
+      // the web address follows the name: a renamed entry gets a new one, and its earlier addresses keep leading to it
+      const address = (t) => { const a = slug(t); return ['course', 'learn', 'pay', 'my', 'my-learning', 'certificate', 'index', 'sample'].includes(a) ? a + '-' + noun : a; };
+      const { data: everyone } = await sb.from('courses').select('id,slug,old_slugs');
+      const taken = (except) => new Set((everyone || []).filter((c) => c.id !== except).flatMap((c) => [c.id, c.slug, ...(c.old_slugs || [])]).filter(Boolean));
+      if (id && row.title !== course.title && address(row.title)) {
+        const now = course.slug || id, used = taken(id), want = address(row.title);
+        let pick = want, n = 2;
+        while (used.has(pick)) pick = `${want}-${n++}`;
+        if (pick !== now) { row.slug = pick === id ? null : pick; row.old_slugs = [...new Set([...(course.old_slugs || []), now])].filter((x) => x !== pick && x !== id); }
+      }
       if (id) { if ((await run(sb.from('courses').update(row).eq('id', id))) && (await paySave('pay.course.' + id, fee, 'saved'))) reload(); return; }
-      let newId = slug(row.title);
+      const newId = address(row.title);
       if (!newId) return toast('give the course a title first', true);
-      if (['course', 'learn', 'pay', 'my', 'my-learning', 'certificate', 'index', 'sample'].includes(newId)) newId += '-' + noun;
-      const { data: clash } = await sb.from('courses').select('id').eq('id', newId).maybeSingle();
-      if (clash) return toast('there is already a course with that title — choose a different one', true);
+      if (taken('').has(newId)) return toast('there is already a course with that title — choose a different one', true);
       if ((await run(sb.from('courses').insert({ ...row, id: newId }))) && (await paySave('pay.course.' + newId, fee, 'created — now add a module'))) go('courses', newId);
     });
     if (!id) return;

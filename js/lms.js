@@ -28,11 +28,14 @@
   const params = new URLSearchParams(location.search);
   // ── addresses ──────────────────────────────────────────────────────────────
   const HOME = new URL(A.root).pathname + 'academy/';
+  // a course is known by its id, but its address follows its current name (renamed in the admin panel);
+  // its earlier addresses still lead to it, see the boot below
+  const addr = (id) => { const c = S.courses.find((x) => x.id === id); return encodeURIComponent((c && c.slug) || id); };
   const U = {
     catalog: () => HOME,
-    course: (id) => HOME + encodeURIComponent(id),
-    learn: (id, lesson) => HOME + encodeURIComponent(id) + '/learn' + (lesson ? '/' + encodeURIComponent(lesson) : ''),
-    pay: (id) => HOME + encodeURIComponent(id) + '/pay',
+    course: (id) => HOME + addr(id),
+    learn: (id, lesson) => HOME + addr(id) + '/learn' + (lesson ? '/' + encodeURIComponent(lesson) : ''),
+    pay: (id) => HOME + addr(id) + '/pay',
     my: () => HOME + 'my-learning',
     cert: (x) => (x.id ? HOME + 'certificate/' + encodeURIComponent(x.id) : HOME + 'certificate?c=' + encodeURIComponent(x.c)),
   };
@@ -270,9 +273,11 @@
     const n = S.numbers[course.id];
     return n && +n.reviews > 0 ? `<span class="stars">★ ${(+n.rating).toFixed(1)}</span> <span>(${n.reviews})</span>` : '';
   };
+  // the admin panel can hide how many learners each entry has (academy → learner numbers)
+  const showLearners = () => !S.pay.settings.hide_learners;
   const learners = (course) => {
     const n = S.numbers[course.id];
-    return n && +n.learners > 0 ? `${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}` : '';
+    return n && +n.learners > 0 && showLearners() ? `${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}` : '';
   };
 
   async function getContent(lesson) {
@@ -870,7 +875,7 @@
       `<span class="b">${esc(course.level)}</span>`,
       +n.reviews > 0 ? `<span class="b"><i class="star">★</i> ${(+n.rating).toFixed(1)}</span>` : '',
       +n.reviews > 0 ? `<span class="b">${(+n.reviews).toLocaleString()} rating${+n.reviews === 1 ? '' : 's'}</span>` : '',
-      +n.learners > 0 ? `<span class="b">${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}</span>` : '',
+      +n.learners > 0 && showLearners() ? `<span class="b">${(+n.learners).toLocaleString()} learner${+n.learners === 1 ? '' : 's'}</span>` : '',
     ].join('');
     const foot = out
       ? `<div class="ucard-price">${priceTag(course)}<small>${course.starts_at ? when(course.starts_at) : 'opens on their website'}</small></div><span class="ucard-btn">view ${type} ↗</span>`
@@ -1130,7 +1135,7 @@
     const root = $('#course-root');
     const course = S.courses.find((c) => c.id === Q.c);
     if (!course) {
-      root.innerHTML = '<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="${U.catalog()}">← academy</a><h1 class="course-h1">not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>';
+      root.innerHTML = `<section class="course-hero"><div class="course-hero-inner"><a class="crumb" href="${U.catalog()}">← academy</a><h1 class="course-h1">not found.</h1><p class="page-sub" style="margin:28px 0 96px;">it may have been renamed or unpublished.</p></div></section>`;
       return;
     }
     document.title = `${course.title} — amaze consortium`;
@@ -2809,8 +2814,11 @@
     await loadOutline();
     await loadLearner();
     wireAccountButton();
-    // a link in the old form (…/course.html?c=x) is shown as the new one, so what gets copied and shared is clean
-    if (Q.old && view !== 'catalog' && history.replaceState) {
+    // an address from before a course was renamed still leads to it
+    const moved = Q.c && !S.courses.some((c) => c.id === Q.c) && S.courses.find((c) => c.slug === Q.c || (c.old_slugs || []).includes(Q.c));
+    if (moved) Q.c = moved.id;
+    // a link in the old form (…/course.html?c=x), or an old address, is shown as the current one, so what gets copied and shared is clean
+    if ((Q.old || Q.c) && view !== 'catalog' && history.replaceState) {
       const clean = view === 'course' && Q.c ? U.course(Q.c) : view === 'learn' && Q.c ? U.learn(Q.c, Q.l) : view === 'pay' && Q.c ? U.pay(Q.c) : view === 'my' ? U.my() : view === 'certificate' && Q.id ? U.cert({ id: Q.id }) : view === 'certificate' && Q.c ? U.cert({ c: Q.c }) : '';
       if (clean && clean !== location.pathname + location.search) history.replaceState(null, '', clean + location.hash);
     }
